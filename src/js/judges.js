@@ -44,6 +44,7 @@ class JudgeManager {
     };
 
     this.currentRound = 1;
+    this.isDemoMode = false;
     this.onJudgeChange = null;
   }
 
@@ -168,6 +169,7 @@ class JudgeManager {
    * nuanced, realistic variations (±0.3 to ±0.8) for Judge 2 and Judge 3.
    */
   autoVaryJudges() {
+    this.isDemoMode = true;
     this.saveCurrentJudgeScores();
     const r = this.currentRound || 1;
     const base = this.judgeScores[1][r];
@@ -201,10 +203,12 @@ class JudgeManager {
     }
 
     // Flash feedback
-    const badge = document.getElementById('judge-consensus-badge');
-    if (badge) {
-      badge.classList.add('pulse-glow');
-      setTimeout(() => badge.classList.remove('pulse-glow'), 600);
+    if (typeof document !== 'undefined') {
+      const badge = document.getElementById('judge-consensus-badge');
+      if (badge) {
+        badge.classList.add('pulse-glow');
+        setTimeout(() => badge.classList.remove('pulse-glow'), 600);
+      }
     }
 
     this.updateConsensusBadge();
@@ -250,14 +254,20 @@ class JudgeManager {
       });
     }
 
-    const avgTotal1 = Number((sumTotal1 / this.totalJudges).toFixed(1));
-    const avgTotal2 = Number((sumTotal2 / this.totalJudges).toFixed(1));
+    const scoredJudges = results.filter(j => j.total1 > 0 || j.total2 > 0);
+    const isComplete = scoredJudges.length === this.totalJudges;
+
+    const avgTotal1 = isComplete ? Number((sumTotal1 / this.totalJudges).toFixed(1)) : 0;
+    const avgTotal2 = isComplete ? Number((sumTotal2 / this.totalJudges).toFixed(1)) : 0;
 
     let consensusWinner = null;
-    let decisionType = 'DRAW'; // 'UNANIMOUS' | 'SPLIT' | 'DRAW'
-    let decisionTally = '0 - 0';
+    let decisionType = 'PENDING';
+    let decisionTally = `${votes1} - ${votes2} (${scoredJudges.length}/${this.totalJudges} Scored)`;
 
-    if (votes1 === 3) {
+    if (!isComplete) {
+      decisionType = 'PENDING';
+      consensusWinner = null;
+    } else if (votes1 === 3) {
       consensusWinner = 1;
       decisionType = 'UNANIMOUS';
       decisionTally = '3 - 0';
@@ -265,15 +275,28 @@ class JudgeManager {
       consensusWinner = 2;
       decisionType = 'UNANIMOUS';
       decisionTally = '3 - 0';
-    } else if (votes1 === 2) {
+    } else if (votes1 === 2 && votes2 === 1) {
       consensusWinner = 1;
       decisionType = 'SPLIT';
       decisionTally = '2 - 1';
-    } else if (votes2 === 2) {
+    } else if (votes2 === 2 && votes1 === 1) {
       consensusWinner = 2;
       decisionType = 'SPLIT';
       decisionTally = '2 - 1';
+    } else if (votes1 === 2 && draws === 1) {
+      consensusWinner = 1;
+      decisionType = 'MAJORITY';
+      decisionTally = '2 - 0 (1 Draw)';
+    } else if (votes2 === 2 && draws === 1) {
+      consensusWinner = 2;
+      decisionType = 'MAJORITY';
+      decisionTally = '2 - 0 (1 Draw)';
+    } else if (votes1 === 1 && votes2 === 1) {
+      consensusWinner = null;
+      decisionType = 'DRAW';
+      decisionTally = '1 - 1 (1 Draw)';
     } else {
+      consensusWinner = null;
       decisionType = 'DRAW';
       decisionTally = `${votes1} - ${votes2}`;
     }
@@ -288,11 +311,19 @@ class JudgeManager {
       draws,
       consensusWinner,
       decisionType,
-      decisionTally
+      decisionTally,
+      isComplete
     };
   }
 
+  setJudgeName(judgeId, name) {
+    if (this.judgeNames[judgeId] && name) {
+      this.judgeNames[judgeId] = name.trim();
+    }
+  }
+
   updateConsensusBadge() {
+    if (typeof document === 'undefined') return;
     const badge = document.getElementById('judge-consensus-badge');
     if (!badge || this.mode !== 'panel') return;
 
@@ -375,6 +406,7 @@ class JudgeManager {
   }
 
   renderUI() {
+    if (typeof document === 'undefined') return;
     // Mode Buttons
     document.querySelectorAll('.judge-mode-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.mode === this.mode);
@@ -415,6 +447,7 @@ class JudgeManager {
       }
     }
     this.activeJudge = 1;
+    this.isDemoMode = false;
     this.renderUI();
   }
 }

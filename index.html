@@ -51,8 +51,17 @@
         <button id="btn-shortcuts-guide" class="shortcuts-guide-btn" type="button" title="Keyboard Shortcuts Cheat Sheet (Press ?)">
           ⌨️ Keys [?]
         </button>
-        <button id="btn-broadcast-mode" class="broadcast-toggle-btn" type="button" title="Toggle OBS Studio / Streamer Clean Broadcast Mode">
-          🎥 Stream Mode
+        <button id="btn-open-broadcast-popout" class="control-btn secondary" type="button" title="Open OBS Studio / 2nd Monitor Standalone Stream View">
+          📺 Popout Stream
+        </button>
+        <button id="btn-broadcast-mode" class="broadcast-toggle-btn" type="button" title="Toggle Clean Broadcast Screen Overlay">
+          🎥 Screen Mode
+        </button>
+        <button id="btn-toggle-motion" class="icon-toggle-btn" type="button" title="Toggle Reduced Motion">
+          🌀 Motion
+        </button>
+        <button id="btn-toggle-flash" class="icon-toggle-btn" type="button" title="Toggle No-Flash Mode (Disable Strobes/Flashes)">
+          ⚡ No-Flash
         </button>
         <div class="league-selector-wrap">
           <label for="active-league-select" class="league-label">Active League</label>
@@ -214,6 +223,50 @@
     <section id="screen-battle" class="app-screen">
       <div class="screen-header">
         <h2 id="battle-league-title">Battle Arena</h2>
+      </div>
+
+      <!-- Crash Recovery Banner -->
+      <div id="session-recovery-banner" class="session-recovery-banner" style="display:none;">
+        <div class="recovery-info">
+          <span class="recovery-icon">⚡</span>
+          <div>
+            <strong>UNSAVED BATTLE DETECTED</strong>
+            <span id="recovery-desc">Resume in-progress battle from where you left off?</span>
+          </div>
+        </div>
+        <div class="recovery-actions">
+          <button type="button" id="btn-resume-battle" class="control-btn primary">Resume Battle</button>
+          <button type="button" id="btn-discard-battle" class="control-btn secondary">Discard</button>
+        </div>
+      </div>
+
+      <!-- Host Battle Flow & Readiness Desk -->
+      <div class="host-battle-flow-bar" id="host-battle-flow-bar">
+        <div class="flow-readiness-checklist">
+          <div class="readiness-chip" id="ready-contestants">
+            <span class="chip-dot"></span> <span>Contestants</span>
+          </div>
+          <div class="readiness-chip" id="ready-audio">
+            <span class="chip-dot"></span> <span>Beats Loaded</span>
+          </div>
+          <div class="readiness-chip" id="ready-judges">
+            <span class="chip-dot"></span> <span>Judges Ready</span>
+          </div>
+          <div class="readiness-chip" id="ready-preset">
+            <span class="chip-dot"></span> <span id="ready-preset-name">Classic 10</span>
+          </div>
+        </div>
+        <div class="flow-primary-action-wrap">
+          <button type="button" id="btn-primary-flow" class="flow-primary-btn">
+            <span class="flow-step-icon">▶</span>
+            <span id="flow-primary-label">Start Soundcheck</span>
+          </button>
+        </div>
+        <div class="flow-quick-controls">
+          <button type="button" id="btn-flow-pause-all" class="flow-action-btn" title="Pause all contestant decks and audio immediately">⏸ Pause All</button>
+          <button type="button" id="btn-flow-stop-all" class="flow-action-btn" title="Stop listening period and reset cue">⏹ Stop Beat</button>
+          <button type="button" id="btn-flow-lock-round" class="flow-action-btn primary" title="Lock scorecards for current round">🔒 Lock Round</button>
+        </div>
       </div>
 
       <!-- Contestant Pickers -->
@@ -421,7 +474,7 @@
         <section id="center-controls">
           <button id="btn-submit" class="control-btn primary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Submit
+            Finalize Match
           </button>
           <button id="btn-reset" class="control-btn secondary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
@@ -431,6 +484,39 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export Card
           </button>
+          <button id="btn-view-report" class="control-btn secondary" type="button" style="display:none;" title="Open Certified Post-Battle Producer Report">
+            📊 Producer Report
+          </button>
+
+          <!-- Scoring Engine Config Pills -->
+          <div class="scoring-config-pill-bar">
+            <div class="sc-group">
+              <label for="scoring-preset-select">Preset:</label>
+              <select id="scoring-preset-select" class="scoring-config-select">
+                <option value="classic10">Classic 10</option>
+                <option value="core5">Core 5 (Quick)</option>
+                <option value="boombap">Boom-Bap Focus</option>
+                <option value="trap808">Trap / 808 Focus</option>
+              </select>
+            </div>
+            <div class="sc-group">
+              <label for="scoring-step-select">Step:</label>
+              <select id="scoring-step-select" class="scoring-config-select">
+                <option value="0.1">0.1</option>
+                <option value="0.25">0.25</option>
+                <option value="0.5">0.5</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Timestamped Feedback Notes -->
+          <div class="timestamp-notes-panel">
+            <div class="ts-input-wrap">
+              <input type="text" id="input-timestamp-note" placeholder="0:42 — strong switch-up..." class="ts-note-input" />
+              <button type="button" id="btn-add-timestamp-note" class="ts-add-btn" title="Add timestamped note">⏱️ Note</button>
+            </div>
+            <div id="active-timestamp-notes-list" class="ts-notes-mini-list"></div>
+          </div>
 
           <!-- DJ Battle Soundboard -->
           <div class="dj-soundboard" id="dj-soundboard">
@@ -1132,6 +1218,7 @@
         <p class="winner-name" id="winner-name"></p>
         <div class="winner-score" id="winner-score"></div>
         <button id="btn-dismiss-winner" class="control-btn primary">Continue</button>
+        <button id="btn-winner-report" class="control-btn secondary" style="margin-top:10px;">📊 View Producer Report</button>
       </div>
     </div>
 

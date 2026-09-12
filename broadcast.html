@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WWTS Beat Battle — Broadcast View (OBS / 2nd Monitor)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/index.css" />
+  <style>
+    body.broadcast-view {
+      margin: 0;
+      padding: 0;
+      background: #050508;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .broadcast-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .broadcast-top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 20;
+      background: linear-gradient(180deg, rgba(5,5,8,0.92) 0%, transparent 100%);
+      pointer-events: none;
+    }
+    .broadcast-brand {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.4rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #ffaa00;
+      text-shadow: 0 0 16px rgba(255,170,0,0.5);
+    }
+    .broadcast-round-tag {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.2rem;
+      letter-spacing: 3px;
+      color: #ffffff;
+      text-shadow: 0 0 20px #ff2d2d;
+    }
+    .broadcast-live-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #ff2d2d;
+      background: rgba(255,45,45,0.15);
+      border: 1px solid rgba(255,45,45,0.4);
+      padding: 6px 14px;
+      border-radius: 20px;
+    }
+    .broadcast-live-dot {
+      width: 10px;
+      height: 10px;
+      background: #ff2d2d;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #ff2d2d;
+      animation: broadcastBlink 1s infinite alternate;
+    }
+    @keyframes broadcastBlink { from { opacity: 0.3; } to { opacity: 1; } }
+
+    .broadcast-stage-area {
+      flex: 1;
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    #broadcast-dj-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Bottom Match Score Overlay */
+    .broadcast-bottom-hud {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      background: rgba(12, 14, 22, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 16px 36px;
+      z-index: 25;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+      min-width: 780px;
+      justify-content: space-between;
+    }
+    .b-player-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+    }
+    .b-player-card.p2 {
+      flex-direction: row-reverse;
+      text-align: right;
+    }
+    .b-player-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.4rem;
+      line-height: 1;
+      letter-spacing: 1px;
+    }
+    .b-player-card.p1 .b-player-name { color: #ff4d4d; text-shadow: 0 0 15px rgba(255,45,45,0.4); }
+    .b-player-card.p2 .b-player-name { color: #00e5ff; text-shadow: 0 0 15px rgba(0,229,255,0.4); }
+    .b-player-tally {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #eaeef8;
+      background: rgba(255,255,255,0.06);
+      padding: 4px 12px;
+      border-radius: 8px;
+    }
+    .b-score-val {
+      font-family: 'Orbitron', monospace;
+      font-size: 2.6rem;
+      font-weight: 900;
+      color: #ffffff;
+    }
+    .b-timer-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 16px;
+      border-left: 1px solid rgba(255,255,255,0.1);
+      border-right: 1px solid rgba(255,255,255,0.1);
+    }
+    .b-timer-clock {
+      font-family: 'Orbitron', monospace;
+      font-size: 2.8rem;
+      font-weight: 900;
+      color: #ffaa00;
+      text-shadow: 0 0 20px rgba(255,170,0,0.5);
+    }
+    .b-timer-clock.critical {
+      color: #ff2d2d;
+      animation: timerPulse 0.5s ease-in-out infinite;
+    }
+    .b-timer-sub {
+      font-family: 'Orbitron', monospace;
+      font-size: 0.75rem;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+    }
+
+    /* Winner Reveal Overlay */
+    .broadcast-winner-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5,5,8,0.92);
+      backdrop-filter: blur(20px);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      animation: winnerFadeIn 0.5s ease-out;
+    }
+    @keyframes winnerFadeIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+    .b-winner-trophy { font-size: 4.5rem; margin-bottom: 12px; }
+    .b-winner-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #ffaa00;
+      letter-spacing: 4px;
+    }
+    .b-winner-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 5.5rem;
+      letter-spacing: 3px;
+      color: #ffffff;
+      text-shadow: 0 0 40px #ff2d2d, 0 0 80px rgba(255,45,45,0.5);
+      margin: 8px 0;
+    }
+    .b-winner-verdict {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #00e5ff;
+      letter-spacing: 2px;
+      background: rgba(0,229,255,0.1);
+      border: 1px solid rgba(0,229,255,0.3);
+      padding: 8px 24px;
+      border-radius: 30px;
+    }
+  </style>
+</head>
+<body class="broadcast-view">
+  <div class="broadcast-container">
+    <!-- Top Branding & Round Status -->
+    <header class="broadcast-top-bar">
+      <div class="broadcast-brand">WHO WANT THAT SMOKE</div>
+      <div class="broadcast-round-tag" id="b-round-title">ROUND 1</div>
+      <div class="broadcast-live-badge">
+        <span class="broadcast-live-dot"></span>
+        <span>STREAM LIVE</span>
+      </div>
+    </header>
+
+    <!-- Center Stage 3D Simulation -->
+    <div class="broadcast-stage-area" id="dj-canvas-container">
+      <canvas id="dj-canvas"></canvas>
+    </div>
+
+    <!-- Bottom Match Scorecard Overlay -->
+    <div class="broadcast-bottom-hud">
+      <!-- Player 1 -->
+      <div class="b-player-card p1">
+        <div>
+          <div class="b-player-name" id="b-p1-name">CONTESTANT 1</div>
+          <span class="b-player-tally" id="b-p1-tally">0 WINS</span>
+        </div>
+        <div class="b-score-val" id="b-p1-score">0.0</div>
+      </div>
+
+      <!-- Center Clock -->
+      <div class="b-timer-wrap">
+        <div class="b-timer-clock" id="b-timer-value">3:00</div>
+        <div class="b-timer-sub">ROUND CLOCK</div>
+      </div>
+
+      <!-- Player 2 -->
+      <div class="b-player-card p2">
+        <div>
+          <div class="b-player-name" id="b-p2-name">CONTESTANT 2</div>
+          <span class="b-player-tally" id="b-p2-tally">0 WINS</span>
+        </div>
+        <div class="b-score-val" id="b-p2-score">0.0</div>
+      </div>
+    </div>
+
+    <!-- Winner Reveal Banner (Hidden by default) -->
+    <div class="broadcast-winner-overlay" id="b-winner-modal" style="display:none;">
+      <div class="b-winner-trophy">🏆</div>
+      <div class="b-winner-title">OFFICIAL BATTLE DECISION</div>
+      <div class="b-winner-name" id="b-winner-name">CHAMPION</div>
+      <div class="b-winner-verdict" id="b-winner-verdict">UNANIMOUS DECISION (3 - 0)</div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/js/broadcast.js"></script>
+</body>
+</html>

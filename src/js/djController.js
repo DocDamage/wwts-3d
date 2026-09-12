@@ -70,6 +70,10 @@ class DJControllerRenderer {
     this.audioState = { 1: false, 2: false };
     this.turntableSpeeds = { 1: 0, 2: 0 };
     this.bpm = 96; // Standard hip-hop beat battle BPM
+    this.audioPlayer = null; // Real Web Audio Analyser source
+    this.reducedMotion = false;
+    this.noFlash = false;
+    this.qualityPreset = 'high';
 
     // Camera Orbit & Controls
     this.cameraTarget = new THREE.Vector3(0, 0.9, 0);
@@ -497,13 +501,21 @@ class DJControllerRenderer {
     const numBars = 36;
     const barWidth = 18;
     const startX = (w - (numBars * 24)) / 2;
-    const isAudioPlaying = this.audioState[1] || this.audioState[2];
+    const analysis = this.audioPlayer?.getAudioAnalysis ? this.audioPlayer.getAudioAnalysis() : null;
+    const isAudioPlaying = analysis ? analysis.isPlaying : (this.audioState[1] || this.audioState[2]);
+    const realBins = analysis && analysis.isPlaying ? analysis.frequencyBins : null;
 
     for (let i = 0; i < numBars; i++) {
-      const freq = (i / numBars) * Math.PI * 4;
-      const wave = Math.sin(freq + elapsed * 8) * Math.cos(i * 0.4 + elapsed * 5);
-      const intensity = isAudioPlaying ? Math.max(0.1, Math.abs(wave)) : 0.08;
-      const barH = intensity * 120;
+      let intensity = 0.08;
+      if (realBins && realBins.length > i) {
+        intensity = Math.max(0.08, realBins[i]);
+      } else if (isAudioPlaying) {
+        const freq = (i / numBars) * Math.PI * 4;
+        const wave = Math.sin(freq + elapsed * 8) * Math.cos(i * 0.4 + elapsed * 5);
+        intensity = Math.max(0.1, Math.abs(wave));
+      }
+
+      const barH = intensity * 135;
 
       const grad = ctx.createLinearGradient(0, h - 30 - barH, 0, h - 30);
       grad.addColorStop(0, i < numBars / 2 ? '#ff2d2d' : '#00e5ff');
@@ -2039,20 +2051,23 @@ class DJControllerRenderer {
     }
 
     // 4. Real-time Subwoofer Bass Excursions & Tower Vibrations
+    const analysis = this.audioPlayer?.getAudioAnalysis ? this.audioPlayer.getAudioAnalysis() : null;
+    const isAnyPlaying = analysis ? analysis.isPlaying : (this.audioState[1] || this.audioState[2]);
+    const realBass = (analysis && analysis.isPlaying) ? analysis.bassEnergy : null;
     const beatPhase = elapsed * (this.bpm / 60) * Math.PI * 2;
+
     this.cones.forEach(item => {
-      const isPlaying = this.audioState[item.playerNum];
-      if (isPlaying) {
-        // 4/4 Kick drum bass excursion pulse + fast harmonic vibration
-        const kickPulse = Math.pow(Math.max(0, Math.sin(beatPhase)), 4);
-        const subVibe = Math.sin(elapsed * 45) * 0.008;
-        const excursion = (kickPulse * 0.045) + subVibe;
+      const isPlaying = this.audioState[item.playerNum] || (isAnyPlaying && realBass !== null);
+      if (isPlaying && !this.reducedMotion) {
+        const kickPulse = realBass !== null ? (realBass * 1.6) : Math.pow(Math.max(0, Math.sin(beatPhase)), 4);
+        const subVibe = Math.sin(elapsed * 45) * 0.006;
+        const excursion = (kickPulse * 0.05) + subVibe;
 
         item.group.position.z = item.initialZ + excursion;
 
-        // Dynamic emissive flash on kick hits
+        // Dynamic emissive flash on kick hits (suppressed if noFlash is active)
         if (item.coneMat && item.type === 'subwoofer') {
-          item.coneMat.emissiveIntensity = 0.15 + kickPulse * 0.6;
+          item.coneMat.emissiveIntensity = this.noFlash ? 0.2 : (0.15 + kickPulse * 0.6);
         }
       } else {
         // Rest position
@@ -2133,6 +2148,34 @@ class DJControllerRenderer {
     this.camera.aspect = container.clientWidth / container.clientHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(container.clientWidth, container.clientHeight);
+  }
+
+  setAudioPlayer(audioPlayer) {
+    this.audioPlayer = audioPlayer;
+  }
+
+  setReducedMotion(enabled) {
+    this.reducedMotion = !!enabled;
+  }
+
+  setNoFlash(enabled) {
+    this.noFlash = !!enabled;
+  }
+
+  setQualityPreset(preset = 'high') {
+    this.qualityPreset = preset;
+    if (!this.renderer) return;
+
+    if (preset === 'low') {
+      this.renderer.setPixelRatio(1);
+      this.renderer.shadowMap.enabled = false;
+    } else if (preset === 'medium') {
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+      this.renderer.shadowMap.enabled = true;
+    } else {
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      this.renderer.shadowMap.enabled = true;
+    }
   }
 
   destroy() {

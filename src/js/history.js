@@ -38,9 +38,43 @@ class HistoryManager {
   }
 
   /**
-   * Add a battle record
+   * Add an official finalized battle result (Single Source of Truth)
    */
-  addBattle({ leagueId, contestant1Id, contestant1Name, scores1, total1, contestant2Id, contestant2Name, scores2, total2, notes }) {
+  addFinalizedBattle(finalResult) {
+    if (!finalResult) return null;
+
+    const battle = {
+      id: finalResult.id || ('b_' + Date.now()),
+      leagueId: finalResult.leagueId || null,
+      contestant1Id: finalResult.contestant1?.id || 'c1',
+      contestant1Name: finalResult.contestant1?.name || 'Contestant 1',
+      scores1: finalResult.roundResults?.[0]?.scores1 || [],
+      total1: finalResult.seriesSummary?.grandTotal1 ?? (finalResult.roundResults?.[0]?.total1 || 0),
+      contestant2Id: finalResult.contestant2?.id || 'c2',
+      contestant2Name: finalResult.contestant2?.name || 'Contestant 2',
+      scores2: finalResult.roundResults?.[0]?.scores2 || [],
+      total2: finalResult.seriesSummary?.grandTotal2 ?? (finalResult.roundResults?.[0]?.total2 || 0),
+      winnerId: finalResult.winnerId, // Strictly official! Never recalculated!
+      winnerName: finalResult.winnerName,
+      decisionMethod: finalResult.decisionMethod || 'TOTAL_POINTS',
+      decisionTally: finalResult.decisionTally || '',
+      isDemo: !!finalResult.isDemo,
+      seriesSummary: finalResult.seriesSummary || null,
+      roundResults: finalResult.roundResults || [],
+      scoringRules: finalResult.scoringRules || null,
+      notes: finalResult.notes || '',
+      timestamp: finalResult.timestamp || new Date().toISOString()
+    };
+
+    this.history.unshift(battle);
+    this.save();
+    return battle;
+  }
+
+  /**
+   * Add a battle record (legacy compatibility)
+   */
+  addBattle({ leagueId, contestant1Id, contestant1Name, scores1, total1, contestant2Id, contestant2Name, scores2, total2, notes, winnerId, decisionMethod, decisionTally }) {
     const battle = {
       id: 'b_' + Date.now(),
       leagueId,
@@ -52,7 +86,9 @@ class HistoryManager {
       contestant2Name,
       scores2,
       total2,
-      winnerId: total1 > total2 ? contestant1Id : (total2 > total1 ? contestant2Id : null),
+      winnerId: winnerId !== undefined ? winnerId : (total1 > total2 ? contestant1Id : (total2 > total1 ? contestant2Id : null)),
+      decisionMethod: decisionMethod || 'TOTAL_POINTS',
+      decisionTally: decisionTally || '',
       notes: notes || '',
       timestamp: new Date().toISOString()
     };
@@ -136,13 +172,21 @@ class HistoryManager {
 
       const c1IsWinner = battle.winnerId === battle.contestant1Id;
       const c2IsWinner = battle.winnerId === battle.contestant2Id;
+      const decisionBadge = battle.decisionMethod && battle.decisionMethod !== 'TOTAL_POINTS'
+        ? `<span class="he-badge ${battle.decisionMethod.toLowerCase()}">${battle.decisionMethod} ${battle.decisionTally || ''}</span>`
+        : (battle.decisionTally ? `<span class="he-badge">${battle.decisionTally}</span>` : '');
+      const demoBadge = battle.isDemo ? `<span class="he-badge demo">DEMO</span>` : '';
 
       entry.innerHTML = `
         <div>
           <div class="he-name ${c1IsWinner ? 'winner' : ''}">${this.escapeHtml(battle.contestant1Name)}</div>
           <div class="he-score">${battle.total1.toFixed(1)}</div>
         </div>
-        <div class="he-vs">VS</div>
+        <div class="he-center">
+          <div class="he-vs">VS</div>
+          ${decisionBadge}
+          ${demoBadge}
+        </div>
         <div class="he-right">
           <div class="he-name ${c2IsWinner ? 'winner' : ''}">${this.escapeHtml(battle.contestant2Name)}</div>
           <div class="he-score">${battle.total2.toFixed(1)}</div>

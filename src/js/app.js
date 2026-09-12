@@ -20,6 +20,9 @@ import { BattleCardExporter } from './exporter.js';
 import { RoundManager } from './rounds.js';
 import { JudgeManager } from './judges.js';
 import { KeyboardShortcutsManager } from './shortcuts.js';
+import { BattleSessionEngine } from './battleEngine.js';
+import { BattleStorageManager } from './storage.js';
+import { ProducerReportModal } from './producerReport.js';
 
 // ============================================================
 // Initialize all modules
@@ -39,14 +42,49 @@ const announcer = new AnnouncerManager();
 const exporter = new BattleCardExporter();
 const rounds = new RoundManager(scoring, announcer, djController, timer);
 const judges = new JudgeManager(scoring, announcer);
+const storage = new BattleStorageManager();
+const producerReport = new ProducerReportModal();
+const battleEngine = new BattleSessionEngine({
+  scoring,
+  rounds,
+  judges,
+  timer,
+  audio,
+  notes,
+  roster,
+  history,
+  tournament,
+  leagues
+});
+
 let shortcuts = null;
 let radar = null;
+
+// Standalone BroadcastChannel for OBS / 2nd Monitor Screen
+let broadcastChannel = null;
+try {
+  broadcastChannel = new BroadcastChannel('wwts_broadcast');
+} catch (e) {
+  console.warn('BroadcastChannel not supported in this browser', e);
+}
+
+function postBroadcast(type, data) {
+  if (!broadcastChannel) return;
+  try {
+    broadcastChannel.postMessage({ type, data });
+  } catch (e) {
+    console.warn('BroadcastChannel message error:', e);
+  }
+}
 
 // Expose on window for easy dev/test console inspection
 window.gamepadManager = gamepad;
 window.announcer = announcer;
 window.judges = judges;
 window.rounds = rounds;
+window.battleEngine = battleEngine;
+window.storage = storage;
+window.producerReport = producerReport;
 
 // Current battle state
 let selectedContestant1Id = null;
@@ -406,6 +444,9 @@ pick1?.addEventListener('change', (e) => {
   // Refresh picker 2 to exclude selected
   roster.populateSelect('pick-contestant-2', leagues.activeLeagueId, selectedContestant1Id);
   if (selectedContestant2Id) pick2.value = selectedContestant2Id;
+  broadcastContestants();
+  updateBattleFlowUI();
+  autosaveActiveSession();
 });
 
 pick2?.addEventListener('change', (e) => {
@@ -414,6 +455,9 @@ pick2?.addEventListener('change', (e) => {
   updatePickerPreviews();
   roster.populateSelect('pick-contestant-1', leagues.activeLeagueId, selectedContestant2Id);
   if (selectedContestant1Id) pick1.value = selectedContestant1Id;
+  broadcastContestants();
+  updateBattleFlowUI();
+  autosaveActiveSession();
 });
 
 function updateContestantDisplay(num) {
@@ -448,98 +492,196 @@ function updatePickerPreviews() {
   });
 }
 
+function broadcastContestants() {
+  const c1 = selectedContestant1Id ? roster.getById(selectedContestant1Id) : null;
+  const c2 = selectedContestant2Id ? roster.getById(selectedContestant2Id) : null;
+  postBroadcast('CONTESTANTS_UPDATE', {
+    c1Name: c1 ? c1.name : 'Contestant 1',
+    c1Photo: c1 ? c1.photo : '',
+    c2Name: c2 ? c2.name : 'Contestant 2',
+    c2Photo: c2 ? c2.photo : ''
+  });
+}
+
 // ============================================================
-// Submit & Reset
+// Host Battle Sequence & Readiness Desk
+// Set up → Soundcheck → Play A → Review A → Play B → Review B → Lock round → Reveal result → Next round or match
+// ============================================================
+function updateBattleFlowUI() {
+  const chipContestants = document.getElementById('ready-contestants');
+  const chipAudio = document.getElementById('ready-audio');
+  const chipJudges = document.getElementById('ready-judges');
+  const chipPreset = document.getElementById('ready-preset');
+  const presetNameEl = document.getElementById('ready-preset-name');
+  const flowBtn = document.getElementById('btn-primary-flow');
+  const flowLabel = document.getElementById('flow-primary-label');
+
+  const hasContestants = !!(selectedContestant1Id && selectedContestant2Id);
+  const hasAudio = !!(audio.players[1]?.loaded || audio.players[2]?.loaded);
+  const judgesReady = judges.mode === 'solo' ? true : (judges.getConsensus()?.isComplete ?? false);
+
+  if (chipContestants) chipContestants.classList.toggle('ready', hasContestants);
+  if (chipAudio) chipAudio.classList.toggle('ready', hasAudio);
+  if (chipJudges) chipJudges.classList.toggle('ready', judgesReady);
+  if (chipPreset) chipPreset.classList.add('ready');
+  if (presetNameEl && scoring.getActivePreset) {
+    presetNameEl.textContent = scoring.getActivePreset().name;
+  }
+
+  if (!flowBtn || !flowLabel) return;
+
+  const phase = battleEngine.phase;
+  const isClinched = rounds.isSeriesClinched ? rounds.isSeriesClinched() : false;
+
+  switch (phase) {
+    case 'setup':
+      flowLabel.textContent = hasContestants ? '▶ Start Soundcheck' : 'Select Both Contestants';
+      flowBtn.disabled = !hasContestants;
+      break;
+    case 'soundcheck':
+      flowLabel.textContent = '▶ Play Contestant A';
+      flowBtn.disabled = false;
+      break;
+    case 'play_a':
+      flowLabel.textContent = audio.players[1]?.playing ? '⏸ Pause Contestant A' : '▶ Play Contestant A';
+      flowBtn.disabled = false;
+      break;
+    case 'review_a':
+      flowLabel.textContent = '▶ Play Contestant B';
+      flowBtn.disabled = false;
+      break;
+    case 'play_b':
+      flowLabel.textContent = audio.players[2]?.playing ? '⏸ Pause Contestant B' : '▶ Play Contestant B';
+      flowBtn.disabled = false;
+      break;
+    case 'review_b':
+      flowLabel.textContent = '🔒 Lock Round Scorecard';
+      flowBtn.disabled = false;
+      break;
+    case 'round_locked':
+      if (isClinched || rounds.currentRound >= 3) {
+        flowLabel.textContent = '🏆 Finalize & Reveal Result';
+      } else {
+        flowLabel.textContent = '⏩ Advance to Next Round';
+      }
+      flowBtn.disabled = false;
+      break;
+    case 'finalized':
+      flowLabel.textContent = '📊 View Producer Report';
+      flowBtn.disabled = false;
+      break;
+    default:
+      flowLabel.textContent = '▶ Start Battle';
+      flowBtn.disabled = false;
+  }
+}
+
+function handlePrimaryFlowAction() {
+  const phase = battleEngine.phase;
+  const isClinched = rounds.isSeriesClinched ? rounds.isSeriesClinched() : false;
+
+  if (phase === 'setup') {
+    if (!selectedContestant1Id || !selectedContestant2Id) {
+      alert('Please select both contestants to begin battle flow.');
+      return;
+    }
+    soundboard.play('needle_drop');
+    djController.triggerContestantAction(1, 'deck');
+    battleEngine.setPhase('soundcheck');
+  } else if (phase === 'soundcheck') {
+    battleEngine.setActiveContestant(1);
+    battleEngine.setPhase('play_a');
+    audio.play(1).catch(() => {});
+    timer.start();
+    djController.setCameraView('dj_pov');
+  } else if (phase === 'play_a') {
+    if (audio.players[1]?.playing) {
+      audio.pause(1);
+      timer.pause();
+      battleEngine.setPhase('review_a');
+    } else {
+      audio.play(1).catch(() => {});
+      timer.start();
+    }
+  } else if (phase === 'review_a') {
+    battleEngine.setActiveContestant(2);
+    battleEngine.setPhase('play_b');
+    audio.play(2).catch(() => {});
+    timer.reset();
+    timer.start();
+    djController.setCameraView('dj_pov');
+  } else if (phase === 'play_b') {
+    if (audio.players[2]?.playing) {
+      audio.pause(2);
+      timer.pause();
+      battleEngine.setPhase('review_b');
+    } else {
+      audio.play(2).catch(() => {});
+      timer.start();
+    }
+  } else if (phase === 'review_b') {
+    rounds.saveRoundScores();
+    audio.pauseAll();
+    timer.stop();
+    battleEngine.setPhase('round_locked');
+  } else if (phase === 'round_locked') {
+    if (isClinched || rounds.currentRound >= 3) {
+      handleFinalizeBattle();
+    } else {
+      rounds.nextRound();
+      battleEngine.setPhase('play_a');
+    }
+  } else if (phase === 'finalized') {
+    if (battleEngine.finalizedResult) {
+      producerReport.open(battleEngine.finalizedResult);
+    }
+  }
+  updateBattleFlowUI();
+}
+
+// Flow Quick Controls
+document.getElementById('btn-primary-flow')?.addEventListener('click', handlePrimaryFlowAction);
+
+document.getElementById('btn-flow-pause-all')?.addEventListener('click', () => {
+  audio.pauseAll();
+  timer.stop();
+  updateBattleFlowUI();
+});
+
+document.getElementById('btn-flow-stop-all')?.addEventListener('click', () => {
+  audio.pauseAll();
+  timer.stop();
+  timer.reset();
+  updateBattleFlowUI();
+});
+
+document.getElementById('btn-flow-lock-round')?.addEventListener('click', () => {
+  rounds.saveRoundScores();
+  audio.pauseAll();
+  timer.stop();
+  battleEngine.setPhase('round_locked');
+  updateBattleFlowUI();
+});
+
+// ============================================================
+// Submit & Reset (Central Authority via BattleSessionEngine)
 // ============================================================
 const submitBtn = document.getElementById('btn-submit');
 const resetBtn = document.getElementById('btn-reset');
 
-submitBtn?.addEventListener('click', () => {
+function handleFinalizeBattle() {
   if (!selectedContestant1Id || !selectedContestant2Id) {
-    alert('Please select both contestants before submitting.');
+    alert('Please select both contestants before finalizing.');
     return;
   }
 
-  const c1 = roster.getById(selectedContestant1Id);
-  const c2 = roster.getById(selectedContestant2Id);
-  if (!c1 || !c2) return;
-
-  const snapshot = scoring.getSnapshot();
-  scoring.lock();
-  audio.pauseAll();
-  timer.stop();
-
-  // Check multi-round series & judge consensus
-  const seriesSummary = rounds.getSeriesSummary();
-  const hasSeries = seriesSummary.roundsWon1 > 0 || seriesSummary.roundsWon2 > 0;
-
-  let overallWinnerId = null;
-  let winnerScore = snapshot.total1;
-
-  if (judges.mode === 'panel') {
-    const consensus = judges.getConsensus();
-    if (consensus.consensusWinner === 1) {
-      overallWinnerId = c1.id;
-      winnerScore = consensus.avgTotal1;
-    } else if (consensus.consensusWinner === 2) {
-      overallWinnerId = c2.id;
-      winnerScore = consensus.avgTotal2;
-    }
+  const res = battleEngine.finalizeCurrentBattle(selectedContestant1Id, selectedContestant2Id);
+  if (!res || !res.success) {
+    alert(res?.error || 'Unable to finalize battle.');
+    return;
   }
 
-  if (!overallWinnerId) {
-    if (hasSeries) {
-      if (seriesSummary.roundsWon1 > seriesSummary.roundsWon2) {
-        overallWinnerId = c1.id;
-        winnerScore = seriesSummary.grandTotal1;
-      } else if (seriesSummary.roundsWon2 > seriesSummary.roundsWon1) {
-        overallWinnerId = c2.id;
-        winnerScore = seriesSummary.grandTotal2;
-      } else {
-        overallWinnerId = seriesSummary.grandTotal1 > seriesSummary.grandTotal2 ? c1.id : (seriesSummary.grandTotal2 > seriesSummary.grandTotal1 ? c2.id : null);
-        winnerScore = seriesSummary.grandTotal1;
-      }
-    } else {
-      overallWinnerId = snapshot.total1 > snapshot.total2 ? c1.id : (snapshot.total2 > snapshot.total1 ? c2.id : null);
-      winnerScore = overallWinnerId === c1.id ? snapshot.total1 : snapshot.total2;
-    }
-  }
-
-  // Record battle in history
-  const battle = history.addBattle({
-    leagueId: leagues.activeLeagueId,
-    contestant1Id: c1.id,
-    contestant1Name: c1.name,
-    scores1: snapshot.scores1,
-    total1: hasSeries ? seriesSummary.grandTotal1 : snapshot.total1,
-    contestant2Id: c2.id,
-    contestant2Name: c2.name,
-    scores2: snapshot.scores2,
-    total2: hasSeries ? seriesSummary.grandTotal2 : snapshot.total2,
-    notes: notes.getCurrentNote()
-  });
-
-  // Update contestant stats
-  const c1Won = overallWinnerId === c1.id;
-  const c2Won = overallWinnerId === c2.id;
-  roster.recordBattle(c1.id, hasSeries ? seriesSummary.grandTotal1 : snapshot.total1, c1Won, snapshot.scores1, CATEGORIES);
-  roster.recordBattle(c2.id, hasSeries ? seriesSummary.grandTotal2 : snapshot.total2, c2Won, snapshot.scores2, CATEGORIES);
-
-  // Tournament match recording
-  if (tournament.isTournamentActive()) {
-    tournament.recordResult(
-      c1.id,
-      c2.id,
-      hasSeries ? seriesSummary.grandTotal1 : snapshot.total1,
-      hasSeries ? seriesSummary.grandTotal2 : snapshot.total2,
-      hasSeries ? { roundsWon1: seriesSummary.roundsWon1, roundsWon2: seriesSummary.roundsWon2 } : null
-    );
-
-    const nextMatch = tournament.getNextPlayableMatch();
-    if (nextMatch) {
-      showTournamentAdvanceToast(nextMatch);
-    }
-  }
+  const finalResult = res.result;
 
   // DJ Controller pulse & smoke blast
   djController.pulse();
@@ -551,48 +693,65 @@ submitBtn?.addEventListener('click', () => {
 
   // Announcer winner call tailored to decision
   setTimeout(() => {
-    if (judges.mode === 'panel') {
-      const consensus = judges.getConsensus();
-      if (consensus.decisionType === 'UNANIMOUS') {
-        announcer.play('winner', () => {
-          setTimeout(() => announcer.play('excellent'), 400);
-        });
-      } else if (consensus.decisionType === 'SPLIT') {
-        announcer.play('winner', () => {
-          setTimeout(() => announcer.play('thatwasclose'), 400);
-        });
-      } else {
-        announcer.announceWinner(false);
-      }
+    if (finalResult.decisionMethod === 'UNANIMOUS') {
+      announcer.play('winner', () => {
+        setTimeout(() => announcer.play('excellent'), 400);
+      });
+    } else if (finalResult.decisionMethod === 'SPLIT') {
+      announcer.play('winner', () => {
+        setTimeout(() => announcer.play('thatwasclose'), 400);
+      });
     } else {
       announcer.announceWinner(false);
     }
   }, 1200);
 
   // Show winner overlay
-  const winner = overallWinnerId ? roster.getById(overallWinnerId) : null;
-  if (winner) {
-    showWinner(winner.name, winnerScore);
-    const winNum = overallWinnerId === c1.id ? 1 : 2;
+  showWinner(finalResult.winnerName, finalResult.winnerScore, finalResult);
+
+  const winNum = finalResult.winnerId === selectedContestant1Id ? 1 : (finalResult.winnerId === selectedContestant2Id ? 2 : null);
+  if (winNum) {
     const totalEl = document.getElementById(`contestant-${winNum}-total`);
     if (totalEl) totalEl.classList.add('winner-glow');
-  } else {
-    showWinner('TIE', snapshot.total1);
   }
 
-  // Refresh history/achievements
-  refreshBattle();
-});
+  // Show Producer Report button
+  const reportBtn = document.getElementById('btn-view-report');
+  if (reportBtn) reportBtn.style.display = 'inline-flex';
 
-resetBtn?.addEventListener('click', () => {
-  scoring.reset();
-  rounds.reset();
-  judges.reset();
-  notes.clear();
-  audio.pauseAll();
-  timer.stop();
+  // Tournament advance toast
+  if (tournament.isTournamentActive()) {
+    const nextMatch = tournament.getNextPlayableMatch();
+    if (nextMatch) {
+      showTournamentAdvanceToast(nextMatch);
+    }
+  }
+
+  // Clear crash recovery autosave
+  storage.clearActiveSession();
+
+  // Post to standalone OBS broadcast screen
+  postBroadcast('BATTLE_FINALIZED', finalResult);
+
+  updateBattleFlowUI();
+  refreshBattle();
+}
+
+function handleResetBattle() {
+  battleEngine.resetBattleSession();
+  storage.clearActiveSession();
+  updateContestantDisplay(1);
+  updateContestantDisplay(2);
   if (radar) radar.update(scoring.scores[1], scoring.scores[2]);
-});
+  const reportBtn = document.getElementById('btn-view-report');
+  if (reportBtn) reportBtn.style.display = 'none';
+  renderTimestampedNotesList();
+  updateBattleFlowUI();
+  postBroadcast('BATTLE_RESET', {});
+}
+
+submitBtn?.addEventListener('click', handleFinalizeBattle);
+resetBtn?.addEventListener('click', handleResetBattle);
 
 function showTournamentAdvanceToast(nextMatch) {
   let toast = document.getElementById('tournament-advance-toast');
@@ -633,15 +792,22 @@ function showTournamentAdvanceToast(nextMatch) {
 // ============================================================
 // Winner Overlay
 // ============================================================
-function showWinner(name, score) {
+function showWinner(name, score, finalResult = null) {
   const overlay = document.getElementById('winner-overlay');
-  document.getElementById('winner-name').textContent = name;
-  document.getElementById('winner-score').textContent = score.toFixed(1) + ' pts';
-  overlay.style.display = '';
+  if (!overlay) return;
+  const nameEl = document.getElementById('winner-name');
+  const scoreEl = document.getElementById('winner-score');
+  if (nameEl) nameEl.textContent = name;
+  if (scoreEl) {
+    const decisionText = finalResult?.decisionMethod ? ` (${finalResult.decisionMethod})` : '';
+    scoreEl.textContent = `${score.toFixed(1)} pts${decisionText}`;
+  }
+  overlay.style.display = 'flex';
 }
 
 document.getElementById('btn-dismiss-winner')?.addEventListener('click', () => {
-  document.getElementById('winner-overlay').style.display = 'none';
+  const overlay = document.getElementById('winner-overlay');
+  if (overlay) overlay.style.display = 'none';
 
   // If tournament, show bracket
   if (tournament.bracket) {
@@ -657,9 +823,13 @@ document.getElementById('btn-dismiss-winner')?.addEventListener('click', () => {
     }
   }
 
-  // Reset for next battle
-  scoring.reset();
-  notes.clear();
+  handleResetBattle();
+});
+
+document.getElementById('btn-winner-report')?.addEventListener('click', () => {
+  if (battleEngine.finalizedResult) {
+    producerReport.open(battleEngine.finalizedResult);
+  }
 });
 
 // ============================================================
@@ -680,6 +850,9 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 // Tournament integration
 // ============================================================
 tournament.onMatchSelect = (player1Id, player2Id) => {
+  // Complete battle session reset so prior match state cannot carry forward
+  battleEngine.resetBattleSession();
+
   selectedContestant1Id = player1Id;
   selectedContestant2Id = player2Id;
 
@@ -695,18 +868,32 @@ tournament.onMatchSelect = (player1Id, player2Id) => {
   updateContestantDisplay(1);
   updateContestantDisplay(2);
   updatePickerPreviews();
-
-  // Reset scoring for new match
-  scoring.reset();
-  notes.clear();
+  broadcastContestants();
+  updateBattleFlowUI();
 };
 
 // ============================================================
 // Timer integration
 // ============================================================
+timer.onTick = (remaining, isRunning) => {
+  postBroadcast('TIMER_UPDATE', {
+    seconds: remaining,
+    formatted: timer.formattedTime,
+    isRunning,
+    isOvertime: timer.isOvertime
+  });
+};
+
 timer.onStart = () => {
-  announcer.announceRoundStart(1);
+  announcer.announceRoundStart(rounds.currentRound || 1);
   djController.triggerSmokeBlast(2.2, 0x00e5ff);
+  postBroadcast('TIMER_UPDATE', {
+    seconds: timer.remainingSeconds,
+    formatted: timer.formattedTime,
+    isRunning: true,
+    isOvertime: timer.isOvertime
+  });
+  updateBattleFlowUI();
 };
 
 timer.onWarning10 = () => {
@@ -720,6 +907,18 @@ timer.onComplete = () => {
   soundboard.play('timer_alarm');
   announcer.announceTimesUp();
   djController.triggerSmokeBlast(2.2, 0xff2d2d);
+  postBroadcast('TIMER_UPDATE', {
+    seconds: 0,
+    formatted: '0:00',
+    isRunning: false,
+    isOvertime: timer.isOvertime
+  });
+  if (battleEngine.phase === 'play_a') {
+    battleEngine.setPhase('review_a');
+  } else if (battleEngine.phase === 'play_b') {
+    battleEngine.setPhase('review_b');
+  }
+  updateBattleFlowUI();
 };
 
 // ============================================================
@@ -822,7 +1021,99 @@ function setupGamepadUI() {
 // ============================================================
 // Initialize everything on DOM ready
 // ============================================================
+// ============================================================
+// Crash Recovery & Continuous Autosave
+// ============================================================
+function checkCrashRecovery() {
+  const banner = document.getElementById('session-recovery-banner');
+  if (!banner) return;
+
+  if (storage.hasActiveSession()) {
+    const saved = storage.loadActiveSession();
+    const desc = document.getElementById('recovery-desc');
+    if (desc && saved) {
+      const c1Name = saved.c1Id ? (roster.getById(saved.c1Id)?.name || 'Contestant 1') : 'Contestant 1';
+      const c2Name = saved.c2Id ? (roster.getById(saved.c2Id)?.name || 'Contestant 2') : 'Contestant 2';
+      desc.textContent = `Resume active match: ${c1Name} vs ${c2Name} (Round ${saved.currentRound || 1})?`;
+    }
+    banner.style.display = 'flex';
+
+    document.getElementById('btn-resume-battle')?.addEventListener('click', () => {
+      if (saved) {
+        if (saved.c1Id) {
+          selectedContestant1Id = saved.c1Id;
+          const sel1 = document.getElementById('pick-contestant-1');
+          if (sel1) sel1.value = saved.c1Id;
+          updateContestantDisplay(1);
+        }
+        if (saved.c2Id) {
+          selectedContestant2Id = saved.c2Id;
+          const sel2 = document.getElementById('pick-contestant-2');
+          if (sel2) sel2.value = saved.c2Id;
+          updateContestantDisplay(2);
+        }
+        if (saved.scores1 && saved.scores2) {
+          scoring.setScores(1, saved.scores1);
+          scoring.setScores(2, saved.scores2);
+        }
+        if (saved.currentRound) {
+          rounds.switchRound(saved.currentRound);
+        }
+        if (saved.timestampedNotes) {
+          battleEngine.timestampedNotes = saved.timestampedNotes;
+          renderTimestampedNotesList();
+        }
+        updatePickerPreviews();
+        banner.style.display = 'none';
+        switchScreen('battle');
+        updateBattleFlowUI();
+        broadcastContestants();
+      }
+    });
+
+    document.getElementById('btn-discard-battle')?.addEventListener('click', () => {
+      storage.clearActiveSession();
+      banner.style.display = 'none';
+    });
+  }
+}
+
+function autosaveActiveSession() {
+  if (battleEngine.isFinalized || !selectedContestant1Id || !selectedContestant2Id) return;
+  storage.saveActiveSession({
+    c1Id: selectedContestant1Id,
+    c2Id: selectedContestant2Id,
+    scores1: scoring.scores[1],
+    scores2: scoring.scores[2],
+    currentRound: rounds.currentRound,
+    timestampedNotes: battleEngine.getTimestampedNotes(),
+    isFinalized: false
+  });
+}
+
+function renderTimestampedNotesList() {
+  const container = document.getElementById('active-timestamp-notes-list');
+  if (!container) return;
+  const list = battleEngine.getTimestampedNotes();
+  if (list.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = list.map(n => `
+    <div class="ts-note-item">
+      <span class="ts-badge">${n.time} (R${n.round} P${n.contestant})</span>
+      <span class="ts-text">${n.text}</span>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// Initialize everything on DOM ready
+// ============================================================
 function init() {
+  // Initialize Producer Report Modal
+  producerReport.init();
+
   // Build scoring sliders
   scoring.buildSliders('contestant-1-sliders', 1);
   scoring.buildSliders('contestant-2-sliders', 2);
@@ -845,12 +1136,15 @@ function init() {
   // Tournament
   tournament.init();
 
-  // DJ Controller 3D
+  // DJ Controller 3D & Real Audio Reactivity
   djController.init();
+  djController.setAudioPlayer(audio);
 
   // Connect Audio Player state changes to 3D DJ Stage
   audio.onStateChange((playerNum, isPlaying) => {
     djController.setAudioPlaying(playerNum, isPlaying);
+    postBroadcast('AUDIO_UPDATE', { playerNum, isPlaying });
+    updateBattleFlowUI();
   });
 
   // Avatar selector buttons (Male / Female)
@@ -900,6 +1194,14 @@ function init() {
   // 3-Judge Panel Manager
   judges.init();
 
+  // Demo Mode Auto-Vary Button
+  const autoVaryBtn = document.getElementById('btn-auto-vary-judges');
+  autoVaryBtn?.addEventListener('click', () => {
+    judges.autoVary();
+    battleEngine.setDemoMode(true);
+    autoVaryBtn.innerHTML = '🎲 Auto-Vary <span style="font-size:0.68rem; color:#ffaa00;">[DEMO]</span>';
+  });
+
   rounds.onRoundChange = (roundNum, isOvertime) => {
     judges.setCurrentRound(roundNum);
     if (judges.mode === 'panel') {
@@ -910,10 +1212,21 @@ function init() {
       }
     }
     if (radar) radar.update(scoring.scores[1], scoring.scores[2]);
+    const seriesSummary = rounds.getSeriesSummary();
+    postBroadcast('ROUND_UPDATE', {
+      currentRound: roundNum,
+      isOvertime,
+      roundsWon1: seriesSummary.roundsWon1,
+      roundsWon2: seriesSummary.roundsWon2,
+      totalRounds: seriesSummary.totalRounds
+    });
+    updateBattleFlowUI();
+    autosaveActiveSession();
   };
 
   judges.onJudgeChange = (judgeId) => {
     if (radar) radar.update(scoring.scores[1], scoring.scores[2]);
+    updateBattleFlowUI();
   };
 
   // Live Head-to-Head Score Radar Chart
@@ -924,7 +1237,83 @@ function init() {
     if (judges.mode === 'panel') {
       judges.saveCurrentJudgeScores();
     }
+    postBroadcast('SCORES_UPDATE', {
+      total1: scoring.calculateTotal(1),
+      total2: scoring.calculateTotal(2)
+    });
+    autosaveActiveSession();
   };
+
+  // Scoring Engine Preset and Step Selectors
+  const presetSelect = document.getElementById('scoring-preset-select');
+  presetSelect?.addEventListener('change', (e) => {
+    scoring.setPreset(e.target.value);
+    scoring.buildSliders('contestant-1-sliders', 1);
+    scoring.buildSliders('contestant-2-sliders', 2);
+    if (radar) radar.update(scoring.scores[1], scoring.scores[2]);
+    updateBattleFlowUI();
+  });
+
+  const stepSelect = document.getElementById('scoring-step-select');
+  stepSelect?.addEventListener('change', (e) => {
+    scoring.setStep(parseFloat(e.target.value));
+    scoring.buildSliders('contestant-1-sliders', 1);
+    scoring.buildSliders('contestant-2-sliders', 2);
+  });
+
+  // Timestamped Notes
+  const noteInput = document.getElementById('input-timestamp-note');
+  const addNoteBtn = document.getElementById('btn-add-timestamp-note');
+
+  function addTimestampNote() {
+    const text = noteInput?.value?.trim();
+    if (!text) return;
+    const contestantNum = battleEngine.activeContestant || 1;
+    const trackSec = audio.getCurrentTrackTime ? audio.getCurrentTrackTime(contestantNum) : 0;
+    const min = Math.floor(trackSec / 60);
+    const sec = Math.floor(trackSec % 60).toString().padStart(2, '0');
+    const formatted = `${min}:${sec}`;
+    battleEngine.addTimestampedNote(text, contestantNum, formatted);
+    noteInput.value = '';
+    renderTimestampedNotesList();
+    autosaveActiveSession();
+  }
+
+  addNoteBtn?.addEventListener('click', addTimestampNote);
+  noteInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addTimestampNote();
+  });
+
+  // Post-Battle Producer Report Button
+  document.getElementById('btn-view-report')?.addEventListener('click', () => {
+    if (battleEngine.finalizedResult) {
+      producerReport.open(battleEngine.finalizedResult);
+    }
+  });
+
+  // Standalone Popout Stream View Button
+  document.getElementById('btn-open-broadcast-popout')?.addEventListener('click', () => {
+    window.open('broadcast.html', 'WWTS_Broadcast_Screen', 'width=1920,height=1080');
+  });
+
+  // Reduced Motion & No-Flash Accessibility Toggles
+  const motionBtn = document.getElementById('btn-toggle-motion');
+  let reducedMotion = false;
+  motionBtn?.addEventListener('click', () => {
+    reducedMotion = !reducedMotion;
+    document.body.classList.toggle('reduced-motion', reducedMotion);
+    djController.setReducedMotion(reducedMotion);
+    motionBtn.classList.toggle('active', reducedMotion);
+  });
+
+  const flashBtn = document.getElementById('btn-toggle-flash');
+  let noFlash = false;
+  flashBtn?.addEventListener('click', () => {
+    noFlash = !noFlash;
+    document.body.classList.toggle('no-flash', noFlash);
+    djController.setNoFlash(noFlash);
+    flashBtn.classList.toggle('active', noFlash);
+  });
 
   // Keyboard Shortcuts & Pro Hotkeys Manager
   shortcuts = new KeyboardShortcutsManager({
@@ -973,25 +1362,25 @@ function init() {
 
   // Export Official Battle Scorecard PNG
   document.getElementById('btn-export-card')?.addEventListener('click', () => {
+    const activeLeague = leagues.getActive();
+    const leagueName = activeLeague ? activeLeague.name : 'Who Want That Smoke';
+
+    if (battleEngine.isFinalized && battleEngine.finalizedResult) {
+      exporter.exportFinalizedCard(battleEngine.finalizedResult, leagueName);
+      return;
+    }
+
+    // Draft export fallback
     const c1 = selectedContestant1Id ? roster.getById(selectedContestant1Id) : null;
     const c2 = selectedContestant2Id ? roster.getById(selectedContestant2Id) : null;
-    const activeLeague = leagues.getActive();
     const snapshot = scoring.getSnapshot();
     const seriesSummary = rounds.getSeriesSummary();
 
-    let decisionBadge = null;
+    let decisionBadge = 'DRAFT CARD';
     if (judges.mode === 'panel') {
       const consensus = judges.getConsensus();
-      decisionBadge = `${consensus.decisionType} DECISION (${consensus.decisionTally})`;
+      decisionBadge = `DRAFT (${consensus.decisionType})`;
     }
-
-    let seriesBadge = null;
-    if (seriesSummary && (seriesSummary.roundsWon1 > 0 || seriesSummary.roundsWon2 > 0)) {
-      seriesBadge = `BEST OF ${seriesSummary.totalRounds}: ${seriesSummary.roundsWon1}W - ${seriesSummary.roundsWon2}W`;
-    }
-
-    const c1Won = snapshot.total1 > snapshot.total2;
-    const winner = c1Won ? (c1 ? c1.name : 'Contestant 1') : (snapshot.total2 > snapshot.total1 ? (c2 ? c2.name : 'Contestant 2') : 'TIE');
 
     exporter.exportCard({
       c1Name: c1 ? c1.name : 'Contestant 1',
@@ -1000,16 +1389,23 @@ function init() {
       c2Name: c2 ? c2.name : 'Contestant 2',
       c2Score: seriesSummary && seriesSummary.grandTotal2 > 0 ? seriesSummary.grandTotal2 : snapshot.total2,
       c2Scores: snapshot.scores2,
-      winnerName: winner,
-      leagueName: activeLeague ? activeLeague.name : 'Who Want That Smoke',
+      winnerName: 'IN PROGRESS',
+      leagueName,
       decisionBadge,
-      seriesBadge
+      seriesBadge: null,
+      isDemo: battleEngine.isDemoMode
     });
   });
 
   // Gamepad & Modern Controller Support
   gamepad.init({ djController, soundboard, audio, timer });
   setupGamepadUI();
+
+  // Check Crash Recovery
+  checkCrashRecovery();
+
+  // Update initial battle flow status
+  updateBattleFlowUI();
 
   // Set default league
   if (leagues.getAll().length > 0) {

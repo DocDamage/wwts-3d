@@ -105,12 +105,56 @@ class RoundManager {
     }
   }
 
+  isSeriesClinched() {
+    this.saveCurrentRoundState();
+    let won1 = 0;
+    let won2 = 0;
+    for (let r = 1; r <= 3; r++) {
+      const t1 = this.rounds[r].total1;
+      const t2 = this.rounds[r].total2;
+      if (t1 > 0 || t2 > 0) {
+        if (t1 > t2) won1++;
+        else if (t2 > t1) won2++;
+      }
+    }
+    return (won1 >= 2 || won2 >= 2);
+  }
+
   nextRound() {
+    if (this.isSeriesClinched() && this.currentRound >= 2) {
+      this.showClinchToast();
+      return;
+    }
     if (this.currentRound < this.totalRounds) {
       this.switchRound(this.currentRound + 1);
     } else if (this.isSeriesTied() && !this.hasOvertime) {
       this.triggerOvertime();
     }
+  }
+
+  showClinchToast() {
+    let toast = document.getElementById('clinch-banner-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'clinch-banner-toast';
+      toast.className = 'ot-banner-toast clinch-banner';
+      document.body.appendChild(toast);
+    }
+
+    toast.innerHTML = `
+      <div class="ot-toast-content">
+        <span class="ot-icon">🏆</span>
+        <div class="ot-text">
+          <strong>MATCH CLINCHED (2-0)!</strong>
+          <span>Series decided by first to two round wins. Ready to lock & finalize!</span>
+        </div>
+      </div>
+    `;
+
+    toast.classList.add('visible');
+    setTimeout(() => {
+      toast.classList.remove('visible');
+    }, 4000);
   }
 
   /**
@@ -128,11 +172,9 @@ class RoundManager {
     // Switch to round 4
     this.switchRound(4);
 
-    // Set high-intensity 60s timer if available
+    // Set high-intensity 60s timer via duration interface
     if (this.timer) {
-      this.timer.duration = 60;
-      this.timer.remaining = 60;
-      this.timer.updateDisplay();
+      this.timer.setDuration(60, true);
     }
 
     // Show Sudden Death Banner Notification
@@ -180,6 +222,7 @@ class RoundManager {
   }
 
   renderTabs() {
+    if (typeof document === 'undefined') return;
     document.querySelectorAll('.round-tab-btn').forEach(btn => {
       const r = parseInt(btn.dataset.round);
       if (r === this.currentRound) {
@@ -231,15 +274,17 @@ class RoundManager {
     }
 
     // Update cumulative series score displays
-    const series1El = document.getElementById('series-total-1');
-    const series2El = document.getElementById('series-total-2');
-    const seriesRounds1El = document.getElementById('series-rounds-1');
-    const seriesRounds2El = document.getElementById('series-rounds-2');
+    if (typeof document !== 'undefined') {
+      const series1El = document.getElementById('series-total-1');
+      const series2El = document.getElementById('series-total-2');
+      const seriesRounds1El = document.getElementById('series-rounds-1');
+      const seriesRounds2El = document.getElementById('series-rounds-2');
 
-    if (series1El) series1El.textContent = grandTotal1.toFixed(1);
-    if (series2El) series2El.textContent = grandTotal2.toFixed(1);
-    if (seriesRounds1El) seriesRounds1El.textContent = `${roundsWon1} W`;
-    if (seriesRounds2El) seriesRounds2El.textContent = `${roundsWon2} W`;
+      if (series1El) series1El.textContent = grandTotal1.toFixed(1);
+      if (series2El) series2El.textContent = grandTotal2.toFixed(1);
+      if (seriesRounds1El) seriesRounds1El.textContent = `${roundsWon1} W`;
+      if (seriesRounds2El) seriesRounds2El.textContent = `${roundsWon2} W`;
+    }
   }
 
   getSeriesSummary() {
@@ -278,9 +323,13 @@ class RoundManager {
       4: { scores1: new Array(10).fill(0), scores2: new Array(10).fill(0), total1: 0, total2: 0, completed: false, isOvertime: true }
     };
 
-    const otTab = document.getElementById('btn-ot-round');
+    const otTab = typeof document !== 'undefined' ? document.getElementById('btn-ot-round') : null;
     if (otTab) {
       otTab.style.display = 'none';
+    }
+
+    if (this.timer) {
+      this.timer.setDuration(180, true);
     }
 
     this.renderTabs();

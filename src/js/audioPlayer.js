@@ -1,24 +1,50 @@
 import { BeatGenerator } from './beatGenerator.js';
 
 /**
- * Audio Player — dual-slot player supporting local files + web URLs + synthesized battle beats
+ * Audio Player — Dual-slot Competition Player with Web Audio AnalyserNode,
+ * Promise-guarded Playback, Duration Validation, Track Metadata, and DJ Performance Tools.
  */
 
 class AudioPlayerManager {
   constructor() {
     this.players = {
-      1: { audio: new Audio(), loaded: false, playing: false },
-      2: { audio: new Audio(), loaded: false, playing: false }
+      1: {
+        audio: new Audio(),
+        loaded: false,
+        playing: false,
+        title: 'Contestant 1 Beat',
+        duration: 0,
+        sourceNode: null
+      },
+      2: {
+        audio: new Audio(),
+        loaded: false,
+        playing: false,
+        title: 'Contestant 2 Beat',
+        duration: 0,
+        sourceNode: null
+      }
     };
+
     this.baseVolumes = { 1: 1.0, 2: 1.0 };
     this.crossfade = 0.5; // 0.0 (Deck 1) to 1.0 (Deck 2)
     this.animFrameIds = {};
     this.beatGen = new BeatGenerator();
+
+    // Web Audio Real-Time Analyzer
     this.audioContext = null;
+    this.analyser = null;
+    this.analyserData = null;
+    this.masterGain = null;
+
+    this._stateChangeCallback = null;
+    this._errorCallback = null;
   }
 
   init() {
-    // DJ Crossfader Slider
+    if (typeof document === 'undefined') return;
+
+    // Crossfader
     const crossfader = document.getElementById('dj-crossfader');
     if (crossfader) {
       crossfader.addEventListener('input', (e) => {
@@ -40,6 +66,7 @@ class AudioPlayerManager {
     [1, 2].forEach(num => {
       const player = this.players[num];
       const audio = player.audio;
+      audio.crossOrigin = 'anonymous';
 
       // File upload
       const fileInput = document.querySelector(`.audio-file-input[data-player="${num}"]`);
@@ -47,8 +74,9 @@ class AudioPlayerManager {
         fileInput.addEventListener('change', (e) => {
           const file = e.target.files[0];
           if (file) {
+            player.title = file.name.replace(/\.[^/.]+$/, '');
             const url = URL.createObjectURL(file);
-            this.loadAudio(num, url);
+            this.loadAudio(num, url, player.title);
           }
         });
       }
@@ -125,21 +153,115 @@ class AudioPlayerManager {
       audio.addEventListener('ended', () => {
         player.playing = false;
         this.updatePlayButtonIcon(num);
-        cancelAnimationFrame(this.animFrameIds[num]);
+        if (typeof cancelAnimationFrame !== 'undefined') {
+          cancelAnimationFrame(this.animFrameIds[num]);
+        }
         this._notifyState(num, false);
       });
 
-      audio.addEventListener('error', () => {
-        console.warn(`Audio player ${num}: failed to load`);
+      audio.addEventListener('error', (e) => {
+        console.warn(`Audio player ${num}: failed to load/decode`, e);
         player.loaded = false;
+        player.playing = false;
         this.setPlayEnabled(num, false);
+        this.showAudioError(num, 'Audio failed to decode or load from URL.');
         this._notifyState(num, false);
       });
     });
   }
 
+  ensureAudioContext() {
+    if (!this.audioContext && typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        this.audioContext = new AudioCtx();
+        this.analyser = this.audioContext.createAnalyser();
+        this.analyser.fftSize = 128; // 64 frequency bins
+        this.analyser.smoothingTimeConstant = 0.75;
+        this.analyserData = new Uint8Array(this.analyser.frequencyBinCount);
+
+        this.masterGain = this.audioContext.createGain();
+        this.masterGain.gain.value = 1.0;
+
+        this.analyser.connect(this.masterGain);
+        this.masterGain.connect(this.audioContext.destination);
+
+        // Connect media elements once
+        [1, 2].forEach(num => {
+          try {
+            if (!this.players[num].sourceNode && this.players[num].audio) {
+              const src = this.audioContext.createMediaElementSource(this.players[num].audio);
+              src.connect(this.analyser);
+              this.players[num].sourceNode = src;
+            }
+          } catch (e) {
+            // Already connected or CORS restriction
+          }
+        });
+      }
+    }
+
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
+  }
+
+  /**
+   * Real-time audio spectrum & energy measurements for 3D stage
+   */
+  getAudioAnalysis() {
+    const isPlaying = this.isPlaying(1) || this.isPlaying(2);
+    if (!this.analyser || !isPlaying) {
+      return {
+        isPlaying: false,
+        bassEnergy: 0.05,
+        midEnergy: 0.05,
+        highEnergy: 0.05,
+        frequencyBins: new Array(36).fill(0.05)
+      };
+    }
+
+    this.analyser.getByteFrequencyData(this.analyserData);
+
+    // Bin averages (64 total bins)
+    // Sub/bass: bins 0-4 (approx 20-300Hz)
+    // Mid: bins 5-20 (approx 300-2500Hz)
+    // High: bins 21-45 (approx 2500-10000Hz)
+    let bassSum = 0;
+    for (let i = 0; i < 5; i++) bassSum += this.analyserData[i];
+    const bassEnergy = Math.min(1.0, (bassSum / 5) / 255);
+
+    let midSum = 0;
+    for (let i = 5; i < 20; i++) midSum += this.analyserData[i];
+    const midEnergy = Math.min(1.0, (midSum / 15) / 255);
+
+    let highSum = 0;
+    for (let i = 20; i < 45; i++) highSum += this.analyserData[i];
+    const highEnergy = Math.min(1.0, (highSum / 25) / 255);
+
+    // Normalize 36 bins for Jumbotron
+    const frequencyBins = [];
+    const step = this.analyser.frequencyBinCount / 36;
+    for (let i = 0; i < 36; i++) {
+      const idx = Math.min(this.analyser.frequencyBinCount - 1, Math.floor(i * step));
+      frequencyBins.push(Math.max(0.06, (this.analyserData[idx] / 255)));
+    }
+
+    return {
+      isPlaying: true,
+      bassEnergy,
+      midEnergy,
+      highEnergy,
+      frequencyBins
+    };
+  }
+
   onStateChange(callback) {
     this._stateChangeCallback = callback;
+  }
+
+  onError(callback) {
+    this._errorCallback = callback;
   }
 
   _notifyState(playerNum, isPlaying) {
@@ -152,52 +274,96 @@ class AudioPlayerManager {
     return !!this.players[playerNum]?.playing;
   }
 
-  loadAudio(playerNum, src) {
+  loadAudio(playerNum, src, title = null) {
     const player = this.players[playerNum];
 
     // Stop current
     if (player.playing) {
       player.audio.pause();
       player.playing = false;
-      cancelAnimationFrame(this.animFrameIds[playerNum]);
+      if (typeof cancelAnimationFrame !== 'undefined') {
+        cancelAnimationFrame(this.animFrameIds[playerNum]);
+      }
       this._notifyState(playerNum, false);
     }
 
+    this.clearAudioError(playerNum);
+
     player.audio.src = src;
+    player.title = title || `Contestant ${playerNum} Track`;
+    player.loaded = false;
     player.audio.load();
 
     player.audio.addEventListener('canplay', () => {
       player.loaded = true;
+      player.duration = player.audio.duration;
       this.setPlayEnabled(playerNum, true);
       this.updateProgress(playerNum);
+      this.checkTrackDuration(playerNum);
     }, { once: true });
   }
 
-  togglePlay(playerNum) {
+  checkTrackDuration(playerNum) {
+    const audio = this.players[playerNum]?.audio;
+    if (!audio || !audio.duration) return;
+
+    // Standard round is 180s (or 60s for OT)
+    if (audio.duration < 60) {
+      this.showAudioWarning(playerNum, `⚠️ Short track (${this.formatTime(audio.duration)}). Will end before 1:00.`);
+    } else {
+      this.clearAudioError(playerNum);
+    }
+  }
+
+  async togglePlay(playerNum) {
     const player = this.players[playerNum];
     if (!player.loaded) return;
 
     if (player.playing) {
-      player.audio.pause();
-      player.playing = false;
-      cancelAnimationFrame(this.animFrameIds[playerNum]);
-      this._notifyState(playerNum, false);
+      this.pause(playerNum);
     } else {
-      player.audio.play().catch(() => {});
-      player.playing = true;
-      this.startProgressLoop(playerNum);
-      this._notifyState(playerNum, true);
+      await this.play(playerNum);
     }
 
     this.updatePlayButtonIcon(playerNum);
   }
 
+  async play(playerNum) {
+    const player = this.players[playerNum];
+    if (!player.loaded) return false;
+
+    this.ensureAudioContext();
+
+    try {
+      // Browser Playback Promise Verification
+      await player.audio.play();
+      player.playing = true;
+      this.clearAudioError(playerNum);
+      this.startProgressLoop(playerNum);
+      this._notifyState(playerNum, true);
+      this.updatePlayButtonIcon(playerNum);
+      return true;
+    } catch (err) {
+      console.warn(`Audio Player ${playerNum} play rejected:`, err);
+      player.playing = false;
+      this.updatePlayButtonIcon(playerNum);
+      this.showAudioError(playerNum, `Playback blocked. Click screen or check browser audio settings.`);
+      this._notifyState(playerNum, false);
+      if (typeof this._errorCallback === 'function') {
+        this._errorCallback(playerNum, err);
+      }
+      return false;
+    }
+  }
+
   pause(playerNum) {
     const player = this.players[playerNum];
-    if (player.playing) {
+    if (player && player.playing) {
       player.audio.pause();
       player.playing = false;
-      cancelAnimationFrame(this.animFrameIds[playerNum]);
+      if (typeof cancelAnimationFrame !== 'undefined') {
+        cancelAnimationFrame(this.animFrameIds[playerNum]);
+      }
       this.updatePlayButtonIcon(playerNum);
       this._notifyState(playerNum, false);
     }
@@ -208,18 +374,71 @@ class AudioPlayerManager {
     this.pause(2);
   }
 
+  resetTrack(playerNum) {
+    const player = this.players[playerNum];
+    if (player && player.audio) {
+      player.audio.pause();
+      player.audio.currentTime = 0;
+      player.playing = false;
+      this.updatePlayButtonIcon(playerNum);
+      this.updateProgress(playerNum);
+      this._notifyState(playerNum, false);
+    }
+  }
+
+  showAudioError(playerNum, message) {
+    const slot = document.getElementById(`audio-slot-${playerNum}`);
+    if (!slot) return;
+
+    let errEl = slot.querySelector('.audio-error-banner');
+    if (!errEl) {
+      errEl = document.createElement('div');
+      errEl.className = 'audio-error-banner';
+      slot.appendChild(errEl);
+    }
+    errEl.textContent = message;
+    errEl.style.display = 'block';
+  }
+
+  showAudioWarning(playerNum, message) {
+    const slot = document.getElementById(`audio-slot-${playerNum}`);
+    if (!slot) return;
+
+    let warnEl = slot.querySelector('.audio-warn-banner');
+    if (!warnEl) {
+      warnEl = document.createElement('div');
+      warnEl.className = 'audio-warn-banner';
+      slot.appendChild(warnEl);
+    }
+    warnEl.textContent = message;
+    warnEl.style.display = 'block';
+  }
+
+  clearAudioError(playerNum) {
+    const slot = document.getElementById(`audio-slot-${playerNum}`);
+    if (!slot) return;
+    const errEl = slot.querySelector('.audio-error-banner');
+    if (errEl) errEl.style.display = 'none';
+    const warnEl = slot.querySelector('.audio-warn-banner');
+    if (warnEl) warnEl.style.display = 'none';
+  }
+
   startProgressLoop(playerNum) {
     const update = () => {
       this.updateProgress(playerNum);
-      if (this.players[playerNum].playing) {
+      if (this.players[playerNum]?.playing && typeof requestAnimationFrame !== 'undefined') {
         this.animFrameIds[playerNum] = requestAnimationFrame(update);
       }
     };
-    this.animFrameIds[playerNum] = requestAnimationFrame(update);
+    if (typeof requestAnimationFrame !== 'undefined') {
+      this.animFrameIds[playerNum] = requestAnimationFrame(update);
+    }
   }
 
   updateProgress(playerNum) {
-    const audio = this.players[playerNum].audio;
+    const audio = this.players[playerNum]?.audio;
+    if (!audio) return;
+
     const fill = document.querySelector(`.audio-progress-fill[data-player="${playerNum}"]`);
     const time = document.querySelector(`.audio-time[data-player="${playerNum}"]`);
 
@@ -233,6 +452,13 @@ class AudioPlayerManager {
     if (fill) fill.style.width = `${pct}%`;
     if (time) {
       time.textContent = `${this.formatTime(audio.currentTime)} / ${this.formatTime(audio.duration)}`;
+    }
+  }
+
+  setPlayEnabled(playerNum, enabled) {
+    const btn = document.querySelector(`.audio-play-btn[data-player="${playerNum}"]`);
+    if (btn) {
+      btn.disabled = !enabled;
     }
   }
 
@@ -258,10 +484,10 @@ class AudioPlayerManager {
     const baseVol1 = this.baseVolumes[1] ?? 1.0;
     const baseVol2 = this.baseVolumes[2] ?? 1.0;
 
-    if (this.players[1].audio) {
+    if (this.players[1]?.audio) {
       this.players[1].audio.volume = Math.max(0, Math.min(1, baseVol1 * g1));
     }
-    if (this.players[2].audio) {
+    if (this.players[2]?.audio) {
       this.players[2].audio.volume = Math.max(0, Math.min(1, baseVol2 * g2));
     }
   }
@@ -273,33 +499,26 @@ class AudioPlayerManager {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
-  /**
-   * Generates and loads a procedural hip-hop battle beat
-   */
   loadPresetBeat(playerNum, presetKey = 'boombap') {
     const player = this.players[playerNum];
     const url = this.beatGen.generateBeat(presetKey);
-    this.loadAudio(playerNum, url);
+    const config = this.beatGen.getPresetConfig(presetKey);
+    const title = `⚡ ${config.name} (${config.bpm} BPM)`;
+
+    this.loadAudio(playerNum, url, title);
     player.audio.loop = true;
 
-    // Show beat title in input placeholder
     const input = document.querySelector(`.audio-url-input[data-player="${playerNum}"]`);
     if (input) {
-      const config = this.beatGen.getPresetConfig(presetKey);
-      input.value = `⚡ ${config.name} (${config.bpm} BPM)`;
+      input.value = title;
     }
   }
 
-  /**
-   * Real-time vinyl scratching sound synthesis via Web Audio API
-   */
   playScratchSound(playerNum = 1) {
     try {
-      if (!this.audioContext) {
-        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      }
+      this.ensureAudioContext();
       const ctx = this.audioContext;
-      if (ctx.state === 'suspended') ctx.resume();
+      if (!ctx) return;
 
       const duration = 0.16 + Math.random() * 0.08;
       const osc = ctx.createOscillator();
@@ -316,7 +535,6 @@ class AudioPlayerManager {
       filter.frequency.setValueAtTime(1200, ctx.currentTime);
       filter.Q.value = 3.2;
 
-      // Noise layer
       const bufSize = Math.floor(ctx.sampleRate * duration);
       const noiseBuf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
       const out = noiseBuf.getChannelData(0);

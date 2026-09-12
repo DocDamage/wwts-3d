@@ -156,6 +156,33 @@ class RosterManager {
   }
 
   /**
+   * Record battle results directly from an official FinalizedBattleResult
+   */
+  recordFinalizedBattle(finalResult) {
+    if (!finalResult || finalResult.isDemo) return;
+
+    const c1Id = finalResult.contestant1?.id;
+    const c2Id = finalResult.contestant2?.id;
+    if (!c1Id || !c2Id) return;
+
+    const categories = finalResult.scoringRules?.categories?.map(c => c.name || c) || [
+      'Creativity', 'Versatility', 'Mix', 'Drums', 'Melody',
+      'Bassline', 'Energy', 'Battle Ability', 'Arrangement', 'Sound Selection'
+    ];
+
+    const score1 = finalResult.seriesSummary?.grandTotal1 ?? (finalResult.roundResults?.[0]?.total1 || 0);
+    const score2 = finalResult.seriesSummary?.grandTotal2 ?? (finalResult.roundResults?.[0]?.total2 || 0);
+    const c1Scores = finalResult.roundResults?.[0]?.scores1 || [];
+    const c2Scores = finalResult.roundResults?.[0]?.scores2 || [];
+
+    const c1Won = finalResult.winnerId === c1Id;
+    const c2Won = finalResult.winnerId === c2Id;
+
+    this.recordBattle(c1Id, score1, c1Won, c1Scores, categories);
+    this.recordBattle(c2Id, score2, c2Won, c2Scores, categories);
+  }
+
+  /**
    * Record a battle result for a contestant
    */
   recordBattle(contestantId, score, won, categoryScores, categories) {

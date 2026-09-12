@@ -13,9 +13,41 @@ class BattleCardExporter {
   }
 
   /**
+   * Generates and downloads card directly from an official FinalizedBattleResult
+   */
+  async exportFinalizedCard(finalResult, leagueName = 'WHO WANT THAT SMOKE') {
+    if (!finalResult) return null;
+    const c1Name = finalResult.contestant1?.name || 'Contestant 1';
+    const c2Name = finalResult.contestant2?.name || 'Contestant 2';
+    const c1Score = finalResult.seriesSummary?.grandTotal1 ?? (finalResult.roundResults?.[0]?.total1 || 0);
+    const c2Score = finalResult.seriesSummary?.grandTotal2 ?? (finalResult.roundResults?.[0]?.total2 || 0);
+    const c1Scores = finalResult.roundResults?.[0]?.scores1 || [];
+    const c2Scores = finalResult.roundResults?.[0]?.scores2 || [];
+    const winnerName = finalResult.winnerName || 'CHAMPION';
+    const decisionBadge = `${finalResult.decisionMethod || 'OFFICIAL'} ${finalResult.decisionTally || ''}`.trim();
+    const seriesBadge = finalResult.seriesSummary?.hasSeries
+      ? `${finalResult.seriesSummary.roundsWon1} - ${finalResult.seriesSummary.roundsWon2} Series`
+      : null;
+
+    return this.exportCard({
+      c1Name,
+      c1Score,
+      c1Scores,
+      c2Name,
+      c2Score,
+      c2Scores,
+      winnerName,
+      leagueName,
+      decisionBadge,
+      seriesBadge,
+      isDemo: !!finalResult.isDemo
+    });
+  }
+
+  /**
    * Generates and downloads the official battle card
    */
-  async exportCard({ c1Name, c1Score, c1Scores, c2Name, c2Score, c2Scores, winnerName, leagueName, decisionBadge, seriesBadge }) {
+  async exportCard({ c1Name, c1Score, c1Scores, c2Name, c2Score, c2Scores, winnerName, leagueName, decisionBadge, seriesBadge, isDemo }) {
     const ctx = this.ctx;
     const w = this.canvas.width;
     const h = this.canvas.height;

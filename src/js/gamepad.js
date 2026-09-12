@@ -336,10 +336,12 @@ class GamepadManager {
 
   toggleBattleTimer() {
     if (!this.timer) return;
-    if (this.timer.isRunning) {
+    if (typeof this.timer.toggle === 'function') {
+      this.timer.toggle();
+    } else if (this.timer.isRunning) {
       this.timer.stop();
     } else {
-      this.timer.start();
+      this.timer.play ? this.timer.play() : this.timer.start?.();
     }
   }
 
