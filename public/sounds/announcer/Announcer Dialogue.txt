@@ -1,0 +1,130 @@
+﻿Fighting Game Announcer
+
+
+Pre-match
+* Welcome…
+* Select your fighter
+* Choose your character
+* The battle of the century…
+
+
+Game start
+* Ready (two variations)
+* Versus (2)
+* Duel
+* Battle (2)
+* Engage (2)
+* Get ready
+* Who will win?
+* Triumph or die
+* Let’s rock…
+* Go for broke…
+* The battle is about to explode
+* This should be good…
+* It’s all on the line…
+* Start your engines
+* May the best fighter win
+
+
+Start
+* Go! (3)
+* Fight! (3)
+* Strike!
+* Showtime!
+* En garde!
+
+
+Stop
+* Game (3)
+* K.O. (3)
+* Knock Out
+* Finished (2)
+* Finish
+* Round over
+* Round complete
+* Round set
+* Times up (2)
+* Times over
+* Match complete
+* Match over
+
+
+New challenger
+* Get ready for a new challenger
+* A new challenger approaches
+* Here comes a new challenger
+* A new challenger
+* Get ready for the next fight
+* Here comes a clown
+
+
+Continue, Countdown, and Game Over
+* Continue (2)
+* Will you stay and fight?
+* Countdown from 3 (two variations)
+* Countdown from 10 
+* Game Over (2)
+* This is the end…(2)
+* You’re not even gonna try to get up?
+
+
+Match dialogue
+* Wow!
+* Amazing!
+* You’re incredible!
+* I’ve never seen moves like this
+* Sick
+* Alright…
+* Not bad
+* Danger! (3)
+* My god!
+* Over the top…
+* You’re in first place!
+* They’re on fire
+
+
+Combo
+* Combo
+* Double combo
+* Triple combo
+* Super Combo
+* Hyper Combo
+* Ultra Combo
+* Combo breaker
+* First blood (2)
+* Chain
+* Untouchable
+* Godlike
+* That was a dang tech grab
+
+
+Rounds (two variations for each round)
+* Round 1
+* Round 2
+* Round 3
+* Round 4
+* Round 5
+* Round 6
+* Round 7
+* Final round
+* Final lap
+* Final match
+
+
+You win
+* You win!(2)
+* Perfect! (2)
+* Excellent! (2)
+* Winner! (3)
+* Great! (2)
+* That was close…
+
+
+You lose
+* You lose (2)
+* Failure (2)
+* Defeat (2)
+* Defeated (2)
+* Loser
+* You suck…
+* Dude… c’mon

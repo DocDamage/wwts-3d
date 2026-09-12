@@ -1,0 +1,103 @@
+{
+	"assetNamespace": "fab",
+	"listing":
+	{
+		"averageRating": 0,
+		"createdAt": "",
+		"description": "<p>This 3D model of a<strong> DJ Controller </strong>is carefully crafted with high attention to detail, making it an excellent choice for a wide range of applications. Whether you are developing a game, creating a simulation, working on architectural visualization, or producing an animation, this model will provide a high level of visual quality and realism.</p><p></p><p>Designed to meet the needs of various creative projects.</p><p></p><h4><strong>Technical Specifications</strong>:</h4><p></p><ul><li><p><strong>Number of Objects</strong>: 1</p></li><li><p><strong>Total Vertices</strong>: 6,580</p></li><li><p><strong>Total Edges</strong>: 12,144</p></li><li><p><strong>Total Faces</strong>: 5,636</p></li><li><p><strong>Total Triangles</strong>: 11,820</p></li></ul><p></p><p>Support (Discord):&nbsp;<a target=\"_blank\" href=\"https://discord.gg/kXQ2KsZkrd\" rel=\"noopener noreferrer nofollow\">&gt;&gt;&gt; HERE &lt;&lt;&lt;</a></p>",
+		"isAiForbidden": true,
+		"isAiGenerated": false,
+		"lastUpdatedAt": "",
+		"listingType": "3d-model",
+		"media": "https://media.fab.com/image_previews/gallery_images/83adc95f-03aa-4f4d-b781-a6195c8b014d/c782c44d-a704-4c05-affb-c70f0238b500.png",
+		"publishedAt": "2025-11-09T19:51:52.815717Z",
+		"reviewCount": 0,
+		"thumbnail": "https://media.fab.com/image_previews/gallery_images/b0521114-7e7f-434e-8989-e7bdc4a5fdb0/5be4d499-e302-4033-80ee-ef9ba78785ab.png",
+		"title": "DJ Controller",
+		"uid": "9f0f9b3b-a348-4c3b-80ff-1fe0391be332",
+		"updatedAt": "",
+		"user":
+		{
+			"coverImageUrl": "https://cdn1.epicgames.com/fab/seller/o-xf7qvjstbew57ea5bz9fgeqqc3d8ae/cover/78a931a5.png",
+			"profileImageUrl": "https://cdn1.epicgames.com/fab/seller/o-xf7qvjstbew57ea5bz9fgeqqc3d8ae/profile/9a040469.png",
+			"sellerName": "Risecode",
+			"uid": "c171df3a-068a-47b6-817b-9df33c951ece"
+		},
+		"tags": [
+			{
+				"name": "Accessory",
+				"slug": "accessory",
+				"uid": "12631684-bf9e-4668-8ef8-dd297614aab4"
+			},
+			{
+				"name": "Music",
+				"slug": "music",
+				"uid": "76d3689a-6e84-4d37-9d54-20cc3548b2fd"
+			},
+			{
+				"name": "Party",
+				"slug": "party",
+				"uid": "a5177574-6d50-4c75-8af5-834a7878efba"
+			},
+			{
+				"name": "Audio",
+				"slug": "audio",
+				"uid": "a53e9a2c-1acf-4968-8eeb-743456cddb30"
+			},
+			{
+				"name": "Dj",
+				"slug": "dj",
+				"uid": "ac4b8e86-fe59-4b2b-ad21-59603145f178"
+			},
+			{
+				"name": "Controller",
+				"slug": "controller",
+				"uid": "dc2d22b0-ea45-4b4a-82a5-fe5b526e098b"
+			},
+			{
+				"name": "Disco",
+				"slug": "disco",
+				"uid": "f71bcc46-eacf-4f35-869c-0a5f75103429"
+			}
+		],
+		"category":
+		{
+			"name": "Electronics & Technology",
+			"path": "electronics-technology",
+			"slug": "electronics-technology",
+			"uid": "18e672da-2da2-4d1b-b0a1-b6a64f108c69"
+		},
+		"assetFormats": [
+			{
+				"assetFormatType":
+				{
+					"name": "FBX",
+					"groupName": "3D Exchange Formats",
+					"code": "fbx",
+					"icon": "cube",
+					"extensions": [
+						"fbx"
+					]
+				}
+			}
+		],
+		"_PluginMetas":
+		{
+			"apiDataVersion": "0.0.1",
+			"entitlementUid": "99ee72df-2f38-4dcc-ab02-a82dbb9a14f7",
+			"cacheSize": 0,
+			"downloaded": []
+		}
+	},
+	"target": "",
+	"quality": "",
+	"format": "fbx",
+	"fileId": "29533640-710e-45c5-b653-080681b11015",
+	"platformIncluded": "",
+	"distributionPointBaseUrls": [],
+	"distributionMethod": "",
+	"entitlementUid": "99ee72df-2f38-4dcc-ab02-a82dbb9a14f7",
+	"invertedNormal": false,
+	"isConverted": false,
+	"isQuixel": false
+}

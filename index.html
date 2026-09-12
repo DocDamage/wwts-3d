@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="BeatBattle Scoring App — Score beat battles live with 10 categories, league management, tournament brackets, and 3D visuals." />
+  <title>BeatBattle Scoring App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/index.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===== APP HEADER ===== -->
+    <header id="app-header">
+      <div class="header-left">
+        <h1 id="app-title">
+          <span class="title-beat">Beat</span><span class="title-battle">Battle</span>
+        </h1>
+        <span class="title-sub">Scoring App</span>
+      </div>
+      <div class="header-center">
+        <nav id="main-nav">
+          <button class="main-nav-btn active" data-screen="leagues">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            Leagues
+          </button>
+          <button class="main-nav-btn" data-screen="roster">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Roster
+          </button>
+          <button class="main-nav-btn" data-screen="battle">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Battle
+          </button>
+        </nav>
+      </div>
+      <div class="header-right">
+        <button id="gamepad-status-badge" class="gamepad-badge" type="button" title="Controller Ready — Connect a PlayStation, Xbox, or Nintendo controller via USB or Bluetooth. Click to view mapping guide.">
+          <svg class="gamepad-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="6" width="20" height="12" rx="6"/>
+            <path d="M6 12h4m-2-2v4"/>
+            <circle cx="17" cy="10" r="1" fill="currentColor"/>
+            <circle cx="15" cy="13" r="1" fill="currentColor"/>
+          </svg>
+          <span id="gamepad-status-label" class="gamepad-label">Controller Ready</span>
+          <span id="gamepad-status-dot" class="gamepad-dot standby"></span>
+        </button>
+        <button id="btn-shortcuts-guide" class="shortcuts-guide-btn" type="button" title="Keyboard Shortcuts Cheat Sheet (Press ?)">
+          ⌨️ Keys [?]
+        </button>
+        <button id="btn-broadcast-mode" class="broadcast-toggle-btn" type="button" title="Toggle OBS Studio / Streamer Clean Broadcast Mode">
+          🎥 Stream Mode
+        </button>
+        <div class="league-selector-wrap">
+          <label for="active-league-select" class="league-label">Active League</label>
+          <select id="active-league-select" class="league-select">
+            <option value="">— Select League —</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================================
+         SCREEN: LEAGUE HUB
+         ============================================================ -->
+    <section id="screen-leagues" class="app-screen active">
+      <div class="screen-header">
+        <h2>Leagues</h2>
+        <button id="btn-create-league" class="control-btn primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New League
+        </button>
+      </div>
+      <div id="leagues-grid" class="leagues-grid">
+        <!-- League cards injected by JS -->
+      </div>
+      <p class="empty-state" id="leagues-empty">No leagues yet. Create one to get started!</p>
+
+      <!-- Create League Form (inline, hidden by default) -->
+      <div id="create-league-form" class="create-form" style="display:none">
+        <h3>Create New League</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="league-name-input">League Name</label>
+            <input type="text" id="league-name-input" placeholder='e.g. "Who Want That Smoke"' maxlength="40" />
+          </div>
+          <div class="form-group">
+            <label for="league-desc-input">Description</label>
+            <input type="text" id="league-desc-input" placeholder="Short description..." maxlength="100" />
+          </div>
+          <div class="form-group">
+            <label for="league-color-input">Accent Color</label>
+            <input type="color" id="league-color-input" value="#ff2d2d" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button id="btn-save-league" class="control-btn primary">Save League</button>
+          <button id="btn-cancel-league" class="control-btn secondary">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SCREEN: ROSTER
+         ============================================================ -->
+    <section id="screen-roster" class="app-screen">
+      <div class="screen-header">
+        <h2>Roster <span id="roster-league-name" class="screen-header-sub"></span></h2>
+        <button id="btn-add-contestant" class="control-btn primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Contestant
+        </button>
+      </div>
+      <div id="roster-grid" class="roster-grid">
+        <!-- Contestant cards injected by JS -->
+      </div>
+      <p class="empty-state" id="roster-empty">No contestants in this league. Add some to start battling!</p>
+      <p class="empty-state" id="roster-no-league" style="display:none">Select a league first to manage its roster.</p>
+    </section>
+
+    <!-- Contestant Add/Edit Modal -->
+    <div id="contestant-modal" class="modal-overlay" style="display:none">
+      <div class="modal-content contestant-modal-content">
+        <div class="modal-header">
+          <h2 id="contestant-modal-title">Add Contestant</h2>
+          <button class="modal-close" data-close="contestant-modal">&times;</button>
+        </div>
+        <div class="contestant-form">
+          <div class="contestant-photo-section">
+            <div class="photo-preview" id="contestant-photo-preview">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="photo-inputs">
+              <label class="file-upload-btn control-btn secondary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload Photo
+                <input type="file" id="contestant-photo-file" accept="image/*" hidden />
+              </label>
+              <span class="photo-or">or</span>
+              <input type="text" id="contestant-photo-url" placeholder="Paste image URL..." class="form-input" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="contestant-name-input">Name</label>
+            <input type="text" id="contestant-name-input" placeholder="Contestant name" maxlength="30" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label for="contestant-bio-input">Bio</label>
+            <textarea id="contestant-bio-input" placeholder="Tell us about this producer..." rows="4" class="form-input"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="contestant-social-input">Social Links <span class="form-hint">(optional)</span></label>
+            <input type="text" id="contestant-social-input" placeholder="Instagram, Twitter, etc." class="form-input" />
+          </div>
+          <input type="hidden" id="contestant-edit-id" value="" />
+          <div class="form-actions">
+            <button id="btn-save-contestant" class="control-btn primary">Save Contestant</button>
+            <button class="control-btn secondary" data-close="contestant-modal">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contestant Profile Modal -->
+    <div id="profile-modal" class="modal-overlay" style="display:none">
+      <div class="modal-content profile-modal-content">
+        <div class="modal-header">
+          <h2>Contestant Profile</h2>
+          <button class="modal-close" data-close="profile-modal">&times;</button>
+        </div>
+        <div class="profile-body">
+          <div class="profile-hero">
+            <div class="profile-photo" id="profile-photo"></div>
+            <div class="profile-info">
+              <h3 id="profile-name"></h3>
+              <p id="profile-bio" class="profile-bio"></p>
+              <p id="profile-social" class="profile-social"></p>
+            </div>
+          </div>
+          <div class="profile-stats-grid">
+            <div class="stat-card">
+              <span class="stat-val" id="profile-wins">0</span>
+              <span class="stat-label">Wins</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-val" id="profile-losses">0</span>
+              <span class="stat-label">Losses</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-val" id="profile-avg">0.0</span>
+              <span class="stat-label">Avg Score</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-val" id="profile-best">—</span>
+              <span class="stat-label">Best Category</span>
+            </div>
+          </div>
+          <h4>Battle History</h4>
+          <div id="profile-history" class="profile-history-list"></div>
+        </div>
+        <div class="form-actions" style="margin-top:16px">
+          <button id="btn-edit-from-profile" class="control-btn secondary">Edit</button>
+          <button id="btn-delete-contestant" class="control-btn danger">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         SCREEN: BATTLE ARENA
+         ============================================================ -->
+    <section id="screen-battle" class="app-screen">
+      <div class="screen-header">
+        <h2 id="battle-league-title">Battle Arena</h2>
+      </div>
+
+      <!-- Contestant Pickers -->
+      <div class="battle-pickers">
+        <div class="picker-group">
+          <div class="picker-label-row">
+            <label for="pick-contestant-1">Contestant 1</label>
+            <div class="avatar-toggle-pills" data-player="1">
+              <button type="button" class="avatar-btn active" data-player="1" data-avatar="black_male" title="Black Male Avatar">
+                <span>🏾👨</span> B-Male
+              </button>
+              <button type="button" class="avatar-btn" data-player="1" data-avatar="black_female" title="Black Female Avatar">
+                <span>🏾👩</span> B-Fem
+              </button>
+              <button type="button" class="avatar-btn" data-player="1" data-avatar="white_male" title="White Male Avatar">
+                <span>🏻👨</span> W-Male
+              </button>
+              <button type="button" class="avatar-btn" data-player="1" data-avatar="white_female" title="White Female Avatar">
+                <span>🏻👩</span> W-Fem
+              </button>
+            </div>
+          </div>
+          <select id="pick-contestant-1" class="picker-select">
+            <option value="">— Select —</option>
+          </select>
+          <div class="picker-preview" id="picker-preview-1"></div>
+        </div>
+        <div class="picker-vs">VS</div>
+        <div class="picker-group">
+          <div class="picker-label-row">
+            <label for="pick-contestant-2">Contestant 2</label>
+            <div class="avatar-toggle-pills" data-player="2">
+              <button type="button" class="avatar-btn" data-player="2" data-avatar="black_male" title="Black Male Avatar">
+                <span>🏾👨</span> B-Male
+              </button>
+              <button type="button" class="avatar-btn active" data-player="2" data-avatar="black_female" title="Black Female Avatar">
+                <span>🏾👩</span> B-Fem
+              </button>
+              <button type="button" class="avatar-btn" data-player="2" data-avatar="white_male" title="White Male Avatar">
+                <span>🏻👨</span> W-Male
+              </button>
+              <button type="button" class="avatar-btn" data-player="2" data-avatar="white_female" title="White Female Avatar">
+                <span>🏻👩</span> W-Fem
+              </button>
+            </div>
+          </div>
+          <select id="pick-contestant-2" class="picker-select">
+            <option value="">— Select —</option>
+          </select>
+          <div class="picker-preview" id="picker-preview-2"></div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           3D BATTLE ARENA HERO STAGE (DJ DECK, SUBWOOFERS & CHARACTERS)
+           ============================================================ -->
+      <section id="stage-viewport" class="stage-hero-viewport">
+        <div class="stage-hud">
+          <div class="hud-box left" id="hud-p1">
+            <span class="hud-status-dot" id="hud-dot-1"></span>
+            <div class="hud-info">
+              <span class="hud-contestant-title" id="hud-name-1">Contestant 1</span>
+              <span class="hud-badge" id="hud-status-1">STANDBY</span>
+            </div>
+          </div>
+
+          <div class="hud-center-brand">
+            <span class="brand-title">WHO WANT THAT SMOKE</span>
+            <span class="brand-subtitle">3D SOUNDSTAGE ARENA</span>
+          </div>
+
+          <div class="hud-box right" id="hud-p2">
+            <div class="hud-info text-right">
+              <span class="hud-contestant-title" id="hud-name-2">Contestant 2</span>
+              <span class="hud-badge" id="hud-status-2">STANDBY</span>
+            </div>
+            <span class="hud-status-dot" id="hud-dot-2"></span>
+          </div>
+        </div>
+
+        <div class="stage-director-bar">
+          <div class="camera-views-group">
+            <span class="director-label">🎥 Director:</span>
+            <button type="button" class="cam-btn active" data-cam-view="front">Spectator</button>
+            <button type="button" class="cam-btn" data-cam-view="dj_pov">DJ POV</button>
+            <button type="button" class="cam-btn" data-cam-view="drone">Drone</button>
+            <button type="button" class="cam-btn" data-cam-view="staredown">Face-Off</button>
+            <button type="button" class="cam-btn" data-cam-view="auto">Auto-Cut</button>
+          </div>
+          <div class="stage-fx-group">
+            <button id="btn-manual-smoke" class="smoke-blast-btn" type="button" title="Blast cryogenic stage smoke cannons!">
+              💨 Blast Smoke
+            </button>
+            <button id="btn-announcer-hype" class="announcer-hype-btn" type="button" title="Trigger announcer fight hype!">
+              🎙️ Hype Call
+            </button>
+          </div>
+        </div>
+
+        <div id="dj-canvas-container">
+          <canvas id="dj-canvas"></canvas>
+        </div>
+
+        <div class="stage-bottom-bar">
+          <div class="stage-char-controls left" id="controls-p1">
+            <span class="char-ctrl-label" id="ctrl-label-1">C1:</span>
+            <button type="button" class="stage-action-btn" data-player="1" data-action="deck" title="Send Contestant 1 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
+            <button type="button" class="stage-action-btn active" data-player="1" data-action="hype" title="Walk Contestant 1 to Side Stage">🚶 Side Stage</button>
+            <button type="button" class="stage-action-btn" data-player="1" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
+          </div>
+
+          <div class="stage-tip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            Click stage floor to walk • Playing beats sends DJ to console to scratch &amp; mix
+          </div>
+
+          <div class="stage-char-controls right" id="controls-p2">
+            <span class="char-ctrl-label" id="ctrl-label-2">C2:</span>
+            <button type="button" class="stage-action-btn" data-player="2" data-action="deck" title="Send Contestant 2 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
+            <button type="button" class="stage-action-btn active" data-player="2" data-action="hype" title="Walk Contestant 2 to Side Stage">🚶 Side Stage</button>
+            <button type="button" class="stage-action-btn" data-player="2" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
+          </div>
+        </div>
+
+        <div id="dj-loading" class="dj-loading-overlay">
+          <div class="loading-spinner"></div>
+          <span id="dj-loading-text">Loading 3D Soundstage &amp; Contestants...</span>
+        </div>
+      </section>
+
+      <!-- Round Navigation Bar (Best of 3 Battle Series) -->
+      <div class="round-series-bar">
+        <div class="series-tally-box p1">
+          <span class="series-name" id="series-name-1">C1</span>
+          <span class="series-rounds-badge" id="series-rounds-1">0 W</span>
+          <span class="series-score" id="series-total-1">0.0</span>
+        </div>
+
+        <div class="round-tabs-center">
+          <span class="round-bar-label">SERIES:</span>
+          <button type="button" class="round-tab-btn active" data-round="1">🥊 Round 1</button>
+          <button type="button" class="round-tab-btn" data-round="2">🥊 Round 2</button>
+          <button type="button" class="round-tab-btn" data-round="3">🏆 Final Round</button>
+          <button type="button" class="round-tab-btn ot-round-btn" id="btn-ot-round" data-round="4" style="display:none;">⚡ Sudden Death OT</button>
+          <button type="button" id="btn-next-round" class="round-next-btn" title="Save current round and advance to next round">Next ⏩</button>
+          <button type="button" id="btn-trigger-ot" class="trigger-ot-btn" title="Trigger 60s Overtime Sudden Death Round">⚡ OT</button>
+        </div>
+
+        <div class="series-tally-box p2">
+          <span class="series-score" id="series-total-2">0.0</span>
+          <span class="series-rounds-badge" id="series-rounds-2">0 W</span>
+          <span class="series-name" id="series-name-2">C2</span>
+        </div>
+      </div>
+
+      <!-- 3-Judge Panel Bar -->
+      <div class="judge-panel-bar" id="judge-panel-bar">
+        <div class="judge-mode-toggle">
+          <button type="button" class="judge-mode-btn active" data-mode="solo">👤 Solo Judge</button>
+          <button type="button" class="judge-mode-btn" data-mode="panel">👥 3-Judge Panel</button>
+        </div>
+
+        <div class="judge-selector-group" id="judge-selector-group" style="display:none;">
+          <button type="button" class="judge-tab-btn active" data-judge="1">
+            <span class="judge-indicator j1"></span> Judge 1
+          </button>
+          <button type="button" class="judge-tab-btn" data-judge="2">
+            <span class="judge-indicator j2"></span> Judge 2
+          </button>
+          <button type="button" class="judge-tab-btn" data-judge="3">
+            <span class="judge-indicator j3"></span> Judge 3
+          </button>
+          <button type="button" class="judge-tab-btn consensus" data-judge="consensus" title="View 3-Judge Scorecards & Decision">
+            📊 Consensus
+          </button>
+        </div>
+
+        <div class="judge-actions-group">
+          <button type="button" id="btn-auto-vary-judges" class="auto-vary-btn" style="display:none;" title="Simulate realistic diverse scores for Judges 2 & 3 based on Judge 1">
+            🎲 Auto-Vary
+          </button>
+          <div class="judge-consensus-badge" id="judge-consensus-badge" style="display:none;">
+            <span class="consensus-type">UNANIMOUS</span>
+            <span class="consensus-tally">0 - 0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Scoring Grid -->
+      <div id="scoring-area">
+        <!-- Contestant 1 Panel -->
+        <section id="contestant-1-panel" class="contestant-panel">
+          <div class="contestant-header">
+            <span class="contestant-display-name" id="contestant-1-display">Contestant 1</span>
+            <div class="contestant-badge">1</div>
+          </div>
+          <div class="sliders-container" id="contestant-1-sliders"></div>
+          <div class="total-score-container">
+            <span class="total-label">TOTAL</span>
+            <span class="total-value" id="contestant-1-total">0.0</span>
+          </div>
+        </section>
+
+        <!-- Center Controls -->
+        <section id="center-controls">
+          <button id="btn-submit" class="control-btn primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Submit
+          </button>
+          <button id="btn-reset" class="control-btn secondary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+            Reset
+          </button>
+          <button id="btn-export-card" class="control-btn export-card-btn" type="button" title="Export official 1080x1080 Battle Card PNG for Social Media">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Card
+          </button>
+
+          <!-- DJ Battle Soundboard -->
+          <div class="dj-soundboard" id="dj-soundboard">
+            <div class="soundboard-header">
+              <span class="soundboard-title">⚡ DJ SOUNDBOARD</span>
+              <div class="soundboard-vol-wrap">
+                <span class="soundboard-vol-label">VOL</span>
+                <input type="range" id="soundboard-volume" min="0" max="1" step="0.05" value="0.85" title="Soundboard Volume" />
+              </div>
+            </div>
+            <div class="soundboard-grid">
+              <button type="button" class="soundboard-pad pad-airhorn" data-sound="airhorn" title="Air Horn (HotKey: 1)">
+                <span class="pad-icon">📢</span>
+                <span class="pad-label">HORN</span>
+                <span class="pad-key">1</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-bell" data-sound="bell" title="Round Bell (HotKey: 2)">
+                <span class="pad-icon">🔔</span>
+                <span class="pad-label">BELL</span>
+                <span class="pad-key">2</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-react" data-sound="crowd_react" title="Crowd Oohs &amp; Aahhs (HotKey: 3)">
+                <span class="pad-icon">😲</span>
+                <span class="pad-label">REACT</span>
+                <span class="pad-key">3</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-cheer" data-sound="crowd_cheer" title="Crowd Cheer &amp; Hype (HotKey: 4)">
+                <span class="pad-icon">👏</span>
+                <span class="pad-label">CHEER</span>
+                <span class="pad-key">4</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-drop" data-sound="needle_drop" title="Vinyl Needle Drop (HotKey: 5)">
+                <span class="pad-icon">🎚️</span>
+                <span class="pad-label">DROP</span>
+                <span class="pad-key">5</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-stop" data-sound="needle_stop" title="Vinyl Stop Scratch (HotKey: 6)">
+                <span class="pad-icon">🛑</span>
+                <span class="pad-label">STOP</span>
+                <span class="pad-key">6</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Live Head-to-Head Score Radar Chart -->
+          <div class="score-radar-card" id="score-radar-container">
+            <div class="radar-header">
+              <span class="radar-title">📊 HEAD-TO-HEAD RADAR</span>
+              <div class="radar-legend">
+                <span class="legend-item"><span class="legend-dot p1"></span> C1</span>
+                <span class="legend-item"><span class="legend-dot p2"></span> C2</span>
+              </div>
+            </div>
+            <div class="radar-canvas-wrap">
+              <canvas id="score-radar-canvas" width="280" height="240"></canvas>
+            </div>
+          </div>
+          <div id="speaker-icon" style="display:none"></div>
+
+          <!-- Timer -->
+          <div id="timer-display" class="timer-container">
+            <div class="timer-value" id="timer-value">3:00</div>
+            <div class="timer-controls">
+              <button id="btn-timer-play" class="timer-btn" title="Play/Pause">
+                <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <svg id="icon-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+              </button>
+              <button id="btn-timer-stop" class="timer-btn" title="Stop">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Audio Players -->
+          <div class="audio-section">
+            <div class="audio-player-slot" id="audio-slot-1">
+              <div class="audio-slot-label">🎵 P1 Audio</div>
+              <div class="audio-input-row">
+                <label class="audio-file-btn" title="Upload audio file">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <input type="file" class="audio-file-input" data-player="1" accept="audio/*" hidden />
+                </label>
+                <select class="preset-beat-select" data-player="1" title="Select battle beat preset">
+                  <option value="">⚡ Presets...</option>
+                  <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
+                  <option value="trap808">💣 Trap 808 (140 BPM)</option>
+                  <option value="gfunk">🌴 West Coast (98 BPM)</option>
+                  <option value="drill">⚔️ Drill (142 BPM)</option>
+                </select>
+                <input type="text" class="audio-url-input" data-player="1" placeholder="Or paste URL..." />
+                <button class="audio-load-btn" data-player="1" title="Load URL">↵</button>
+                <button type="button" class="audio-scratch-btn" data-player="1" title="Trigger vinyl scratch">🎛️</button>
+              </div>
+              <div class="audio-controls" data-player="1">
+                <button class="audio-play-btn" data-player="1" title="Play" disabled>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </button>
+                <div class="audio-progress-wrap">
+                  <div class="audio-progress-bar" data-player="1">
+                    <div class="audio-progress-fill" data-player="1"></div>
+                  </div>
+                  <span class="audio-time" data-player="1">0:00 / 0:00</span>
+                </div>
+                <input type="range" class="audio-volume" data-player="1" min="0" max="1" step="0.05" value="0.8" title="Volume" />
+              </div>
+            </div>
+            <div class="audio-player-slot" id="audio-slot-2">
+              <div class="audio-slot-label">🎵 P2 Audio</div>
+              <div class="audio-input-row">
+                <label class="audio-file-btn" title="Upload audio file">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <input type="file" class="audio-file-input" data-player="2" accept="audio/*" hidden />
+                </label>
+                <select class="preset-beat-select" data-player="2" title="Select battle beat preset">
+                  <option value="">⚡ Presets...</option>
+                  <option value="trap808">💣 Trap 808 (140 BPM)</option>
+                  <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
+                  <option value="drill">⚔️ Drill (142 BPM)</option>
+                  <option value="gfunk">🌴 West Coast (98 BPM)</option>
+                </select>
+                <input type="text" class="audio-url-input" data-player="2" placeholder="Or paste URL..." />
+                <button class="audio-load-btn" data-player="2" title="Load URL">↵</button>
+                <button type="button" class="audio-scratch-btn" data-player="2" title="Trigger vinyl scratch">🎛️</button>
+              </div>
+              <div class="audio-controls" data-player="2">
+                <button class="audio-play-btn" data-player="2" title="Play" disabled>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </button>
+                <div class="audio-progress-wrap">
+                  <div class="audio-progress-bar" data-player="2">
+                    <div class="audio-progress-fill" data-player="2"></div>
+                  </div>
+                  <span class="audio-time" data-player="2">0:00 / 0:00</span>
+                </div>
+                <input type="range" class="audio-volume" data-player="2" min="0" max="1" step="0.05" value="0.8" title="Volume" />
+              </div>
+            </div>
+
+            <!-- DJ Equal-Power Crossfader -->
+            <div class="dj-crossfader-container">
+              <div class="crossfader-top">
+                <span class="cf-tag p1">DECK 1</span>
+                <span class="cf-title">🎚️ DJ CROSSFADER</span>
+                <span class="cf-tag p2">DECK 2</span>
+              </div>
+              <div class="crossfader-track-row">
+                <button type="button" class="crossfader-cut-btn cut-p1" data-val="0.0" title="Quick cut to Deck 1 (100% P1)">CUT 1</button>
+                <div class="crossfader-slider-wrap">
+                  <input type="range" id="dj-crossfader" min="0" max="1" step="0.01" value="0.5" class="crossfader-slider" title="Crossfade blend between Deck 1 and Deck 2" />
+                  <div class="crossfader-center-tick"></div>
+                </div>
+                <button type="button" class="crossfader-cut-btn cut-p2" data-val="1.0" title="Quick cut to Deck 2 (100% P2)">CUT 2</button>
+              </div>
+              <button type="button" class="crossfader-cut-btn center-btn" data-val="0.5" title="Reset Crossfader to Center (50/50 Mix)">CENTER (50/50)</button>
+            </div>
+          </div>
+
+          <button id="btn-tournament" class="control-btn tournament">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            Tournament
+          </button>
+        </section>
+
+        <!-- Contestant 2 Panel -->
+        <section id="contestant-2-panel" class="contestant-panel">
+          <div class="contestant-header">
+            <span class="contestant-display-name" id="contestant-2-display">Contestant 2</span>
+            <div class="contestant-badge">2</div>
+          </div>
+          <div class="sliders-container" id="contestant-2-sliders"></div>
+          <div class="total-score-container">
+            <span class="total-label">TOTAL</span>
+            <span class="total-value" id="contestant-2-total">0.0</span>
+          </div>
+        </section>
+      </div>
+
+      <!-- Bottom Tabs (History & Notes) -->
+      <nav id="bottom-nav">
+        <button class="nav-tab active" data-tab="history">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+          <span>Achievements<br/>&amp; History</span>
+        </button>
+        <button class="nav-tab" data-tab="notes">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>Battle<br/>Notes</span>
+        </button>
+      </nav>
+
+      <div id="tab-content">
+        <div id="tab-history" class="tab-panel active">
+          <div class="tab-panel-inner">
+            <h2>Achievements & History</h2>
+            <div id="achievements-list" class="achievements-grid"></div>
+            <h3>Battle History</h3>
+            <div id="history-list" class="history-entries"></div>
+            <p class="empty-state" id="history-empty">No battles recorded yet. Submit scores to start tracking!</p>
+          </div>
+        </div>
+        <div id="tab-notes" class="tab-panel">
+          <div class="tab-panel-inner">
+            <h2>Battle Notes</h2>
+            <textarea id="notes-textarea" class="notes-input" placeholder="Jot down your observations during the battle..." rows="8"></textarea>
+            <div id="saved-notes" class="saved-notes-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== TOURNAMENT MODAL ===== -->
+    <div id="tournament-modal" class="modal-overlay" style="display:none">
+      <div class="modal-content tournament-modal-content">
+        <div class="modal-header">
+          <h2>Tournament Mode</h2>
+          <button class="modal-close" data-close="tournament-modal">&times;</button>
+        </div>
+        <div id="tournament-setup" class="tournament-setup">
+          <p class="tournament-info">Select contestants from the current league roster to compete in a single-elimination bracket.</p>
+          <div id="tournament-contestant-picks" class="tournament-picks-grid"></div>
+          <button id="btn-start-tournament" class="control-btn primary" disabled>Start Tournament</button>
+        </div>
+        <div id="tournament-bracket" class="bracket-container" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- ===== CONTROLLER GUIDE & DIAGNOSTICS MODAL ===== -->
+    <div id="controller-guide-modal" class="modal-overlay" style="display:none">
+      <div class="modal-content controller-modal-content">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <h2>🎮 Controller Guide &amp; Diagnostics</h2>
+            <p class="modal-subtitle">Plug and play support for PlayStation, Xbox, Nintendo Switch, and generic USB/Bluetooth gamepads</p>
+          </div>
+          <button class="modal-close" data-close="controller-guide-modal">&times;</button>
+        </div>
+
+        <!-- Controller Status & Test Bar -->
+        <div class="controller-status-bar">
+          <div class="status-device-info">
+            <div class="device-name-row">
+              <span class="device-icon">🎮</span>
+              <strong id="modal-controller-name">No Controller Detected</strong>
+              <span id="modal-controller-status" class="status-tag standby">STANDBY</span>
+              <span id="modal-controller-haptics" class="status-tag haptics">Haptics Ready</span>
+            </div>
+            <p class="status-hint">Connect any controller via USB or Bluetooth and press any button to activate.</p>
+          </div>
+          <div class="status-actions">
+            <button id="btn-test-rumble" class="control-btn secondary rumble-btn" type="button" title="Send haptic vibration pulse to connected controller">
+              📳 Test Rumble
+            </button>
+            <div id="gamepad-live-monitor" class="live-input-monitor">Waiting for input...</div>
+          </div>
+        </div>
+
+        <!-- Brand Selector Tabs -->
+        <div class="gp-brand-tabs">
+          <button class="gp-tab active" data-brand="playstation" type="button">
+            <span class="brand-badge ps">PS</span> PlayStation (DualSense / DS4)
+          </button>
+          <button class="gp-tab" data-brand="xbox" type="button">
+            <span class="brand-badge xbox">XB</span> Xbox (Series X|S / One)
+          </button>
+          <button class="gp-tab" data-brand="nintendo" type="button">
+            <span class="brand-badge nintendo">NS</span> Nintendo Switch (Pro / Joy-Con)
+          </button>
+          <button class="gp-tab" data-brand="generic" type="button">
+            <span class="brand-badge generic">PC</span> Generic / All Layouts
+          </button>
+        </div>
+
+        <!-- TAB CONTENT: PLAYSTATION -->
+        <div class="gp-tab-content active" data-brand-panel="playstation">
+          <div class="gp-grid">
+            <!-- Face Buttons (Soundboard FX) -->
+            <div class="gp-card">
+              <h3>🎵 DJ Soundboard FX (Face Buttons)</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="0">
+                  <div class="gp-btn-tag ps-cross">✖ Cross</div>
+                  <div class="gp-action-desc">
+                    <strong>Airhorn Blast</strong>
+                    <span>Instant stadium airhorn blast with heavy bass haptic</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="0" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="1">
+                  <div class="gp-btn-tag ps-circle">⭘ Circle</div>
+                  <div class="gp-action-desc">
+                    <strong>Boxing Bell</strong>
+                    <span>Rounds boxing bell strike</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="1" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="2">
+                  <div class="gp-btn-tag ps-square">◼ Square</div>
+                  <div class="gp-action-desc">
+                    <strong>Crowd React</strong>
+                    <span>Crowd gasps &amp; "Damn!" vocal reaction</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="2" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="3">
+                  <div class="gp-btn-tag ps-triangle">▲ Triangle</div>
+                  <div class="gp-action-desc">
+                    <strong>Crowd Cheer</strong>
+                    <span>Applause &amp; stadium cheering ovation</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="3" type="button">Test</button>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Audio Decks & Scratch -->
+            <div class="gp-card">
+              <h3>🎛️ Audio Decks &amp; DJ Scratch (Shoulders / Triggers)</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="4">
+                  <div class="gp-btn-tag shoulder">L1 Bumper</div>
+                  <div class="gp-action-desc">
+                    <strong>Contestant 1 Audio Toggle</strong>
+                    <span>Play / Pause Deck 1 audio track</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="4" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="5">
+                  <div class="gp-btn-tag shoulder">R1 Bumper</div>
+                  <div class="gp-action-desc">
+                    <strong>Contestant 2 Audio Toggle</strong>
+                    <span>Play / Pause Deck 2 audio track</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="5" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="6">
+                  <div class="gp-btn-tag trigger">L2 Trigger</div>
+                  <div class="gp-action-desc">
+                    <strong>P1 Needle Drop &amp; DJ Scratch</strong>
+                    <span>Contestant 1 walks to deck and scratches vinyl</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="6" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="7">
+                  <div class="gp-btn-tag trigger">R2 Trigger</div>
+                  <div class="gp-action-desc">
+                    <strong>P2 Needle Drop &amp; DJ Scratch</strong>
+                    <span>Contestant 2 walks to deck and scratches vinyl</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="7" type="button">Test</button>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Analog Sticks (Locomotion & Camera) -->
+            <div class="gp-card">
+              <h3>🕹️ Analog Locomotion &amp; 3D Camera</h3>
+              <ul class="gp-list">
+                <li class="gp-item">
+                  <div class="gp-btn-tag stick">Left Stick (L-Stick)</div>
+                  <div class="gp-action-desc">
+                    <strong>Stage Walking Locomotion</strong>
+                    <span>Steer active contestant smoothly across the 3D stage with animated strides</span>
+                  </div>
+                </li>
+                <li class="gp-item">
+                  <div class="gp-btn-tag stick">Right Stick (R-Stick)</div>
+                  <div class="gp-action-desc">
+                    <strong>3D Soundstage Camera Orbit</strong>
+                    <span>Rotate, pan, and tilt arena camera angle smoothly in 360 degrees</span>
+                  </div>
+                </li>
+                <li class="gp-item gp-key" data-btn="10">
+                  <div class="gp-btn-tag stick-click">L3 (Stick Click)</div>
+                  <div class="gp-action-desc">
+                    <strong>Reset Camera View</strong>
+                    <span>Snaps camera back to cinematic center view</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="10" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="11">
+                  <div class="gp-btn-tag stick-click">R3 (Stick Click)</div>
+                  <div class="gp-action-desc">
+                    <strong>Stage Neon Pulse</strong>
+                    <span>Triggers stadium neon light flash &amp; FX bell</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="11" type="button">Test</button>
+                </li>
+              </ul>
+            </div>
+
+            <!-- D-Pad & System -->
+            <div class="gp-card">
+              <h3>🧭 Stage Navigation &amp; Battle Timer</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="12">
+                  <div class="gp-btn-tag dpad">D-Pad ⬆ Up</div>
+                  <div class="gp-action-desc">
+                    <strong>Both to DJ Console</strong>
+                    <span>Sends both contestants behind the DJ decks</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="12" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="13">
+                  <div class="gp-btn-tag dpad">D-Pad ⬇ Down</div>
+                  <div class="gp-action-desc">
+                    <strong>Both to Side Stage</strong>
+                    <span>Return both contestants to hype positions</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="13" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="14">
+                  <div class="gp-btn-tag dpad">D-Pad ⬅ Left</div>
+                  <div class="gp-action-desc">
+                    <strong>Needle Stop Scratch</strong>
+                    <span>Turntable motor stop vinyl brake sound effect</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="14" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="15">
+                  <div class="gp-btn-tag dpad">D-Pad ➡ Right</div>
+                  <div class="gp-action-desc">
+                    <strong>Center Face-Off</strong>
+                    <span>Contestants walk to center stage for head-to-head staredown</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="15" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="9">
+                  <div class="gp-btn-tag menu">Options (Start)</div>
+                  <div class="gp-action-desc">
+                    <strong>Start / Pause Round Timer</strong>
+                    <span>Toggle the battle countdown clock</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="9" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="8">
+                  <div class="gp-btn-tag menu">Share / Create (Select)</div>
+                  <div class="gp-action-desc">
+                    <strong>Reset Round Timer</strong>
+                    <span>Reset countdown timer to round duration</span>
+                  </div>
+                  <button class="gp-test-btn" data-btn="8" type="button">Test</button>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB CONTENT: XBOX -->
+        <div class="gp-tab-content" data-brand-panel="xbox">
+          <div class="gp-grid">
+            <div class="gp-card">
+              <h3>🎵 DJ Soundboard FX (Face Buttons)</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="0">
+                  <div class="gp-btn-tag xbox-a">A Button</div>
+                  <div class="gp-action-desc"><strong>Airhorn Blast</strong><span>Instant stadium airhorn blast with heavy bass haptic</span></div>
+                  <button class="gp-test-btn" data-btn="0" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="1">
+                  <div class="gp-btn-tag xbox-b">B Button</div>
+                  <div class="gp-action-desc"><strong>Boxing Bell</strong><span>Rounds boxing bell strike</span></div>
+                  <button class="gp-test-btn" data-btn="1" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="2">
+                  <div class="gp-btn-tag xbox-x">X Button</div>
+                  <div class="gp-action-desc"><strong>Crowd React</strong><span>Crowd gasps &amp; "Damn!" vocal reaction</span></div>
+                  <button class="gp-test-btn" data-btn="2" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="3">
+                  <div class="gp-btn-tag xbox-y">Y Button</div>
+                  <div class="gp-action-desc"><strong>Crowd Cheer</strong><span>Applause &amp; stadium cheering ovation</span></div>
+                  <button class="gp-test-btn" data-btn="3" type="button">Test</button>
+                </li>
+              </ul>
+            </div>
+
+            <div class="gp-card">
+              <h3>🎛️ Audio Decks &amp; DJ Scratch</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="4">
+                  <div class="gp-btn-tag shoulder">LB (Left Bumper)</div>
+                  <div class="gp-action-desc"><strong>Deck 1 Audio Toggle</strong><span>Play / Pause Contestant 1 beat</span></div>
+                  <button class="gp-test-btn" data-btn="4" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="5">
+                  <div class="gp-btn-tag shoulder">RB (Right Bumper)</div>
+                  <div class="gp-action-desc"><strong>Deck 2 Audio Toggle</strong><span>Play / Pause Contestant 2 beat</span></div>
+                  <button class="gp-test-btn" data-btn="5" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="6">
+                  <div class="gp-btn-tag trigger">LT (Left Trigger)</div>
+                  <div class="gp-action-desc"><strong>P1 Scratch &amp; Deck Walk</strong><span>Contestant 1 walks to console &amp; needle drops</span></div>
+                  <button class="gp-test-btn" data-btn="6" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="7">
+                  <div class="gp-btn-tag trigger">RT (Right Trigger)</div>
+                  <div class="gp-action-desc"><strong>P2 Scratch &amp; Deck Walk</strong><span>Contestant 2 walks to console &amp; needle drops</span></div>
+                  <button class="gp-test-btn" data-btn="7" type="button">Test</button>
+                </li>
+              </ul>
+            </div>
+
+            <div class="gp-card">
+              <h3>🕹️ Analog Locomotion &amp; 3D Camera</h3>
+              <ul class="gp-list">
+                <li class="gp-item">
+                  <div class="gp-btn-tag stick">Left Thumbstick</div>
+                  <div class="gp-action-desc"><strong>Stage Walking Locomotion</strong><span>Direct 3D character steering across the battle stage</span></div>
+                </li>
+                <li class="gp-item">
+                  <div class="gp-btn-tag stick">Right Thumbstick</div>
+                  <div class="gp-action-desc"><strong>Camera Orbit</strong><span>Orbit &amp; tilt arena camera in 360 degrees</span></div>
+                </li>
+                <li class="gp-item gp-key" data-btn="10">
+                  <div class="gp-btn-tag stick-click">LSB (Left Stick Click)</div>
+                  <div class="gp-action-desc"><strong>Reset Camera View</strong><span>Reset camera to front center angle</span></div>
+                  <button class="gp-test-btn" data-btn="10" type="button">Test</button>
+                </li>
+                <li class="gp-item gp-key" data-btn="11">
+                  <div class="gp-btn-tag stick-click">RSB (Right Stick Click)</div>
+                  <div class="gp-action-desc"><strong>Stage Neon Pulse</strong><span>Flash stadium neon lights &amp; bell ring</span></div>
+                  <button class="gp-test-btn" data-btn="11" type="button">Test</button>
+                </li>
+              </ul>
+            </div>
+
+            <div class="gp-card">
+              <h3>🧭 Stage Navigation &amp; Timer</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="12"><div class="gp-btn-tag dpad">D-Pad ⬆ Up</div><div class="gp-action-desc"><strong>Both to Deck</strong><span>Both to DJ Console</span></div><button class="gp-test-btn" data-btn="12" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="13"><div class="gp-btn-tag dpad">D-Pad ⬇ Down</div><div class="gp-action-desc"><strong>Both to Side Stage</strong><span>Both return to hype wings</span></div><button class="gp-test-btn" data-btn="13" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="14"><div class="gp-btn-tag dpad">D-Pad ⬅ Left</div><div class="gp-action-desc"><strong>Needle Stop Scratch</strong><span>Vinyl brake FX</span></div><button class="gp-test-btn" data-btn="14" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="15"><div class="gp-btn-tag dpad">D-Pad ➡ Right</div><div class="gp-action-desc"><strong>Center Face-Off</strong><span>Head-to-head staredown</span></div><button class="gp-test-btn" data-btn="15" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="9"><div class="gp-btn-tag menu">Menu (Start)</div><div class="gp-action-desc"><strong>Toggle Timer</strong><span>Start / Pause round countdown</span></div><button class="gp-test-btn" data-btn="9" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="8"><div class="gp-btn-tag menu">View (Back)</div><div class="gp-action-desc"><strong>Reset Timer</strong><span>Reset countdown clock</span></div><button class="gp-test-btn" data-btn="8" type="button">Test</button></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB CONTENT: NINTENDO SWITCH -->
+        <div class="gp-tab-content" data-brand-panel="nintendo">
+          <div class="gp-grid">
+            <div class="gp-card">
+              <h3>🎵 DJ Soundboard FX (Nintendo Layout)</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="0"><div class="gp-btn-tag nintendo-b">B Button</div><div class="gp-action-desc"><strong>Airhorn Blast</strong><span>Stadium horn blast + rumble</span></div><button class="gp-test-btn" data-btn="0" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="1"><div class="gp-btn-tag nintendo-a">A Button</div><div class="gp-action-desc"><strong>Boxing Bell</strong><span>Rounds boxing bell</span></div><button class="gp-test-btn" data-btn="1" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="2"><div class="gp-btn-tag nintendo-y">Y Button</div><div class="gp-action-desc"><strong>Crowd React</strong><span>Crowd vocal reaction</span></div><button class="gp-test-btn" data-btn="2" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="3"><div class="gp-btn-tag nintendo-x">X Button</div><div class="gp-action-desc"><strong>Crowd Cheer</strong><span>Stadium applause cheer</span></div><button class="gp-test-btn" data-btn="3" type="button">Test</button></li>
+              </ul>
+            </div>
+
+            <div class="gp-card">
+              <h3>🎛️ Audio Decks &amp; DJ Scratch</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="4"><div class="gp-btn-tag shoulder">L Button</div><div class="gp-action-desc"><strong>Deck 1 Audio Toggle</strong><span>Play / Pause Contestant 1 beat</span></div><button class="gp-test-btn" data-btn="4" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="5"><div class="gp-btn-tag shoulder">R Button</div><div class="gp-action-desc"><strong>Deck 2 Audio Toggle</strong><span>Play / Pause Contestant 2 beat</span></div><button class="gp-test-btn" data-btn="5" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="6"><div class="gp-btn-tag trigger">ZL Trigger</div><div class="gp-action-desc"><strong>P1 Scratch &amp; Deck Walk</strong><span>Contestant 1 to console &amp; needle drop</span></div><button class="gp-test-btn" data-btn="6" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="7"><div class="gp-btn-tag trigger">ZR Trigger</div><div class="gp-action-desc"><strong>P2 Scratch &amp; Deck Walk</strong><span>Contestant 2 to console &amp; needle drop</span></div><button class="gp-test-btn" data-btn="7" type="button">Test</button></li>
+              </ul>
+            </div>
+
+            <div class="gp-card">
+              <h3>🕹️ Analog Locomotion &amp; 3D Camera</h3>
+              <ul class="gp-list">
+                <li class="gp-item"><div class="gp-btn-tag stick">Left Control Stick</div><div class="gp-action-desc"><strong>Stage Walking</strong><span>Walk &amp; steer active character</span></div></li>
+                <li class="gp-item"><div class="gp-btn-tag stick">Right Control Stick</div><div class="gp-action-desc"><strong>Camera Orbit</strong><span>Orbit &amp; tilt arena camera</span></div></li>
+                <li class="gp-item gp-key" data-btn="10"><div class="gp-btn-tag stick-click">Left Stick Press</div><div class="gp-action-desc"><strong>Reset Camera View</strong><span>Reset camera to front stage</span></div><button class="gp-test-btn" data-btn="10" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="11"><div class="gp-btn-tag stick-click">Right Stick Press</div><div class="gp-action-desc"><strong>Stage Neon Pulse</strong><span>Flash arena lighting &amp; bell ring</span></div><button class="gp-test-btn" data-btn="11" type="button">Test</button></li>
+              </ul>
+            </div>
+
+            <div class="gp-card">
+              <h3>🧭 Stage Navigation &amp; Timer</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="12"><div class="gp-btn-tag dpad">D-Pad ⬆ Up</div><div class="gp-action-desc"><strong>Both to Deck</strong><span>Both to DJ Console</span></div><button class="gp-test-btn" data-btn="12" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="13"><div class="gp-btn-tag dpad">D-Pad ⬇ Down</div><div class="gp-action-desc"><strong>Both to Side Stage</strong><span>Both return to wings</span></div><button class="gp-test-btn" data-btn="13" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="14"><div class="gp-btn-tag dpad">D-Pad ⬅ Left</div><div class="gp-action-desc"><strong>Needle Stop Scratch</strong><span>Turntable brake sound</span></div><button class="gp-test-btn" data-btn="14" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="15"><div class="gp-btn-tag dpad">D-Pad ➡ Right</div><div class="gp-action-desc"><strong>Center Face-Off</strong><span>Head-to-head staredown</span></div><button class="gp-test-btn" data-btn="15" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="9"><div class="gp-btn-tag menu">+ Button</div><div class="gp-action-desc"><strong>Toggle Timer</strong><span>Start / Pause round countdown</span></div><button class="gp-test-btn" data-btn="9" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="8"><div class="gp-btn-tag menu">- Button</div><div class="gp-action-desc"><strong>Reset Timer</strong><span>Reset countdown clock</span></div><button class="gp-test-btn" data-btn="8" type="button">Test</button></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB CONTENT: GENERIC / UNIVERSAL -->
+        <div class="gp-tab-content" data-brand-panel="generic">
+          <div class="gp-grid">
+            <div class="gp-card">
+              <h3>🎵 Soundboard FX (Buttons 0–3)</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="0"><div class="gp-btn-tag generic-key">Button 0 (Bottom)</div><div class="gp-action-desc"><strong>Airhorn Blast</strong></div><button class="gp-test-btn" data-btn="0" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="1"><div class="gp-btn-tag generic-key">Button 1 (Right)</div><div class="gp-action-desc"><strong>Boxing Bell</strong></div><button class="gp-test-btn" data-btn="1" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="2"><div class="gp-btn-tag generic-key">Button 2 (Left)</div><div class="gp-action-desc"><strong>Crowd React</strong></div><button class="gp-test-btn" data-btn="2" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="3"><div class="gp-btn-tag generic-key">Button 3 (Top)</div><div class="gp-action-desc"><strong>Crowd Cheer</strong></div><button class="gp-test-btn" data-btn="3" type="button">Test</button></li>
+              </ul>
+            </div>
+
+            <div class="gp-card">
+              <h3>🎛️ Audio Decks (Buttons 4–7)</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="4"><div class="gp-btn-tag generic-key">Button 4 (L1)</div><div class="gp-action-desc"><strong>Deck 1 Audio Toggle</strong></div><button class="gp-test-btn" data-btn="4" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="5"><div class="gp-btn-tag generic-key">Button 5 (R1)</div><div class="gp-action-desc"><strong>Deck 2 Audio Toggle</strong></div><button class="gp-test-btn" data-btn="5" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="6"><div class="gp-btn-tag generic-key">Button 6 (L2)</div><div class="gp-action-desc"><strong>P1 Scratch &amp; Walk to Deck</strong></div><button class="gp-test-btn" data-btn="6" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="7"><div class="gp-btn-tag generic-key">Button 7 (R2)</div><div class="gp-action-desc"><strong>P2 Scratch &amp; Walk to Deck</strong></div><button class="gp-test-btn" data-btn="7" type="button">Test</button></li>
+              </ul>
+            </div>
+
+            <div class="gp-card">
+              <h3>🕹️ Thumbsticks &amp; Axes</h3>
+              <ul class="gp-list">
+                <li class="gp-item"><div class="gp-btn-tag generic-key">Axes 0, 1 (Left Stick)</div><div class="gp-action-desc"><strong>Character Locomotion</strong><span>Walk &amp; steer character across stage</span></div></li>
+                <li class="gp-item"><div class="gp-btn-tag generic-key">Axes 2, 3 (Right Stick)</div><div class="gp-action-desc"><strong>3D Camera Orbit</strong><span>Orbit &amp; tilt stage camera</span></div></li>
+                <li class="gp-item gp-key" data-btn="10"><div class="gp-btn-tag generic-key">Button 10 (L-Stick)</div><div class="gp-action-desc"><strong>Reset Camera View</strong></div><button class="gp-test-btn" data-btn="10" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="11"><div class="gp-btn-tag generic-key">Button 11 (R-Stick)</div><div class="gp-action-desc"><strong>Stage Neon Pulse</strong></div><button class="gp-test-btn" data-btn="11" type="button">Test</button></li>
+              </ul>
+            </div>
+
+            <div class="gp-card">
+              <h3>🧭 D-Pad &amp; Controls (Buttons 8–15)</h3>
+              <ul class="gp-list">
+                <li class="gp-item gp-key" data-btn="12"><div class="gp-btn-tag generic-key">Button 12 (D-Up)</div><div class="gp-action-desc"><strong>Both to Deck</strong></div><button class="gp-test-btn" data-btn="12" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="13"><div class="gp-btn-tag generic-key">Button 13 (D-Down)</div><div class="gp-action-desc"><strong>Both to Side Stage</strong></div><button class="gp-test-btn" data-btn="13" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="14"><div class="gp-btn-tag generic-key">Button 14 (D-Left)</div><div class="gp-action-desc"><strong>Needle Stop Scratch</strong></div><button class="gp-test-btn" data-btn="14" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="15"><div class="gp-btn-tag generic-key">Button 15 (D-Right)</div><div class="gp-action-desc"><strong>Center Face-Off</strong></div><button class="gp-test-btn" data-btn="15" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="9"><div class="gp-btn-tag generic-key">Button 9 (Start)</div><div class="gp-action-desc"><strong>Toggle Round Timer</strong></div><button class="gp-test-btn" data-btn="9" type="button">Test</button></li>
+                <li class="gp-item gp-key" data-btn="8"><div class="gp-btn-tag generic-key">Button 8 (Select)</div><div class="gp-action-desc"><strong>Reset Round Timer</strong></div><button class="gp-test-btn" data-btn="8" type="button">Test</button></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 3-JUDGE PANEL CONSENSUS MODAL ===== -->
+    <div id="consensus-modal" class="modal-overlay" style="display:none">
+      <div class="modal-content consensus-modal-content">
+        <div class="modal-header">
+          <h2>⚖️ 3-Judge Panel Decision</h2>
+          <button class="modal-close" data-close="consensus-modal">&times;</button>
+        </div>
+        <div class="consensus-modal-body" id="consensus-modal-body">
+          <!-- Dynamically populated by JudgeManager -->
+        </div>
+        <div class="modal-footer">
+          <button class="control-btn primary" data-close="consensus-modal">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== KEYBOARD SHORTCUTS CHEAT SHEET MODAL ===== -->
+    <div id="shortcuts-modal" class="modal-overlay" style="display:none">
+      <div class="modal-content shortcuts-modal-content">
+        <div class="modal-header">
+          <h2>⌨️ Keyboard Shortcuts &amp; Pro Hotkeys</h2>
+          <button class="modal-close" data-close="shortcuts-modal">&times;</button>
+        </div>
+        <div class="shortcuts-grid">
+          <div class="shortcut-group">
+            <h3>⏱️ Battle &amp; Timer</h3>
+            <div class="shortcut-item"><kbd>Space</kbd> <span>Play / Pause Round Timer</span></div>
+            <div class="shortcut-item"><kbd>Enter</kbd> <span>Submit Battle &amp; Lock Scores</span></div>
+            <div class="shortcut-item"><kbd>R</kbd> <span>Reset Scores &amp; Round</span></div>
+          </div>
+          <div class="shortcut-group">
+            <h3>🥊 Rounds &amp; Overtime</h3>
+            <div class="shortcut-item"><kbd>1</kbd> <span>Select Round 1</span></div>
+            <div class="shortcut-item"><kbd>2</kbd> <span>Select Round 2</span></div>
+            <div class="shortcut-item"><kbd>3</kbd> <span>Select Final Round</span></div>
+            <div class="shortcut-item"><kbd>4</kbd> <span>Select Sudden Death OT</span></div>
+          </div>
+          <div class="shortcut-group">
+            <h3>⚖️ Judges &amp; Broadcast</h3>
+            <div class="shortcut-item"><kbd>J</kbd> <span>Cycle Judges (1 ➔ 2 ➔ 3)</span></div>
+            <div class="shortcut-item"><kbd>M</kbd> <span>Toggle OBS Clean Stream Mode</span></div>
+            <div class="shortcut-item"><kbd>?</kbd> <span>Toggle This Shortcuts Guide</span></div>
+          </div>
+          <div class="shortcut-group">
+            <h3>💨 Stage FX &amp; Audio</h3>
+            <div class="shortcut-item"><kbd>C</kbd> <span>Blast Cryo Smoke Cannons</span></div>
+            <div class="shortcut-item"><kbd>H</kbd> <span>Announcer Fight Hype Call</span></div>
+            <div class="shortcut-item"><kbd>S</kbd> <span>Vinyl Scratch Audio FX</span></div>
+            <div class="shortcut-item"><kbd>D</kbd> <span>Send DJs to Console to Mix</span></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="control-btn primary" data-close="shortcuts-modal">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== WINNER ANNOUNCEMENT OVERLAY ===== -->
+    <div id="winner-overlay" class="winner-overlay" style="display:none">
+      <div class="winner-content">
+        <div class="winner-trophy">🏆</div>
+        <h2 class="winner-title">WINNER</h2>
+        <p class="winner-name" id="winner-name"></p>
+        <div class="winner-score" id="winner-score"></div>
+        <button id="btn-dismiss-winner" class="control-btn primary">Continue</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="/src/js/app.js"></script>
+</body>
+</html>
