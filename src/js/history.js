@@ -4,19 +4,6 @@
 
 const STORAGE_KEY = 'beatbattle_history';
 
-const ACHIEVEMENT_DEFS = [
-  { id: 'first_battle', name: 'First Blood', desc: 'Complete your first battle', icon: '⚔️', check: (h) => h.length >= 1 },
-  { id: 'five_battles', name: 'Veteran', desc: 'Complete 5 battles', icon: '🎖️', check: (h) => h.length >= 5 },
-  { id: 'ten_battles', name: 'War Machine', desc: 'Complete 10 battles', icon: '🏅', check: (h) => h.length >= 10 },
-  { id: 'perfect_10', name: 'Perfect 10', desc: 'Score a 10.0 in any category', icon: '💯', check: (h) => h.some(b => [...b.scores1, ...b.scores2].some(s => s === 10)) },
-  { id: 'sweep', name: 'Clean Sweep', desc: 'Win with all categories at 8+', icon: '🧹', check: (h) => h.some(b => {
-    const winnerScores = b.total1 > b.total2 ? b.scores1 : b.scores2;
-    return winnerScores.every(s => s >= 8);
-  })},
-  { id: 'close_call', name: 'Photo Finish', desc: 'Battle decided by less than 1 point', icon: '📸', check: (h) => h.some(b => Math.abs(b.total1 - b.total2) < 1 && Math.abs(b.total1 - b.total2) > 0) },
-  { id: 'blowout', name: 'Blowout', desc: 'Win by 30+ points', icon: '💥', check: (h) => h.some(b => Math.abs(b.total1 - b.total2) >= 30) },
-  { id: 'tie', name: 'Draw', desc: 'End a battle in a tie', icon: '🤝', check: (h) => h.some(b => b.total1 === b.total2) },
-];
 
 class HistoryManager {
   constructor() {
@@ -66,6 +53,7 @@ class HistoryManager {
       notes: finalResult.notes || '',
       timestampedNotes: finalResult.timestampedNotes || [],
       ratingChanges: finalResult.ratingChanges || null,
+      isClinch: !!finalResult.isClinch,
       timestamp: finalResult.timestamp || new Date().toISOString()
     };
 
@@ -119,38 +107,6 @@ class HistoryManager {
   /**
    * Check which achievements are unlocked
    */
-  getAchievements(leagueId) {
-    const battles = leagueId ? this.getForLeague(leagueId) : this.history;
-    return ACHIEVEMENT_DEFS.map(def => ({
-      ...def,
-      unlocked: def.check(battles)
-    }));
-  }
-
-  /**
-   * Render achievements
-   */
-  renderAchievements(containerId, leagueId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    const achievements = this.getAchievements(leagueId);
-    container.innerHTML = '';
-
-    achievements.forEach(ach => {
-      const card = document.createElement('div');
-      card.className = `achievement-card ${ach.unlocked ? 'unlocked' : 'locked'}`;
-      card.innerHTML = `
-        <span class="ach-icon">${ach.icon}</span>
-        <div class="ach-info">
-          <div class="ach-name">${ach.name}</div>
-          <div class="ach-desc">${ach.desc}</div>
-        </div>
-      `;
-      container.appendChild(card);
-    });
-  }
-
   /**
    * Render battle history list
    */

@@ -215,14 +215,16 @@ class RosterManager {
     const b = this.getById(c2Id);
     const ra = a ? this.ratingOf(a) : 1500;
     const rb = b ? this.ratingOf(b) : 1500;
+    const peakA = a?.stats?.peakRating || ra;
+    const peakB = b?.stats?.peakRating || rb;
     const { newA, newB } = eloUpdate(ra, rb, outcome1 === 'win' ? 1 : outcome1 === 'loss' ? 0 : 0.5);
 
     this.recordBattle(c1Id, score1, outcome1, sumCats('scores1'), categories, newA);
     this.recordBattle(c2Id, score2, outcome2, sumCats('scores2'), categories, newB);
 
     return {
-      [c1Id]: { before: ra, after: newA, change: newA - ra, outcome: outcome1 },
-      [c2Id]: { before: rb, after: newB, change: newB - rb, outcome: outcome2 }
+      [c1Id]: { before: ra, after: newA, change: newA - ra, peakBefore: peakA, outcome: outcome1 },
+      [c2Id]: { before: rb, after: newB, change: newB - rb, peakBefore: peakB, outcome: outcome2 }
     };
   }
 

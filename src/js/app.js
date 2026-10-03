@@ -29,6 +29,8 @@ import { PadBank } from './padBank.js';
 import { DeckControls } from './deckControls.js';
 import { JudgeLink } from './judgeLink.js';
 import { BattleNotepad } from './notepad.js';
+import { AchievementEngine } from './achievements.js';
+import { HallOfFame } from './hallOfFame.js';
 
 // ============================================================
 // Initialize all modules
@@ -67,6 +69,17 @@ const battleEngine = new BattleSessionEngine({
   history,
   tournament,
   leagues
+});
+
+// Achievements: badges derived from history, league records, tournament titles
+const achievements = new AchievementEngine(history, roster);
+const hallOfFame = new HallOfFame({
+  engine: achievements,
+  roster,
+  leagues,
+  djController,
+  announcer,
+  getStageSide: (id) => (id === selectedContestant1Id ? 1 : id === selectedContestant2Id ? 2 : null)
 });
 
 // 3D notepad for private / public battle notes
@@ -349,7 +362,7 @@ function openProfileModal(contestantId) {
   const photoEl = document.getElementById('profile-photo');
   if (photoEl) {
     photoEl.innerHTML = c.photo
-      ? `<img src="${c.photo}" alt="${c.name}" />`
+      ? `<img src="${esc(c.photo)}" alt="${esc(c.name)}" />`
       : `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
   }
 
@@ -362,6 +375,7 @@ function openProfileModal(contestantId) {
   document.getElementById('profile-losses').textContent = c.stats.losses;
   document.getElementById('profile-avg').textContent = c.stats.avgScore.toFixed(2);
   document.getElementById('profile-best').textContent = c.stats.bestCategory;
+  hallOfFame.renderProfile(contestantId);
 
   // Battle history
   const battles = history.getForContestant(contestantId);
@@ -454,7 +468,7 @@ function refreshBattle() {
 
   // Standings, history & achievements
   renderStandings(leagueId);
-  history.renderAchievements('achievements-list', leagueId);
+  hallOfFame.render(leagueId);
   history.renderHistory('history-list', 'history-empty', leagueId);
 
   // Notes from earlier battles
@@ -812,12 +826,25 @@ async function handleFinalizeBattle() {
   storage.clearActiveSession();
   postBroadcast('BATTLE_FINALIZED', finalResult);
   updateBattleFlowUI();
-  await runWinnerReveal(finalResult);
+  // Tournament complete → crown the champion
+  let championId = null;
+  if (!finalResult.isDemo && tournament.bracket && tournament.isTournamentComplete()) {
+    const champ = tournament.getTournamentWinner();
+    if (champ && achievements.addTitle(champ.id, { tournamentId: tournament.bracket.id, name: tournament.bracket.name || 'Tournament Champion' })) {
+      championId = champ.id;
+    }
+  }
+  const unlocks = finalResult.isDemo ? [] : hallOfFame.collectUnlocks([finalResult.contestant1.id, finalResult.contestant2.id]);
+  finalResult.unlocks = unlocks.map(u => ({ contestantId: u.contestantId, id: u.badge.id, tier: u.badge.tier }));
+
+  await runWinnerReveal(finalResult, unlocks);
+  hallOfFame.celebrate(unlocks, 2600);
+  if (championId) setTimeout(() => showToast(`👑 ${roster.getById(championId)?.name} is the tournament champion!`), 1200);
   refreshBattle();
 }
 
 /** Lights down, face-off, drumroll… then the winner */
-async function runWinnerReveal(finalResult) {
+async function runWinnerReveal(finalResult, unlocks = []) {
   const winNum = finalResult.winnerId === selectedContestant1Id ? 1 : finalResult.winnerId === selectedContestant2Id ? 2 : null;
   document.body.classList.add('reveal-mode');
   closeTabDrawer();
@@ -846,11 +873,11 @@ async function runWinnerReveal(finalResult) {
   if (winNum) document.getElementById(`contestant-${winNum}-total`)?.classList.add('winner-glow');
   const reportBtn = document.getElementById('btn-view-report');
   if (reportBtn) reportBtn.style.display = 'inline-flex';
-  showWinner(finalResult);
+  showWinner(finalResult, unlocks);
 }
 
 /** Fill the results card (lower third, the stage stays visible above it) */
-function showWinner(finalResult) {
+function showWinner(finalResult, unlocks = []) {
   const overlay = document.getElementById('winner-overlay');
   if (!overlay || !finalResult) return;
   const c1 = finalResult.contestant1;
@@ -915,7 +942,8 @@ function showWinner(finalResult) {
   };
   statsEl.innerHTML = finalResult.isDemo
     ? '<h4>Standings</h4><p class="wst-demo">Demo battle — records and ratings unchanged.</p>'
-    : `<h4>Standings</h4><div class="wst-row wst-head"><span></span><span>Record</span><span>Rating</span><span>Rank</span></div>${statLine(c1, 1)}${statLine(c2, 2)}`;
+    : `<h4>Standings</h4><div class="wst-row wst-head"><span></span><span>Record</span><span>Rating</span><span>Rank</span></div>${statLine(c1, 1)}${statLine(c2, 2)}`
+      + (unlocks.length ? `<div class="wst-badges">${unlocks.map(u => `<span class="wst-badge" title="${esc(u.name)}: ${esc(u.badge.desc)}">${u.badge.icon} ${esc(u.badge.name)}${u.badge.tierLabel ? ` · ${esc(u.badge.tierLabel)}` : ''}</span>`).join('')}</div>` : '');
 
   const next = tournament.isTournamentActive() ? tournament.getNextPlayableMatch() : null;
   const nextBtn = document.getElementById('btn-winner-next-match');
@@ -994,10 +1022,7 @@ document.getElementById('btn-dismiss-winner')?.addEventListener('click', () => {
   closeReveal();
   // Tournament: crown a champion or show the updated bracket
   if (tournament.bracket) {
-    if (tournament.isTournamentComplete()) {
-      const champ = tournament.getTournamentWinner();
-      if (champ) showToast(`🏆 ${champ.name} wins the tournament!`);
-    } else {
+    if (!tournament.isTournamentComplete()) {
       tournament.openModal();
       tournament.renderBracket();
     }

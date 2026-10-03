@@ -179,6 +179,9 @@ class TournamentManager {
     const numPlayable = count - numMatchesR1;
 
     this.bracket = {
+      id: `t_${Date.now().toString(36)}`,
+      name: `${this.leagues?.getActive?.()?.name || 'WWTS'} Tournament`,
+      createdAt: new Date().toISOString(),
       rounds: [],
       contestantIds: [...contestantIds],
       totalRounds,

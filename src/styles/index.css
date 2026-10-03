@@ -4931,3 +4931,115 @@ body.reduced-motion .notepad, body.reduced-motion .notepad-page { animation: non
 .report-notes-group h4 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.08em; margin-bottom: 4px; }
 /* The notepad needs more room than the other tabs */
 .tab-drawer:has(#tab-notes.active) { top: 11vh; bottom: 4vh; width: min(900px, calc(100vw - 700px)); }
+
+/* =========================================================
+   HALL OF FAME — records, badges, unlock moments
+   ========================================================= */
+.hof-records { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; margin-bottom: 18px; }
+.hof-record {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 170, 0, 0.1), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 170, 0, 0.25);
+}
+.hof-icon { grid-row: 1 / 4; font-size: 1.6rem; align-self: center; }
+.hof-label { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.hof-value { font-family: 'Orbitron', monospace; font-weight: 900; font-size: 1.05rem; color: var(--ember-amber); }
+.hof-holder { font-size: 0.78rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.badge-producer-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.badge-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.badge-chip.active { border-color: var(--ember-amber); color: var(--text-primary); background: rgba(255, 170, 0, 0.1); }
+.badge-chip-count { font-family: 'Orbitron', monospace; font-size: 0.64rem; color: var(--ember-amber); margin-left: 4px; }
+.badge-group { margin-bottom: 12px; }
+.badge-group h4 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.12em; color: var(--text-muted); font-size: 0.95rem; margin-bottom: 6px; }
+.badge-grid-inner, .badge-grid.compact { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.badge-card {
+  --tier: #8a8a99;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.badge-card.tier-1 { --tier: #cd7f32; }
+.badge-card.tier-2 { --tier: #c0c6d0; }
+.badge-card.tier-3 { --tier: #ffc93c; }
+.badge-card.tier-4 { --tier: #9ef0ff; }
+.badge-card.single { --tier: #ffaa00; }
+.badge-card:not(.locked) { border-color: color-mix(in srgb, var(--tier) 55%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--tier) 14%, transparent), rgba(255, 255, 255, 0.02)); }
+.badge-card.locked { opacity: 0.55; }
+.badge-card.locked .badge-icon { filter: grayscale(1); }
+.badge-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.25), transparent 60%), color-mix(in srgb, var(--tier) 35%, #111);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tier) 70%, transparent);
+}
+.badge-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.badge-name { font-size: 0.8rem; font-weight: 800; }
+.badge-name em { font-style: normal; font-size: 0.66rem; color: var(--tier); text-transform: uppercase; letter-spacing: 0.06em; }
+.badge-desc { font-size: 0.68rem; color: var(--text-muted); }
+.badge-progress { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; margin-top: 4px; }
+.badge-progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--ember-orange), var(--ember-amber)); }
+.badge-next { font-family: 'Orbitron', monospace; font-size: 0.56rem; color: var(--text-muted); }
+.badge-titles { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.badge-title { padding: 5px 12px; border-radius: 999px; background: linear-gradient(135deg, #ffc93c, #ff8a1a); color: #2a1600; font-weight: 800; font-size: 0.76rem; }
+.badge-title small { font-weight: 600; opacity: 0.75; }
+.profile-badges { margin-bottom: 12px; max-height: 260px; overflow-y: auto; }
+
+/* Results card: new badges */
+.wst-badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+.wst-badge { padding: 3px 8px; border-radius: 999px; background: rgba(255, 170, 0, 0.14); border: 1px solid rgba(255, 170, 0, 0.4); font-size: 0.66rem; font-weight: 700; }
+
+/* Unlock banner */
+.achievement-pop {
+  --tier: #ffaa00;
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 22px 12px 14px;
+  border-radius: 999px;
+  background: rgba(10, 10, 14, 0.94);
+  border: 2px solid var(--tier);
+  box-shadow: 0 0 40px color-mix(in srgb, var(--tier) 45%, transparent), 0 16px 40px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -140%) scale(0.9);
+  opacity: 0;
+  transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.2, 1.2), opacity 0.3s;
+  pointer-events: none;
+}
+.achievement-pop.show { transform: translate(-50%, 0) scale(1); opacity: 1; }
+.achievement-pop.tier-1 { --tier: #cd7f32; }
+.achievement-pop.tier-2 { --tier: #c0c6d0; }
+.achievement-pop.tier-3 { --tier: #ffc93c; }
+.achievement-pop.tier-4 { --tier: #9ef0ff; }
+.ap-icon { font-size: 2.2rem; width: 54px; height: 54px; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--tier) 30%, #111); animation: apSpin 0.8s ease-out; }
+@keyframes apSpin { from { transform: rotateY(-540deg) scale(0.4); } }
+.ap-text { display: flex; flex-direction: column; }
+.ap-kicker { font-family: 'Orbitron', monospace; font-size: 0.6rem; letter-spacing: 0.22em; color: var(--tier); }
+.ap-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.05em; line-height: 1.05; }
+.ap-who { font-size: 0.76rem; color: var(--text-secondary); }
