@@ -8,7 +8,7 @@ function fakeAnimator() {
   const rec = (name) => (...args) => calls.push([name, args]);
   return {
     calls,
-    arm: rec('arm'), leg: rec('leg'), spine: rec('spine'), head: rec('head'), lift: rec('lift'), yaw: rec('yaw')
+    arm: rec('arm'), leg: rec('leg'), spine: rec('spine'), head: rec('head'), lift: rec('lift'), yaw: rec('yaw'), hips: rec('hips'), shift: rec('shift'), add: rec('add')
   };
 }
 

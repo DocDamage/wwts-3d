@@ -2102,6 +2102,7 @@ class DJControllerRenderer {
     const ctx = {
       beat: elapsed * (this.bpm / 60) * Math.PI * 2,
       bpm: this.bpm,
+      style: isP1 ? 0 : 1, // each contestant grooves a little differently
       playing,
       oppAngle,
       near,
@@ -2215,6 +2216,14 @@ class DJControllerRenderer {
     // ---- 3. Root transform ----
     char.rotation.y = cState.facing + anim.rootYaw;
     char.position.y = baseY + anim.rootLift;
+    // Weight shifts slide the body a few cm; undo last frame's slide so it never accumulates
+    const f = cState.facing;
+    const sx = anim.rootShiftX * Math.cos(f) + anim.rootShiftZ * Math.sin(f);
+    const sz = -anim.rootShiftX * Math.sin(f) + anim.rootShiftZ * Math.cos(f);
+    const prevShift = cState.rootShift || { x: 0, z: 0 };
+    char.position.x += sx - prevShift.x;
+    char.position.z += sz - prevShift.z;
+    cState.rootShift = { x: sx, z: sz };
 
     // Selection ring follows the feet
     const ring = this.selectionRings[p];

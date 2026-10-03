@@ -34,6 +34,12 @@ function mapJoints(root) {
   return map;
 }
 
+// Hip-to-ankle length of the 1.75 m contestants, for keeping the feet planted
+const LEG_LENGTH = 0.85;
+const HIP_HALF_WIDTH = 0.09;
+// How much the thighs untwist when the pelvis turns (keeps the toes pointing forward)
+const LEG_TWIST = 0.8;
+
 const _euler = new THREE.Euler();
 const _quat = new THREE.Quaternion();
 
@@ -49,6 +55,8 @@ class CharacterAnimator {
     this.applied = {};
     this.rootLift = 0;
     this.rootYaw = 0;
+    this.rootShiftX = 0;
+    this.rootShiftZ = 0;
     this.debugOffsets = null;
   }
 
@@ -104,6 +112,35 @@ class CharacterAnimator {
     this.add('Head', nod * 0.6, turn * 0.6, tilt * 0.6, w);
   }
 
+  /**
+   * Pelvis: turn+ = toward the character's left, tilt+ = left hip up, bend+ = tip forward.
+   * shiftX+/shiftZ+ slide the weight toward the character's left / forward (metres).
+   * The legs counter-rotate so the feet stay planted, and the chest counters the
+   * pelvis so the upper body stays roughly upright — real dances are driven from here.
+   */
+  hips({ turn = 0, tilt = 0, bend = 0, shiftX = 0, shiftZ = 0 } = {}, w = 1) {
+    this.add('Hips', bend, turn, tilt, w);
+    const legX = bend - shiftZ / LEG_LENGTH;
+    const legZ = -tilt - shiftX / LEG_LENGTH;
+    this.add('LeftUpLeg', legX, -turn * LEG_TWIST, legZ, w);
+    this.add('RightUpLeg', legX, -turn * LEG_TWIST, legZ, w);
+    this.spine({ bend: -bend * 0.85, lean: -tilt * 0.9, twist: -turn * 0.45 }, w);
+    this.shift(shiftX, shiftZ, w);
+    if (tilt) {
+      // The dropped hip's leg is now too long: drop the root and soften that knee
+      const drop = HIP_HALF_WIDTH * Math.abs(tilt);
+      const knee = 2 * Math.acos(Math.max(0.5, 1 - (2 * drop) / LEG_LENGTH));
+      this.leg(tilt > 0 ? 'Right' : 'Left', { lift: knee / 2, knee, foot: -knee / 2 }, w);
+      this.lift(-drop, w);
+    }
+  }
+
+  /** Root-level horizontal offset in the character's own frame (metres) */
+  shift(x = 0, z = 0, w = 1) {
+    this.rootShiftX += x * w;
+    this.rootShiftZ += z * w;
+  }
+
   /** Root-level vertical offset (jumps, bounces) for this frame */
   lift(y, w = 1) {
     this.rootLift += y * w;
@@ -123,6 +160,8 @@ class CharacterAnimator {
     this.frame = {};
     this.rootLift = 0;
     this.rootYaw = 0;
+    this.rootShiftX = 0;
+    this.rootShiftZ = 0;
   }
 
   endFrame() {
