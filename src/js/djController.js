@@ -16,6 +16,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CharacterAnimator } from './characterAnimator.js';
 import { StageArena } from './stageArena.js';
 import { addRimLight } from './rimLight.js';
+import { MocapLibrary, MocapRig } from './mocap.js';
+import { FightDirector } from './fightDirector.js';
 import {
   MOVES_BY_ID, TAUNT_REACTIONS, HYPE_REACTIONS, IDLE_FIDGETS, walkCycle, djStation, groove, registerMove
 } from './characterMoves.js';
@@ -95,8 +97,11 @@ class DJControllerRenderer {
     this.onDrivenChange = null;   // (playerNum|null)
     this.onCharacterContext = null; // (playerNum, clientX, clientY) — right-click on a character
     this.onMovesChanged = null;   // fired when mocap moves finish loading
-    this.mocapClips = {};         // moveId -> AnimationClip with prefix-free track names
-    this.mocapActions = { 1: {}, 2: {} };
+    this.mocap = new MocapLibrary();  // Mixamo clips (public/models/animations)
+    this.rigs = { 1: null, 2: null };  // per-character MocapRig
+    this.fight = new FightDirector(this);
+    this.timeScale = 1;                // slow motion / hit-stop (fight director)
+    this.cameraOverride = null;        // (camPos, target) => void — a director owns the camera
     this.idleActions = { 1: null, 2: null };
 
     // Audio Playback State
@@ -1253,11 +1258,14 @@ class DJControllerRenderer {
       action.play();
       this.mixers[playerNum] = mixer;
       this.idleActions[playerNum] = action;
-      this.mocapActions[playerNum] = {};
     } else {
       this.mixers[playerNum] = null;
     }
     this.animators[playerNum] = new CharacterAnimator(char, this.mixers[playerNum]);
+    char.updateMatrixWorld(true);
+    this.rigs[playerNum] = this.mixers[playerNum]
+      ? new MocapRig(char, this.mixers[playerNum], this.mocap, this.idleActions[playerNum])
+      : null;
   }
 
   /**
@@ -1274,80 +1282,67 @@ class DJControllerRenderer {
   }
 
   /**
-   * Optional real motion capture: list Mixamo FBX clips (exported "Without Skin")
-   * in /models/animations/manifest.json and they join the move library:
-   *   [{ "id": "hiphop", "label": "Hip Hop", "icon": "🔥", "category": "dance",
-   *      "file": "Hip Hop Dancing.fbx", "loop": true }]
+   * Motion-capture library (public/models/animations/manifest.json). Locomotion
+   * clips load first, then everything else in the background; every non-base clip
+   * joins the move library so it shows up in the docks.
    */
   async loadMocapMoves() {
-    let manifest;
-    try {
-      const res = await fetch('/models/animations/manifest.json');
-      if (!res.ok) return;
-      manifest = await res.json();
-    } catch {
-      return; // No manifest — procedural moves only
-    }
-    if (!Array.isArray(manifest)) return;
-
-    const loader = new FBXLoader();
-    const loaded = await Promise.all(manifest.map(entry => new Promise(resolve => {
-      loader.load(`/models/animations/${entry.file}`, (obj) => resolve({ entry, clip: obj.animations?.[0] }), undefined, () => resolve(null));
-    })));
-
-    loaded.filter(item => item && item.clip).forEach(({ entry, clip }) => {
-      const generic = clip.clone();
-      generic.tracks.forEach(track => { track.name = track.name.replace(/^mixamorig\d*:?/, ''); });
-      // Strip horizontal root travel so dances stay on their spot (the controller owns position)
-      generic.tracks = generic.tracks.filter(track => !(track.name === 'Hips.position'));
-      this.mocapClips[entry.id] = generic;
+    const ok = await this.mocap.init();
+    if (!ok) return;
+    const entries = this.mocap.entries;
+    entries.filter(e => e.category !== 'base' && e.category !== 'paired').forEach(entry => {
       registerMove({
         id: entry.id,
-        label: entry.label || entry.id,
-        icon: entry.icon || '🎬',
-        category: entry.category || 'dance',
-        loop: entry.loop !== false,
-        duration: generic.duration,
+        label: entry.label,
+        icon: entry.icon,
+        category: entry.category,
+        loop: !!entry.loop,
+        duration: 9999, // the rig ends it when the clip finishes
         mocap: true,
-        fn() {} // the clip itself drives the body
+        fn() {}
       });
     });
     if (typeof this.onMovesChanged === 'function') this.onMovesChanged();
+    const first = ['mx_idle', 'mx_walk', 'mx_run', 'mx_fight_idle', 'mx_turn_left_90', 'mx_turn_right_90',
+      'mx_turn_left_180', 'mx_turn_right_180', 'mx_walk_turn_180', 'mx_run_turn_180', 'mx_walk_back',
+      'mx_idle_weight_shift', 'mx_idle_look1'];
+    await this.mocap.preload(first, 4);
+    this.mocapReady = true;
+    this.mocap.preload(entries.map(e => e.id), 3);
   }
 
-  /** Cross-fade a character from idle into a mocap clip (or back when moveId is null) */
+  /** Start (or stop, with moveId null) a mocap move on a character's rig */
   setMocapAction(playerNum, moveId) {
-    const mixer = this.mixers[playerNum];
-    const idle = this.idleActions[playerNum];
-    const char = this.characters[playerNum];
-    if (!mixer || !idle || !char) return;
-
-    const current = Object.values(this.mocapActions[playerNum]).find(a => a.isRunning() && a.getEffectiveWeight() > 0);
+    const rig = this.rigs[playerNum];
+    if (!rig) return;
     if (!moveId) {
-      if (current) {
-        idle.reset().play();
-        current.crossFadeTo(idle, EMOTE_FADE_OUT, false);
-      }
+      rig.stop();
       return;
     }
-    const generic = this.mocapClips[moveId];
-    if (!generic) return;
-
-    let action = this.mocapActions[playerNum][moveId];
-    if (!action) {
-      // Re-prefix track names for this rig (e.g. "mixamorig10" vs "mixamorig")
-      let prefix = '';
-      char.traverse(n => { if (!prefix && n.isBone && /Hips$/.test(n.name)) prefix = n.name.replace(/Hips$/, ''); });
-      const clip = generic.clone();
-      clip.tracks.forEach(track => { track.name = prefix + track.name; });
-      action = mixer.clipAction(clip);
-      this.mocapActions[playerNum][moveId] = action;
+    const entry = this.mocap.byId[moveId];
+    const cState = this.characterStates[playerNum];
+    cState.pendingChain = null;
+    if (entry?.floor && !entry.loop) {
+      // Stay down on the floor, then get back up (timed in game time)
+      rig.play(moveId, {
+        hold: true,
+        onFinish: () => {
+          if (entry.then && !cState.fighting) cState.pendingChain = { id: entry.then, at: this.clock.elapsedTime + 0.9 };
+        }
+      });
+      return;
     }
-    const move = MOVES_BY_ID[moveId];
-    action.setLoop(move?.loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
-    action.clampWhenFinished = true;
-    action.reset().play();
-    (current || idle).crossFadeTo(action, EMOTE_FADE_IN + 0.1, false);
+    rig.play(moveId, {
+      onEnd: () => {
+        const cState = this.characterStates[playerNum];
+        if (cState.emote?.move.id === moveId) {
+          cState.emote = null;
+          cState.fidgetTimer = 6 + Math.random() * 8;
+          if (typeof this.onMoveChange === 'function') this.onMoveChange(playerNum, null);
+          if (entry?.then && !cState.fighting) cState.pendingChain = { id: entry.then, at: this.clock.elapsedTime + 0.2 };
+        }
+      }
+    });
   }
 
   checkAllLoaded() {
@@ -1810,7 +1805,21 @@ class DJControllerRenderer {
     this.pulse();
   }
 
+  /** Fighting-game brawl after the result: winner 1|2|null(draw) */
+  startFight(winner, names = {}, seed) {
+    return this.fight.start({ winner, names, seed: seed ?? Math.floor(Math.random() * 1e9) });
+  }
+
+  stopFight() {
+    this.fight.stop(true);
+  }
+
+  isFighting() {
+    return this.fight.active;
+  }
+
   endReveal() {
+    this.fight?.stop(true);
     if (!this.revealActive) return;
     this.revealActive = false;
     this.revealWinnerNum = null;
@@ -2110,10 +2119,14 @@ class DJControllerRenderer {
     };
 
     // ---- 1. Movement ----
-    const input = this.getDriveInput(p);
+    const input = cState.fighting ? null : this.getDriveInput(p);
+    const rig = this.rigs[p];
+    const turning = elapsed < (cState.turnUntil || 0);
     let moveSpeed = 0;
     let runAmount = 0;
-    if (input) {
+    if (cState.fighting) {
+      // positions and moves come from the fight director
+    } else if (input) {
       // Direct control overrides any walk target or station
       const speed = input.run ? RUN_SPEED : WALK_SPEED;
       const mag = Math.hypot(input.x, input.z);
@@ -2123,7 +2136,11 @@ class DJControllerRenderer {
       char.position.x = next.x;
       char.position.z = next.z;
       cState.targetPos.set(next.x, 0, next.z);
-      cState.facing = turnToward(cState.facing, Math.atan2(input.x, input.z), delta * 10);
+      const want = Math.atan2(input.x, input.z);
+      const diff = wrapAngle(want - cState.facing);
+      if (!turning && !(Math.abs(diff) > 2.3 && this.startTurn(p, diff, true, input.run ? 1 : 0))) {
+        cState.facing = turnToward(cState.facing, want, delta * 10);
+      }
       if (cState.state !== 'WALKING') {
         cState.state = 'WALKING';
         cState.currentStation = 'free';
@@ -2157,7 +2174,11 @@ class DJControllerRenderer {
         this.applyCharacterSeparation(p, next);
         char.position.x = next.x;
         char.position.z = next.z;
-        cState.facing = turnToward(cState.facing, Math.atan2(dx, dz), delta * 8);
+        const want = Math.atan2(dx, dz);
+        const diff = wrapAngle(want - cState.facing);
+        if (!turning && !(Math.abs(diff) > 2.3 && this.startTurn(p, diff, true, cState.run ? 1 : 0))) {
+          cState.facing = turnToward(cState.facing, want, delta * 8);
+        }
         moveSpeed = speed;
         runAmount = cState.run ? 1 : 0;
       } else if (cState.path && cState.path.length) {
@@ -2170,8 +2191,11 @@ class DJControllerRenderer {
     }
 
     // Settle into the station's facing when standing still
-    if (cState.state !== 'WALKING' && cState.targetFacingAngle !== null && cState.targetFacingAngle !== undefined) {
-      cState.facing = turnToward(cState.facing, cState.targetFacingAngle, delta * 6);
+    if (!cState.fighting && cState.state !== 'WALKING' && cState.targetFacingAngle !== null && cState.targetFacingAngle !== undefined && !turning) {
+      const diff = wrapAngle(cState.targetFacingAngle - cState.facing);
+      if (!(Math.abs(diff) > 0.8 && !cState.emote && this.startTurn(p, diff, false))) {
+        cState.facing = turnToward(cState.facing, cState.targetFacingAngle, delta * 6);
+      }
     }
 
     // ---- 2. Animation layers ----
@@ -2180,7 +2204,9 @@ class DJControllerRenderer {
     cState.moveW = (cState.moveW || 0) + (targetMoveW - (cState.moveW || 0)) * Math.min(1, delta * 10);
     cState.runW = (cState.runW || 0) + (runAmount - (cState.runW || 0)) * Math.min(1, delta * 6);
     if (moveSpeed > 0) cState.walkPhase += delta * moveSpeed * 4.6;
-    if (cState.moveW > 0.01) walkCycle(anim, cState.walkPhase, cState.runW, cState.moveW);
+    const mocapWalk = rig && rig.ready('mx_walk');
+    if (cState.moveW > 0.01 && !mocapWalk) walkCycle(anim, cState.walkPhase, cState.runW, cState.moveW);
+    if (rig) rig.setLocomotion(moveSpeed * cState.moveW, cState.runW);
 
     const stationW = cState.state === 'DJ_SCRATCHING' ? 1 : 0;
     cState.stationW = (cState.stationW || 0) + (stationW - (cState.stationW || 0)) * Math.min(1, delta * 5);
@@ -2188,12 +2214,12 @@ class DJControllerRenderer {
 
     // Active / fading moves
     const emoteW = this.updateEmote(p, cState, anim, ctx, delta);
-    const idleFree = cState.state === 'IDLE_STATION' && cState.moveW < 0.05;
+    const idleFree = !cState.fighting && cState.state === 'IDLE_STATION' && cState.moveW < 0.05;
 
     if (playing && idleFree) groove(anim, ctx, 1 - emoteW);
 
     // Idle life: an occasional fidget when nothing else is going on
-    if (idleFree && !playing && !cState.emote) {
+    if (idleFree && !playing && !cState.emote && !(rig && rig.ready('mx_idle'))) {
       cState.fidgetTimer = (cState.fidgetTimer ?? 5 + Math.random() * 6) - delta;
       if (cState.fidgetTimer <= 0) {
         this.playMove(p, IDLE_FIDGETS[Math.floor(Math.random() * IDLE_FIDGETS.length)], { fromUser: false });
@@ -2211,6 +2237,26 @@ class DJControllerRenderer {
       anim.head({ turn: cState.look }, 1 - emoteW);
     } else {
       cState.look = (cState.look || 0) * (1 - Math.min(1, delta * 4));
+    }
+
+    if (cState.pendingChain && elapsed >= cState.pendingChain.at && !cState.fighting) {
+      const next = cState.pendingChain.id;
+      cState.pendingChain = null;
+      this.playMove(p, next, { fromUser: false });
+    }
+
+    // Root motion: falls, steps and turns in the clips really move/turn the character
+    if (rig) {
+      const rm = rig.postUpdate(cState.facing);
+      if (rm.dx || rm.dz) {
+        const next = cState.fighting
+          ? this.constrainToFightArea(char.position.x + rm.dx, char.position.z + rm.dz)
+          : this.constrainToStage(char.position.x + rm.dx, char.position.z + rm.dz);
+        char.position.x = next.x;
+        char.position.z = next.z;
+        if (!cState.fighting && cState.state !== 'WALKING') cState.targetPos.set(next.x, 0, next.z);
+      }
+      cState.facing += rm.dyaw;
     }
 
     // ---- 3. Root transform ----
@@ -2231,6 +2277,40 @@ class DJControllerRenderer {
       ring.position.set(char.position.x, 0.02, char.position.z);
       ring.material.opacity = 0.55 + 0.25 * Math.sin(elapsed * 5);
     }
+  }
+
+  /**
+   * Turn with a real turning clip: on the spot (90 / 180) or a U-turn while moving.
+   * The clip's own rotation is scaled so the character ends exactly on `diff`.
+   */
+  startTurn(p, diff, moving, run = 0) {
+    const rig = this.rigs[p];
+    const cState = this.characterStates[p];
+    if (!rig || cState.fighting) return false;
+    const id = moving
+      ? (run > 0.5 ? 'mx_run_turn_180' : 'mx_walk_turn_180')
+      : Math.abs(diff) > 2.2 ? (diff > 0 ? 'mx_turn_left_180' : 'mx_turn_right_180')
+        : (diff > 0 ? 'mx_turn_left_90' : 'mx_turn_right_90');
+    if (!rig.ready(id)) return false;
+    const clipTurn = this.mocap.get(id).rm.turn;
+    if (Math.abs(clipTurn) < 0.3) return false;
+    // Turn the same way the clip does (a U-turn can go either way round)
+    let target = diff;
+    if (Math.sign(target) !== Math.sign(clipTurn)) target -= Math.sign(target) * Math.PI * 2;
+    const yawScale = target / clipTurn;
+    if (yawScale < 0.25 || yawScale > 2.2) return false;
+    const dur = this.mocap.get(id).clip.duration;
+    cState.turnUntil = this.clock.elapsedTime + dur * 0.92;
+    rig.play(id, { rootMotion: true, rmScale: moving ? 0 : 1, yawScale, fadeIn: 0.12, fadeOut: 0.25, timeScale: moving ? 1.15 : 1.1 });
+    return true;
+  }
+
+  /** Keep fighters on the stage floor (no table avoidance: the fight is downstage) */
+  constrainToFightArea(x, z) {
+    const r = Math.hypot(x, z);
+    const max = STAGE_RADIUS + 1.2;
+    if (r > max) return { x: (x / r) * max, z: (z / r) * max };
+    return { x, z: Math.max(z, 0.85) };
   }
 
   /** Advance the active and fading moves; returns the active move's weight */
@@ -2286,11 +2366,14 @@ class DJControllerRenderer {
   animate() {
     this.animFrameId = requestAnimationFrame(() => this.animate());
 
-    const delta = this.clock.getDelta();
+    const realDelta = this.clock.getDelta();
+    this.fight?.update(realDelta);
+    const delta = realDelta * (this.timeScale ?? 1);
     const elapsed = this.clock.getElapsedTime();
 
     // 1. Update Skeletal Animation Mixers (Breathing Idle)
     [1, 2].forEach(p => {
+      this.rigs[p]?.preUpdate(delta);
       this.animators[p]?.beginFrame(delta);
     });
 
@@ -2405,16 +2488,25 @@ class DJControllerRenderer {
       this.desiredCamPos.set(targetX, targetY, targetZ);
     }
 
-    // Smooth camera damping
-    this.currentCamPos.lerp(this.desiredCamPos, 0.06);
-    this.camera.position.copy(this.currentCamPos);
+    if (this.cameraOverride && !this.isDragging) {
+      this._overrideTarget = this._overrideTarget || new THREE.Vector3();
+      this.cameraOverride(this.desiredCamPos, this._overrideTarget);
+      this.currentCamPos.lerp(this.desiredCamPos, 0.08);
+      this.camera.position.copy(this.currentCamPos);
+      this.cameraTarget.lerp(this._overrideTarget, 0.12);
+      this.camera.lookAt(this.cameraTarget);
+    } else {
+      // Smooth camera damping
+      this.currentCamPos.lerp(this.desiredCamPos, 0.06);
+      this.camera.position.copy(this.currentCamPos);
 
-    // Look target follows active contestant slightly
-    const desiredTargetX = this.cameraMode === 'decks' ? 0 : (this.audioState[1] && !this.audioState[2])
-      ? -0.6
-      : ((this.audioState[2] && !this.audioState[1]) ? 0.6 : 0);
-    this.cameraTarget.x += (desiredTargetX - this.cameraTarget.x) * 0.05;
-    this.camera.lookAt(this.cameraTarget);
+      // Look target follows active contestant slightly
+      const desiredTargetX = this.cameraMode === 'decks' ? 0 : (this.audioState[1] && !this.audioState[2])
+        ? -0.6
+        : ((this.audioState[2] && !this.audioState[1]) ? 0.6 : 0);
+      this.cameraTarget.x += (desiredTargetX - this.cameraTarget.x) * 0.05;
+      this.camera.lookAt(this.cameraTarget);
+    }
 
     // 10. Render Scene
     if (this.renderer && this.scene && this.camera) {

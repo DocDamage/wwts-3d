@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { describe, it, expect } from 'vitest';
 import { DJControllerRenderer } from '../src/js/djController.js';
 import { MOVES, MOVES_BY_ID, TAUNT_REACTIONS, HYPE_REACTIONS, IDLE_FIDGETS, walkCycle, djStation, groove } from '../src/js/characterMoves.js';
@@ -40,8 +42,23 @@ describe('Character move library', () => {
     MOVES.filter(m => !m.loop).forEach(m => expect(m.duration).toBeGreaterThan(0));
   });
 
-  it('offers plenty of user-facing moves', () => {
-    expect(MOVES.filter(m => !m.hidden).length).toBeGreaterThanOrEqual(30);
+  it('keeps a procedural set of gestures (mocap clips add the rest at runtime)', () => {
+    expect(MOVES.filter(m => !m.hidden).length).toBeGreaterThanOrEqual(20);
+  });
+
+  it('ships a large motion-capture manifest whose files all exist', () => {
+    const dir = path.resolve(__dirname, '../public/models/animations');
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
+    expect(manifest.length).toBeGreaterThanOrEqual(150);
+    const ids = new Set(manifest.map(e => e.id));
+    manifest.forEach(e => {
+      expect(fs.existsSync(path.join(dir, e.file))).toBe(true);
+      if (e.then) expect(ids.has(e.then)).toBe(true);
+      if (e.pair) expect(ids.has(e.pair)).toBe(true);
+    });
+    const cats = new Set(manifest.map(e => e.category));
+    ['dance', 'breaking', 'fight', 'defend', 'react', 'falls', 'jumps', 'base'].forEach(c => expect(cats.has(c)).toBe(true));
+    expect(manifest.filter(e => e.category === 'fight').length).toBeGreaterThanOrEqual(30);
   });
 
   it('reaction pools only reference real moves', () => {

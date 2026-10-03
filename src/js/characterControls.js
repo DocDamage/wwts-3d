@@ -6,7 +6,9 @@
 import { MOVES, MOVES_BY_ID, MOVE_CATEGORIES } from './characterMoves.js';
 
 // Quick picks shown on the right-click wheel
-const WHEEL_MOVES = ['smoke', 'point_opponent', 'dust_off', 'raise_roof', 'celebrate', 'two_step', 'laugh', 'flex'];
+const WHEEL_MOVES = ['mx_dance_side_to_side', 'mx_fight_taunt', 'mx_fight_flex', 'raise_roof', 'mx_break_headspin', 'mx_jump_joyful', 'mx_fight_loser_gesture', 'mx_dance_moonwalk'];
+// Categories open by default in the docks (the rest collapse to keep the list short)
+const OPEN_CATEGORIES = new Set(['dance', 'taunt']);
 
 class CharacterControls {
   constructor(djController) {
@@ -32,7 +34,12 @@ class CharacterControls {
       });
     };
     this.dj.onCharacterContext = (p, x, y) => this.openWheel(p, x, y);
-    this.dj.onMovesChanged = () => [1, 2].forEach(p => this.buildDock(p));
+    this.dj.onMovesChanged = () => {
+      [1, 2].forEach(p => this.buildDock(p));
+      this.wheel?.remove();
+      this.buildWheel();
+    };
+    this.openCats = { 1: new Set(OPEN_CATEGORIES), 2: new Set(OPEN_CATEGORIES) };
 
     this.buildWheel();
   }
@@ -41,14 +48,21 @@ class CharacterControls {
     const grid = document.getElementById(`emote-grid-${p}`);
     if (!grid) return;
     grid.innerHTML = '';
+    const open = this.openCats?.[p] || OPEN_CATEGORIES;
     MOVE_CATEGORIES.forEach(cat => {
       const moves = MOVES.filter(m => m.category === cat.id && !m.hidden);
       if (!moves.length) return;
-      const head = document.createElement('div');
+      const head = document.createElement('button');
+      head.type = 'button';
       head.className = 'emote-category';
-      head.textContent = cat.label;
+      const isOpen = open.has(cat.id);
+      head.innerHTML = `<span class="emote-cat-caret">${isOpen ? '▾' : '▸'}</span>${cat.label} <span class="emote-cat-count">${moves.length}</span>`;
+      head.addEventListener('click', () => {
+        if (open.has(cat.id)) open.delete(cat.id); else open.add(cat.id);
+        this.buildDock(p);
+      });
       grid.appendChild(head);
-      moves.forEach(move => grid.appendChild(this.makeMoveButton(p, move)));
+      if (isOpen) moves.forEach(move => grid.appendChild(this.makeMoveButton(p, move)));
     });
   }
 

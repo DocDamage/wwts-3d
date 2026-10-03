@@ -209,6 +209,9 @@
       padding: 8px 24px;
       border-radius: 30px;
     }
+    /* The post-battle fight brings its own HUD */
+    html.fight-active .broadcast-top-bar,
+    html.fight-active .broadcast-bottom-hud { opacity: 0; transition: opacity 0.4s; }
   </style>
 </head>
 <body class="broadcast-view">

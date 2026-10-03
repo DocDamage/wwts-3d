@@ -63,6 +63,18 @@ class BroadcastController {
         this.hideWinner();
         break;
 
+      case 'FIGHT_START':
+        if (payload) {
+          const modal = document.getElementById('b-winner-modal');
+          if (modal) modal.style.display = 'none';
+          this.djController.startFight(payload.winner, payload.names || {}, payload.seed);
+        }
+        break;
+
+      case 'FIGHT_STOP':
+        this.djController.stopFight();
+        break;
+
       case 'BATTLE_RESET':
       case 'RESET':
         this.resetView();

@@ -919,9 +919,43 @@ async function runWinnerReveal(finalResult, unlocks = []) {
   }, 300);
 
   if (winNum) document.getElementById(`contestant-${winNum}-total`)?.classList.add('winner-glow');
+  lastFightResult = { winNum, names: { 1: finalResult.contestant1?.name, 2: finalResult.contestant2?.name } };
+  clearTimeout(fightTimer);
+  if (autoFightEnabled()) fightTimer = setTimeout(() => startResultFight(), 3400);
   const reportBtn = document.getElementById('btn-view-report');
   if (reportBtn) reportBtn.style.display = 'inline-flex';
   showWinner(finalResult, unlocks);
+}
+
+// ============================================================
+// Post-battle fight: the winner of the battle wins the brawl
+// ============================================================
+let lastFightResult = null;
+let fightTimer = null;
+const autoFightEnabled = () => {
+  try { return localStorage.getItem('wwts_auto_fight') !== 'off'; } catch { return true; }
+};
+
+function startResultFight() {
+  if (!lastFightResult || !document.body.classList.contains('reveal-mode')) return;
+  const seed = Math.floor(Math.random() * 1e9);
+  document.body.classList.add('fight-mode');
+  djController.startFight(lastFightResult.winNum || null, lastFightResult.names, seed);
+  postBroadcast('FIGHT_START', { winner: lastFightResult.winNum || null, names: lastFightResult.names, seed });
+}
+
+djController.fight.onEnd = () => {
+  document.body.classList.remove('fight-mode');
+  postBroadcast('FIGHT_STOP', {});
+};
+
+document.getElementById('btn-winner-fight')?.addEventListener('click', () => startResultFight());
+const autoFightBox = document.getElementById('chk-auto-fight');
+if (autoFightBox) {
+  autoFightBox.checked = autoFightEnabled();
+  autoFightBox.addEventListener('change', () => {
+    try { localStorage.setItem('wwts_auto_fight', autoFightBox.checked ? 'on' : 'off'); } catch {}
+  });
 }
 
 /** Fill the results card (lower third, the stage stays visible above it) */
@@ -1003,6 +1037,8 @@ function showWinner(finalResult, unlocks = []) {
 }
 
 function closeReveal() {
+  clearTimeout(fightTimer);
+  document.body.classList.remove('fight-mode');
   const overlay = document.getElementById('winner-overlay');
   if (overlay) overlay.style.display = 'none';
   document.body.classList.remove('reveal-mode');
