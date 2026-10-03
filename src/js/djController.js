@@ -12,6 +12,25 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { CharacterAnimator } from './characterAnimator.js';
+import {
+  MOVES_BY_ID, TAUNT_REACTIONS, HYPE_REACTIONS, IDLE_FIDGETS, walkCycle, djStation, groove, registerMove
+} from './characterMoves.js';
+
+// Stage layout (metres). The DJ table top is 3.6 x 1.4, centred on the origin.
+const STAGE_RADIUS = 3.5;
+const TABLE_HALF_X = 1.8;
+const TABLE_HALF_Z = 0.7;
+const CHAR_RADIUS = 0.24;
+const STATIONS = { deckZ: -1.0, hypeX: 1.45, hypeZ: 1.3, faceoffZ: 1.75 };
+const WALK_SPEED = 1.5;
+const RUN_SPEED = 3.4;
+const EMOTE_FADE_IN = 0.18;
+const EMOTE_FADE_OUT = 0.3;
+
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const clampAngle = (a, max) => Math.max(-max, Math.min(max, a));
+const turnToward = (from, to, rate) => from + wrapAngle(to - from) * Math.min(1, rate);
 
 class DJControllerRenderer {
   constructor() {
@@ -33,8 +52,7 @@ class DJControllerRenderer {
     // Characters (4 Avatars: Black Male, Black Female, White Male, White Female)
     this.characters = { 1: null, 2: null };
     this.mixers = { 1: null, 2: null };
-    this.characterBones = { 1: {}, 2: {} };
-    this.characterRestBones = { 1: {}, 2: {} };
+    this.animators = { 1: null, 2: null };
     this.currentAvatars = { 1: 'black_male', 2: 'black_female' };
     this.loadedFbxCache = {
       black_male: null,
@@ -65,6 +83,20 @@ class DJControllerRenderer {
       }
     };
     this.clickRipples = [];
+
+    // Direct control & moves
+    this.drivenPlayer = null; // which contestant the arrow keys / stick drive
+    this.driveKeys = {};
+    this.padInput = { 1: null, 2: null };
+    this.selectionRings = { 1: null, 2: null };
+    this._reactionTimers = {};
+    this.onMoveChange = null;     // (playerNum, moveId|null)
+    this.onDrivenChange = null;   // (playerNum|null)
+    this.onCharacterContext = null; // (playerNum, clientX, clientY) — right-click on a character
+    this.onMovesChanged = null;   // fired when mocap moves finish loading
+    this.mocapClips = {};         // moveId -> AnimationClip with prefix-free track names
+    this.mocapActions = { 1: {}, 2: {} };
+    this.idleActions = { 1: null, 2: null };
 
     // Audio Playback State
     this.audioState = { 1: false, 2: false };
@@ -165,8 +197,9 @@ class DJControllerRenderer {
     // 11. DJ Deck Model
     this.loadDJDeck();
 
-    // 11. Contestant Characters
+    // 11. Contestant Characters (+ optional Mixamo motion-capture moves)
     this.loadCharacters();
+    this.loadMocapMoves();
 
     // 12. Input & Resize Listeners
     this.setupInteractions(canvas, container);
@@ -1283,7 +1316,7 @@ class DJControllerRenderer {
     const template = this.loadedFbxCache[gender];
     if (!template) return;
 
-    // Remove existing character if any
+    // Remove existing character if any (its position is reused for the new avatar)
     if (this.characters[playerNum]) {
       this.scene.remove(this.characters[playerNum]);
       if (this.mixers[playerNum]) {
@@ -1305,65 +1338,43 @@ class DJControllerRenderer {
     }
     char.scale.setScalar(scaleFactor);
 
-    // Find bones for locomotion, walking, and DJ console scratching/mixing
-    const bones = {};
-    char.traverse((child) => {
-      if (child.isBone) {
-        const name = child.name.toLowerCase();
-        if (name.includes('hips')) bones.hips = child;
-        if (name.includes('spine2') || name.includes('spine1') || (name.includes('spine') && !bones.spine)) bones.spine = child;
-        if (name.includes('neck')) bones.neck = child;
-        if (name.includes('head')) bones.head = child;
-
-        // Arms & Hands
-        if (name.includes('leftshoulder')) bones.lShoulder = child;
-        if (name.includes('leftarm') && !name.includes('fore')) bones.lArm = child;
-        if (name.includes('leftforearm')) bones.lForeArm = child;
-        if (name.includes('lefthand')) bones.lHand = child;
-
-        if (name.includes('rightshoulder')) bones.rShoulder = child;
-        if (name.includes('rightarm') && !name.includes('fore')) bones.rArm = child;
-        if (name.includes('rightforearm')) bones.rForeArm = child;
-        if (name.includes('righthand')) bones.rHand = child;
-
-        // Legs & Feet
-        if (name.includes('leftupleg')) bones.lUpLeg = child;
-        if (name.includes('leftleg') && !name.includes('up')) bones.lLeg = child;
-        if (name.includes('leftfoot')) bones.lFoot = child;
-
-        if (name.includes('rightupleg')) bones.rUpLeg = child;
-        if (name.includes('rightleg') && !name.includes('up')) bones.rLeg = child;
-        if (name.includes('rightfoot')) bones.rFoot = child;
-      }
-    });
-    this.characterBones[playerNum] = bones;
-
-    // Store rest rotations for procedural animation blending
-    const rest = {};
-    Object.entries(bones).forEach(([k, b]) => {
-      rest[k] = { x: b.rotation.x, y: b.rotation.y, z: b.rotation.z };
-    });
-    this.characterRestBones[playerNum] = rest;
-
     // Positioning & Grounding feet on stage floor (y = 0)
     box.setFromObject(char);
     const footOffset = box.min.y;
     const baseY = footOffset < 0 ? -footOffset : 0;
     char.userData.baseY = baseY;
 
-    // Flank the DJ booth on left and right initially
-    if (playerNum === 1) {
-      char.position.set(-1.7, baseY, 0.2);
-      char.rotation.y = 0.38;
-      this.characterStates[1].targetPos.set(-1.7, baseY, 0.2);
-      this.characterStates[1].currentStation = 'hype';
-      this.characterStates[1].state = 'IDLE_STATION';
-    } else {
-      char.position.set(1.7, baseY, 0.2);
-      char.rotation.y = -0.38;
-      this.characterStates[2].targetPos.set(1.7, baseY, 0.2);
-      this.characterStates[2].currentStation = 'hype';
-      this.characterStates[2].state = 'IDLE_STATION';
+    // Flank the DJ booth on left and right initially (or keep the spot when swapping avatars)
+    const cState = this.characterStates[playerNum];
+    const prev = this.characters[playerNum];
+    const side = playerNum === 1 ? -1 : 1;
+    const startX = prev ? prev.position.x : side * STATIONS.hypeX;
+    const startZ = prev ? prev.position.z : STATIONS.hypeZ;
+    char.position.set(startX, baseY, startZ);
+    if (!prev) {
+      cState.facing = -side * 0.35;
+      cState.targetPos.set(startX, 0, startZ);
+      cState.currentStation = 'hype';
+      cState.state = 'IDLE_STATION';
+      cState.targetFacingAngle = cState.facing;
+    }
+    char.rotation.y = cState.facing;
+    cState.emote = null;
+    cState.fadingEmote = null;
+
+    if (!this.selectionRings[playerNum]) {
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: playerNum === 1 ? 0xff2d2d : 0x00e5ff,
+        transparent: true,
+        opacity: 0.7,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.32, 0.42, 40), ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.visible = this.drivenPlayer === playerNum;
+      this.scene.add(ring);
+      this.selectionRings[playerNum] = ring;
     }
 
     this.scene.add(char);
@@ -1377,7 +1388,12 @@ class DJControllerRenderer {
       action.setEffectiveTimeScale(1.0);
       action.play();
       this.mixers[playerNum] = mixer;
+      this.idleActions[playerNum] = action;
+      this.mocapActions[playerNum] = {};
+    } else {
+      this.mixers[playerNum] = null;
     }
+    this.animators[playerNum] = new CharacterAnimator(char, this.mixers[playerNum]);
   }
 
   /**
@@ -1393,6 +1409,83 @@ class DJControllerRenderer {
     this.spawnContestant(playerNum, key);
   }
 
+  /**
+   * Optional real motion capture: list Mixamo FBX clips (exported "Without Skin")
+   * in /models/animations/manifest.json and they join the move library:
+   *   [{ "id": "hiphop", "label": "Hip Hop", "icon": "🔥", "category": "dance",
+   *      "file": "Hip Hop Dancing.fbx", "loop": true }]
+   */
+  async loadMocapMoves() {
+    let manifest;
+    try {
+      const res = await fetch('/models/animations/manifest.json');
+      if (!res.ok) return;
+      manifest = await res.json();
+    } catch {
+      return; // No manifest — procedural moves only
+    }
+    if (!Array.isArray(manifest)) return;
+
+    const loader = new FBXLoader();
+    const loaded = await Promise.all(manifest.map(entry => new Promise(resolve => {
+      loader.load(`/models/animations/${entry.file}`, (obj) => resolve({ entry, clip: obj.animations?.[0] }), undefined, () => resolve(null));
+    })));
+
+    loaded.filter(item => item && item.clip).forEach(({ entry, clip }) => {
+      const generic = clip.clone();
+      generic.tracks.forEach(track => { track.name = track.name.replace(/^mixamorig\d*:?/, ''); });
+      // Strip horizontal root travel so dances stay on their spot (the controller owns position)
+      generic.tracks = generic.tracks.filter(track => !(track.name === 'Hips.position'));
+      this.mocapClips[entry.id] = generic;
+      registerMove({
+        id: entry.id,
+        label: entry.label || entry.id,
+        icon: entry.icon || '🎬',
+        category: entry.category || 'dance',
+        loop: entry.loop !== false,
+        duration: generic.duration,
+        mocap: true,
+        fn() {} // the clip itself drives the body
+      });
+    });
+    if (typeof this.onMovesChanged === 'function') this.onMovesChanged();
+  }
+
+  /** Cross-fade a character from idle into a mocap clip (or back when moveId is null) */
+  setMocapAction(playerNum, moveId) {
+    const mixer = this.mixers[playerNum];
+    const idle = this.idleActions[playerNum];
+    const char = this.characters[playerNum];
+    if (!mixer || !idle || !char) return;
+
+    const current = Object.values(this.mocapActions[playerNum]).find(a => a.isRunning() && a.getEffectiveWeight() > 0);
+    if (!moveId) {
+      if (current) {
+        idle.reset().play();
+        current.crossFadeTo(idle, EMOTE_FADE_OUT, false);
+      }
+      return;
+    }
+    const generic = this.mocapClips[moveId];
+    if (!generic) return;
+
+    let action = this.mocapActions[playerNum][moveId];
+    if (!action) {
+      // Re-prefix track names for this rig (e.g. "mixamorig10" vs "mixamorig")
+      let prefix = '';
+      char.traverse(n => { if (!prefix && n.isBone && /Hips$/.test(n.name)) prefix = n.name.replace(/Hips$/, ''); });
+      const clip = generic.clone();
+      clip.tracks.forEach(track => { track.name = prefix + track.name; });
+      action = mixer.clipAction(clip);
+      this.mocapActions[playerNum][moveId] = action;
+    }
+    const move = MOVES_BY_ID[moveId];
+    action.setLoop(move?.loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+    action.clampWhenFinished = true;
+    action.reset().play();
+    (current || idle).crossFadeTo(action, EMOTE_FADE_IN + 0.1, false);
+  }
+
   checkAllLoaded() {
     const loadingOverlay = document.getElementById('dj-loading');
     if (loadingOverlay && !loadingOverlay.classList.contains('hidden')) {
@@ -1402,54 +1495,179 @@ class DJControllerRenderer {
   }
 
   /* ============================================================
-     CHARACTER NAVIGATION & DJ CONSOLE INTERACTION
+     CHARACTER NAVIGATION, CONTROL & MOVES
      ============================================================ */
   walkCharacterTo(playerNum, targetX, targetZ, nextState = 'IDLE_STATION', targetFacing = null) {
     const cState = this.characterStates[playerNum];
     if (!cState) return;
 
-    // Constrain destination coordinates to stage platform (radius 3.6m)
-    const distFromOrigin = Math.hypot(targetX, targetZ);
-    if (distFromOrigin > 3.6) {
-      const angle = Math.atan2(targetZ, targetX);
-      targetX = Math.cos(angle) * 3.5;
-      targetZ = Math.sin(angle) * 3.5;
-    }
-
-    cState.targetPos.set(targetX, 0, targetZ);
+    // Constrain destination to the stage platform and keep it off the DJ table
+    const clamped = this.constrainToStage(targetX, targetZ);
+    const char = this.characters[playerNum];
+    const from = char ? { x: char.position.x, z: char.position.z } : clamped;
+    // Route around the DJ table instead of walking through it
+    cState.path = [...this.routeAroundTable(from, clamped), clamped];
+    const first = cState.path.shift();
+    cState.targetPos.set(first.x, 0, first.z);
+    cState.finalTarget = clamped;
     cState.nextState = nextState;
     cState.targetFacingAngle = targetFacing;
     cState.state = 'WALKING';
+    cState.directControl = false;
+    cState.run = Math.hypot(clamped.x - from.x, clamped.z - from.z) > 2.6;
+  }
+
+  /** Does the straight segment a→b cross the (padded) table footprint? */
+  segmentHitsTable(a, b) {
+    const hx = TABLE_HALF_X + CHAR_RADIUS - 0.02;
+    const hz = TABLE_HALF_Z + CHAR_RADIUS - 0.02;
+    for (let i = 1; i < 24; i++) {
+      const u = i / 24;
+      const x = a.x + (b.x - a.x) * u;
+      const z = a.z + (b.z - a.z) * u;
+      if (Math.abs(x) < hx && Math.abs(z) < hz) return true;
+    }
+    return false;
+  }
+
+  /** Corner waypoints (0, 1 or 2) that get from a to b without crossing the table */
+  routeAroundTable(a, b) {
+    if (!this.segmentHitsTable(a, b)) return [];
+    const cx = TABLE_HALF_X + CHAR_RADIUS + 0.12;
+    const cz = TABLE_HALF_Z + CHAR_RADIUS + 0.12;
+    const corners = [[-cx, -cz], [cx, -cz], [-cx, cz], [cx, cz]].map(([x, z]) => ({ x, z }));
+    const len = (pts) => pts.reduce((sum, p, i) => i ? sum + Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z) : 0, 0);
+    let best = null;
+    corners.forEach(c => {
+      if (this.segmentHitsTable(a, c) || this.segmentHitsTable(c, b)) return;
+      const d = len([a, c, b]);
+      if (!best || d < best.d) best = { d, pts: [c] };
+    });
+    if (best) return best.pts;
+    corners.forEach(c1 => corners.forEach(c2 => {
+      if (c1 === c2 || this.segmentHitsTable(a, c1) || this.segmentHitsTable(c1, c2) || this.segmentHitsTable(c2, b)) return;
+      const d = len([a, c1, c2, b]);
+      if (!best || d < best.d) best = { d, pts: [c1, c2] };
+    }));
+    return best ? best.pts : [];
+  }
+
+  /** Keep a point on the round stage and outside the DJ table footprint */
+  constrainToStage(x, z) {
+    const dist = Math.hypot(x, z);
+    if (dist > STAGE_RADIUS) {
+      x = (x / dist) * STAGE_RADIUS;
+      z = (z / dist) * STAGE_RADIUS;
+    }
+    const hx = TABLE_HALF_X + CHAR_RADIUS;
+    const hz = TABLE_HALF_Z + CHAR_RADIUS;
+    if (Math.abs(x) < hx && Math.abs(z) < hz) {
+      // Push out along the shallowest axis
+      const pushX = hx - Math.abs(x);
+      const pushZ = hz - Math.abs(z);
+      if (pushX < pushZ) x = Math.sign(x || 1) * hx;
+      else z = Math.sign(z || 1) * hz;
+    }
+    return { x, z };
   }
 
   sendCharacterToDeck(playerNum) {
     const isP1 = playerNum === 1;
-    // Step directly behind their turntable deck on the table
-    const deckX = isP1 ? -0.88 : 0.88;
-    const deckZ = -0.92;
     this.characterStates[playerNum].currentStation = 'deck';
-    this.walkCharacterTo(playerNum, deckX, deckZ, 'DJ_SCRATCHING', 0.0);
+    this.walkCharacterTo(playerNum, isP1 ? -0.88 : 0.88, STATIONS.deckZ, 'DJ_SCRATCHING', 0.0);
     this.updateStageActionButtons(playerNum, 'deck');
   }
 
   sendCharacterToHype(playerNum) {
     const isP1 = playerNum === 1;
-    const hypeX = isP1 ? -1.7 : 1.7;
-    const hypeZ = 0.2;
-    const facing = isP1 ? 0.38 : -0.38;
     this.characterStates[playerNum].currentStation = 'hype';
-    this.walkCharacterTo(playerNum, hypeX, hypeZ, 'IDLE_STATION', facing);
+    this.walkCharacterTo(playerNum, isP1 ? -STATIONS.hypeX : STATIONS.hypeX, STATIONS.hypeZ, 'IDLE_STATION', isP1 ? 0.35 : -0.35);
     this.updateStageActionButtons(playerNum, 'hype');
   }
 
   sendCharacterToCenter(playerNum) {
     const isP1 = playerNum === 1;
-    const faceX = isP1 ? -0.4 : 0.4;
-    const faceZ = -1.35;
-    const facing = isP1 ? Math.PI / 2 : -Math.PI / 2; // Stare down opponent
+    // Face-off happens downstage, in front of the booth, so the audience sees it
     this.characterStates[playerNum].currentStation = 'center';
-    this.walkCharacterTo(playerNum, faceX, faceZ, 'IDLE_STATION', facing);
+    this.walkCharacterTo(playerNum, isP1 ? -0.5 : 0.5, STATIONS.faceoffZ, 'IDLE_STATION', isP1 ? Math.PI / 2 : -Math.PI / 2);
     this.updateStageActionButtons(playerNum, 'center');
+  }
+
+  /** Start a move from the library on a character. Returns false if unknown. */
+  playMove(playerNum, moveId, { fromUser = true } = {}) {
+    const move = MOVES_BY_ID[moveId];
+    const cState = this.characterStates[playerNum];
+    if (!move || !cState || !this.characters[playerNum]) return false;
+
+    // Full-body moves need the character planted
+    if (!move.upper && cState.state === 'WALKING') {
+      cState.state = 'IDLE_STATION';
+      cState.targetPos.copy(this.characters[playerNum].position);
+    }
+    if (cState.state === 'DJ_SCRATCHING' && !move.upper) {
+      cState.state = 'IDLE_STATION';
+    }
+
+    const prev = cState.emote;
+    if (prev && prev.move.id !== moveId) {
+      cState.fadingEmote = { ...prev, stopping: true, stopT: 0 };
+    }
+    cState.emote = { move, t: 0, stopping: false, stopT: 0, fromUser };
+    if (move.mocap || prev?.move.mocap) this.setMocapAction(playerNum, move.mocap ? move.id : null);
+    cState.fidgetTimer = 6 + Math.random() * 8;
+    if (typeof this.onMoveChange === 'function') this.onMoveChange(playerNum, moveId);
+
+    // The opponent answers taunts on their own
+    if (move.category === 'taunt' && fromUser) {
+      const opp = playerNum === 1 ? 2 : 1;
+      clearTimeout(this._reactionTimers[opp]);
+      this._reactionTimers[opp] = setTimeout(() => this.autoReact(opp, TAUNT_REACTIONS), 700 + Math.random() * 500);
+    }
+    return true;
+  }
+
+  stopMove(playerNum) {
+    const cState = this.characterStates[playerNum];
+    if (!cState?.emote) return;
+    cState.emote.stopping = true;
+    if (cState.emote.move.mocap) this.setMocapAction(playerNum, null);
+    if (typeof this.onMoveChange === 'function') this.onMoveChange(playerNum, null);
+  }
+
+  getActiveMove(playerNum) {
+    const e = this.characterStates[playerNum]?.emote;
+    return e && !e.stopping ? e.move.id : null;
+  }
+
+  /** Let a character answer on its own if it isn't busy and the user isn't driving it */
+  autoReact(playerNum, pool) {
+    const cState = this.characterStates[playerNum];
+    if (!cState || cState.state === 'WALKING' || this.drivenPlayer === playerNum) return;
+    if (cState.emote && !cState.emote.stopping && cState.emote.fromUser) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    this.playMove(playerNum, pick, { fromUser: false });
+  }
+
+  /** Celebrate/defeat hooks for the result reveal */
+  playResultReaction(winnerNum) {
+    [1, 2].forEach(p => {
+      if (p === winnerNum) this.playMove(p, Math.random() < 0.5 ? 'celebrate' : 'victory_spin', { fromUser: false });
+      else if (winnerNum) this.playMove(p, 'defeated', { fromUser: false });
+    });
+  }
+
+  /** Which contestant the arrow keys / left stick drive (null = none) */
+  setDrivenPlayer(playerNum) {
+    this.drivenPlayer = playerNum || null;
+    [1, 2].forEach(p => {
+      if (this.selectionRings[p]) this.selectionRings[p].visible = this.drivenPlayer === p;
+    });
+    if (typeof this.onDrivenChange === 'function') this.onDrivenChange(this.drivenPlayer);
+  }
+
+  /** Gamepad left stick: world-space direction already resolved by the caller */
+  moveCharacterDirect(playerNum, moveX, moveZ) {
+    this.padInput[playerNum] = { x: moveX, z: moveZ, run: Math.hypot(moveX, moveZ) > 0.85 };
   }
 
   updateStageActionButtons(playerNum, activeAction) {
@@ -1491,82 +1709,6 @@ class DJControllerRenderer {
     this._orbitTimer = setTimeout(() => {
       this.isDragging = false;
     }, 1200);
-  }
-
-  /**
-   * Gamepad Direct Character Locomotion (Left Analog Stick)
-   */
-  moveCharacterDirect(playerNum, moveX, moveZ, delta) {
-    const char = this.characters[playerNum];
-    const cState = this.characterStates[playerNum];
-    const bones = this.characterBones[playerNum];
-    if (!char || !cState) return;
-
-    const moveMag = Math.hypot(moveX, moveZ);
-    if (moveMag > 0.08) {
-      cState.state = 'WALKING';
-      cState.nextState = 'IDLE_STATION';
-      const speed = 2.4;
-      let newX = char.position.x + moveX * speed * delta;
-      let newZ = char.position.z + moveZ * speed * delta;
-
-      // Constrain to stage perimeter (radius 3.5m)
-      const dist = Math.hypot(newX, newZ);
-      if (dist > 3.5) {
-        const ang = Math.atan2(newZ, newX);
-        newX = Math.cos(ang) * 3.5;
-        newZ = Math.sin(ang) * 3.5;
-      }
-
-      char.position.x = newX;
-      char.position.z = newZ;
-      cState.targetPos.set(newX, 0, newZ);
-
-      // Smoothly turn character towards walking heading
-      const moveAngle = Math.atan2(moveX, moveZ);
-      let angleDiff = (moveAngle - char.rotation.y) % (Math.PI * 2);
-      if (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-      if (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-      char.rotation.y += angleDiff * 0.22;
-      cState.targetFacingAngle = moveAngle;
-
-      // Stride animation
-      cState.walkPhase += delta * 9.0;
-      const wp = cState.walkPhase;
-      const baseY = char.userData.baseY || 0;
-
-      if (bones) {
-        if (bones.lUpLeg) bones.lUpLeg.rotation.x = Math.sin(wp) * 0.55;
-        if (bones.rUpLeg) bones.rUpLeg.rotation.x = -Math.sin(wp) * 0.55;
-        if (bones.lLeg) bones.lLeg.rotation.x = Math.max(0, -Math.sin(wp)) * 0.65;
-        if (bones.rLeg) bones.rLeg.rotation.x = Math.max(0, Math.sin(wp)) * 0.65;
-        if (bones.lArm) bones.lArm.rotation.x = -Math.sin(wp) * 0.45;
-        if (bones.rArm) bones.rArm.rotation.x = Math.sin(wp) * 0.45;
-        if (bones.spine) bones.spine.rotation.x = 0.08;
-      }
-      char.position.y = baseY + Math.abs(Math.sin(wp * 2)) * 0.035;
-    } else {
-      // Stopped moving: check proximity to DJ deck
-      const isP1 = playerNum === 1;
-      const deckX = isP1 ? -0.88 : 0.88;
-      const deckZ = -0.92;
-      const distToDeck = Math.hypot(char.position.x - deckX, char.position.z - deckZ);
-
-      if (distToDeck < 0.48 && cState.state === 'WALKING') {
-        cState.state = 'DJ_SCRATCHING';
-        cState.targetFacingAngle = 0.0;
-        this.updateStageActionButtons(playerNum, 'deck');
-      } else if (cState.state === 'WALKING') {
-        cState.state = 'IDLE_STATION';
-        if (bones) {
-          if (bones.lUpLeg) bones.lUpLeg.rotation.x = 0;
-          if (bones.rUpLeg) bones.rUpLeg.rotation.x = 0;
-          if (bones.lLeg) bones.lLeg.rotation.x = 0;
-          if (bones.rLeg) bones.rLeg.rotation.x = 0;
-        }
-        char.position.y = char.userData.baseY || 0;
-      }
-    }
   }
 
   /* ============================================================
@@ -1615,10 +1757,17 @@ class DJControllerRenderer {
         const stageFloorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         const hitPoint = new THREE.Vector3();
 
+        // Clicking a contestant takes (or releases) control of them
+        const picked = this.pickCharacter(raycaster);
+        if (picked) {
+          this.setDrivenPlayer(this.drivenPlayer === picked ? null : picked);
+          return;
+        }
+
         if (raycaster.ray.intersectPlane(stageFloorPlane, hitPoint)) {
           if (Math.hypot(hitPoint.x, hitPoint.z) < 3.7) {
-            // Left click side controls Player 1, Right side controls Player 2
-            const p = hitPoint.x < 0 ? 1 : 2;
+            // Floor click walks the driven contestant, otherwise whoever's side was clicked
+            const p = this.drivenPlayer || (hitPoint.x < 0 ? 1 : 2);
             const isAtDeck = Math.abs(hitPoint.x) < 1.4 && hitPoint.z > -1.25 && hitPoint.z < -0.6;
             const nextState = isAtDeck ? 'DJ_SCRATCHING' : 'IDLE_STATION';
             const facing = isAtDeck ? 0.0 : null;
@@ -1634,6 +1783,34 @@ class DJControllerRenderer {
       e.preventDefault();
       this.orbitAngles.radius = Math.max(3.2, Math.min(11, this.orbitAngles.radius + e.deltaY * 0.004));
     };
+
+    // Right-click a contestant for the move wheel
+    canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (!this.camera) return;
+      const rect = canvas.getBoundingClientRect();
+      mouseCoord.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseCoord.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouseCoord, this.camera);
+      const picked = this.pickCharacter(raycaster) || this.drivenPlayer;
+      if (picked && typeof this.onCharacterContext === 'function') {
+        this.onCharacterContext(picked, e.clientX, e.clientY);
+      }
+    });
+
+    // Arrow keys drive the selected contestant (Shift = run)
+    const isTyping = (e) => ['input', 'textarea', 'select'].includes(e.target?.tagName?.toLowerCase());
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Shift') this.driveKeys.Shift = true;
+      if (!e.key.startsWith('Arrow') || isTyping(e) || !this.drivenPlayer) return;
+      this.driveKeys[e.key] = true;
+      e.preventDefault();
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') this.driveKeys.Shift = false;
+      if (e.key.startsWith('Arrow')) this.driveKeys[e.key] = false;
+    });
+    window.addEventListener('blur', () => { this.driveKeys = {}; });
 
     canvas.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mousemove', onMouseMove);
@@ -1682,6 +1859,20 @@ class DJControllerRenderer {
         else if (action === 'center') this.sendCharacterToCenter(p);
       });
     });
+  }
+
+  /** Which contestant (if any) a ray hits */
+  pickCharacter(raycaster) {
+    const targets = [1, 2].map(p => this.characters[p]).filter(Boolean);
+    const hits = raycaster.intersectObjects(targets, true);
+    if (!hits.length) return null;
+    let node = hits[0].object;
+    while (node) {
+      if (node === this.characters[1]) return 1;
+      if (node === this.characters[2]) return 2;
+      node = node.parent;
+    }
+    return null;
   }
 
   /* ============================================================
@@ -1758,9 +1949,11 @@ class DJControllerRenderer {
         }
       }, 65);
 
+      [1, 2].forEach(p => this.autoReact(p, HYPE_REACTIONS));
       this.pulse();
     } else if (soundKey === 'crowd_cheer') {
       this.triggerSmokeBlast(1.8, 0xffaa00);
+      [1, 2].forEach(p => this.autoReact(p, HYPE_REACTIONS));
       this.pulse();
     } else if (soundKey === 'bell') {
       this.triggerSmokeBlast(1.0, 0x00e5ff);
@@ -1775,14 +1968,8 @@ class DJControllerRenderer {
       }
       this.pulse();
     } else if (soundKey === 'crowd_react' || soundKey === 'crowd_cheer') {
-      // Contestants react to crowd hype
-      [1, 2].forEach(p => {
-        const bones = this.characterBones[p];
-        if (bones && bones.head) {
-          bones.head.rotation.x = -0.22;
-          setTimeout(() => { bones.head.rotation.x = 0; }, 750);
-        }
-      });
+      // Contestants react to the crowd
+      [1, 2].forEach(p => this.autoReact(p, ['shocked', 'nod_yes', 'laugh', 'clap']));
       // Flash stage spotlights
       if (this.stageLights.spotP1) this.stageLights.spotP1.intensity = 6.5;
       if (this.stageLights.spotP2) this.stageLights.spotP2.intensity = 6.5;
@@ -1840,160 +2027,232 @@ class DJControllerRenderer {
   }
 
   /* ============================================================
-     CHARACTER LOCOMOTION & DJ CONSOLE INTERACTION ENGINE
+     CHARACTER UPDATE — movement, then animation layers
+     (idle clip → locomotion / station → groove → move → look-at)
      ============================================================ */
+
+  /** Arrow keys / left stick → world-space move vector, relative to the camera */
+  getDriveInput(p) {
+    let sx = 0;
+    let sy = 0;
+    let run = false;
+    if (this.drivenPlayer === p) {
+      const k = this.driveKeys;
+      sx = (k.ArrowRight ? 1 : 0) - (k.ArrowLeft ? 1 : 0);
+      sy = (k.ArrowDown ? 1 : 0) - (k.ArrowUp ? 1 : 0);
+      run = !!k.Shift;
+    }
+    const pad = this.padInput[p];
+    if (pad) {
+      sx += pad.x;
+      sy += pad.z;
+      run = run || pad.run;
+      this.padInput[p] = null;
+    }
+    const mag = Math.hypot(sx, sy);
+    if (mag < 0.1) return null;
+    if (mag > 1) { sx /= mag; sy /= mag; }
+
+    // Camera basis on the floor plane
+    const fwd = new THREE.Vector3().subVectors(this.cameraTarget, this.camera.position);
+    fwd.y = 0;
+    fwd.normalize();
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    return {
+      x: right.x * sx - fwd.x * sy,
+      z: right.z * sx - fwd.z * sy,
+      run
+    };
+  }
+
   updateCharacterLocomotion(p, delta, elapsed) {
     const char = this.characters[p];
     const cState = this.characterStates[p];
-    const bones = this.characterBones[p];
-    if (!char || !cState || !bones) return;
+    const anim = this.animators[p];
+    if (!char || !cState || !anim) return;
 
     const isP1 = p === 1;
     const baseY = char.userData.baseY || 0;
-    const beatTime = elapsed * (this.bpm / 60) * Math.PI * 2;
+    const playing = !!this.audioState[p] || !!this.audioState[isP1 ? 2 : 1];
+    const opp = this.characters[isP1 ? 2 : 1];
+    if (cState.facing === undefined) cState.facing = char.rotation.y;
 
-    if (cState.state === 'WALKING') {
+    // Opponent direction relative to where we face (+ = on our left)
+    let oppAngle = 0;
+    if (opp) {
+      const toOpp = Math.atan2(opp.position.x - char.position.x, opp.position.z - char.position.z);
+      oppAngle = wrapAngle(toOpp - cState.facing);
+    }
+    const near = oppAngle >= 0 ? 'Left' : 'Right';
+    const ctx = {
+      beat: elapsed * (this.bpm / 60) * Math.PI * 2,
+      bpm: this.bpm,
+      playing,
+      oppAngle,
+      near,
+      far: near === 'Left' ? 'Right' : 'Left'
+    };
+
+    // ---- 1. Movement ----
+    const input = this.getDriveInput(p);
+    let moveSpeed = 0;
+    let runAmount = 0;
+    if (input) {
+      // Direct control overrides any walk target or station
+      const speed = input.run ? RUN_SPEED : WALK_SPEED;
+      const mag = Math.hypot(input.x, input.z);
+      const step = speed * mag * delta;
+      const next = this.constrainToStage(char.position.x + (input.x / mag) * step, char.position.z + (input.z / mag) * step);
+      this.applyCharacterSeparation(p, next);
+      char.position.x = next.x;
+      char.position.z = next.z;
+      cState.targetPos.set(next.x, 0, next.z);
+      cState.facing = turnToward(cState.facing, Math.atan2(input.x, input.z), delta * 10);
+      if (cState.state !== 'WALKING') {
+        cState.state = 'WALKING';
+        cState.currentStation = 'free';
+        this.updateStageActionButtons(p, null);
+      }
+      cState.nextState = 'IDLE_STATION';
+      cState.targetFacingAngle = null;
+      cState.directControl = true;
+      moveSpeed = speed * mag;
+      runAmount = input.run ? 1 : 0;
+      if (cState.emote && !cState.emote.move.upper) this.stopMove(p);
+    } else if (cState.state === 'WALKING' && cState.directControl) {
+      // Released the keys: stop where we are (snap into the deck if standing at it)
+      cState.directControl = false;
+      const deckX = isP1 ? -0.88 : 0.88;
+      const atDeck = Math.hypot(char.position.x - deckX, char.position.z - STATIONS.deckZ) < 0.5;
+      cState.state = atDeck ? 'DJ_SCRATCHING' : 'IDLE_STATION';
+      if (atDeck) {
+        cState.currentStation = 'deck';
+        cState.targetFacingAngle = 0;
+        this.updateStageActionButtons(p, 'deck');
+      }
+    } else if (cState.state === 'WALKING') {
       const dx = cState.targetPos.x - char.position.x;
       const dz = cState.targetPos.z - char.position.z;
       const dist = Math.hypot(dx, dz);
-
-      if (dist > 0.08) {
-        // Move towards target position
-        const dirX = dx / dist;
-        const dirZ = dz / dist;
-        const moveStep = Math.min(dist, cState.speed * delta);
-        char.position.x += dirX * moveStep;
-        char.position.z += dirZ * moveStep;
-
-        // Smoothly rotate character towards movement heading
-        const moveAngle = Math.atan2(dirX, dirZ);
-        let angleDiff = (moveAngle - char.rotation.y) % (Math.PI * 2);
-        if (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        if (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        char.rotation.y += angleDiff * 0.18;
-
-        // Walk cycle stride
-        cState.walkPhase += delta * 8.5;
-        const wp = cState.walkPhase;
-
-        // Alternating leg swing
-        if (bones.lUpLeg) bones.lUpLeg.rotation.x = Math.sin(wp) * 0.55;
-        if (bones.rUpLeg) bones.rUpLeg.rotation.x = -Math.sin(wp) * 0.55;
-
-        // Knee bend on recovery swing
-        if (bones.lLeg) bones.lLeg.rotation.x = Math.max(0, -Math.sin(wp)) * 0.65;
-        if (bones.rLeg) bones.rLeg.rotation.x = Math.max(0, Math.sin(wp)) * 0.65;
-
-        // Hip vertical bounce
-        char.position.y = baseY + Math.abs(Math.sin(wp * 2)) * 0.035;
-
-        // Arm counter-swing
-        if (bones.lArm) bones.lArm.rotation.x = -Math.sin(wp) * 0.45;
-        if (bones.rArm) bones.rArm.rotation.x = Math.sin(wp) * 0.45;
-        if (bones.spine) bones.spine.rotation.x = 0.08;
+      if (dist > 0.06) {
+        const speed = cState.run ? RUN_SPEED : WALK_SPEED;
+        const step = Math.min(dist, speed * delta);
+        const next = { x: char.position.x + (dx / dist) * step, z: char.position.z + (dz / dist) * step };
+        this.applyCharacterSeparation(p, next);
+        char.position.x = next.x;
+        char.position.z = next.z;
+        cState.facing = turnToward(cState.facing, Math.atan2(dx, dz), delta * 8);
+        moveSpeed = speed;
+        runAmount = cState.run ? 1 : 0;
+      } else if (cState.path && cState.path.length) {
+        const next = cState.path.shift();
+        cState.targetPos.set(next.x, 0, next.z);
       } else {
-        // Arrived at target destination!
         cState.state = cState.nextState || 'IDLE_STATION';
-        if (cState.targetFacingAngle !== null && cState.targetFacingAngle !== undefined) {
-          char.rotation.y = cState.targetFacingAngle;
-        }
-
-        // Reset legs to standing
-        if (bones.lUpLeg) bones.lUpLeg.rotation.x = 0;
-        if (bones.rUpLeg) bones.rUpLeg.rotation.x = 0;
-        if (bones.lLeg) bones.lLeg.rotation.x = 0;
-        if (bones.rLeg) bones.rLeg.rotation.x = 0;
-        char.position.y = baseY;
+        cState.run = false;
       }
-    } else if (cState.state === 'DJ_SCRATCHING') {
-      // Character is at the DJ console actively scratching and mixing
-      // Turn to face the table (+Z, 0 rad)
-      char.rotation.y += (0.0 - char.rotation.y) * 0.1;
-      char.position.y = baseY;
+    }
 
-      // Upper torso leans in over the deck
-      if (bones.spine) {
-        bones.spine.rotation.x = 0.22 + Math.sin(beatTime) * 0.06;
+    // Settle into the station's facing when standing still
+    if (cState.state !== 'WALKING' && cState.targetFacingAngle !== null && cState.targetFacingAngle !== undefined) {
+      cState.facing = turnToward(cState.facing, cState.targetFacingAngle, delta * 6);
+    }
+
+    // ---- 2. Animation layers ----
+    // Locomotion blend (walk ↔ run) eases in and out so starts/stops aren't snappy
+    const targetMoveW = moveSpeed > 0 ? 1 : 0;
+    cState.moveW = (cState.moveW || 0) + (targetMoveW - (cState.moveW || 0)) * Math.min(1, delta * 10);
+    cState.runW = (cState.runW || 0) + (runAmount - (cState.runW || 0)) * Math.min(1, delta * 6);
+    if (moveSpeed > 0) cState.walkPhase += delta * moveSpeed * 4.6;
+    if (cState.moveW > 0.01) walkCycle(anim, cState.walkPhase, cState.runW, cState.moveW);
+
+    const stationW = cState.state === 'DJ_SCRATCHING' ? 1 : 0;
+    cState.stationW = (cState.stationW || 0) + (stationW - (cState.stationW || 0)) * Math.min(1, delta * 5);
+    if (cState.stationW > 0.01) djStation(anim, elapsed, ctx, cState.stationW, isP1, !!this.audioState[p]);
+
+    // Active / fading moves
+    const emoteW = this.updateEmote(p, cState, anim, ctx, delta);
+    const idleFree = cState.state === 'IDLE_STATION' && cState.moveW < 0.05;
+
+    if (playing && idleFree) groove(anim, ctx, 1 - emoteW);
+
+    // Idle life: an occasional fidget when nothing else is going on
+    if (idleFree && !playing && !cState.emote) {
+      cState.fidgetTimer = (cState.fidgetTimer ?? 5 + Math.random() * 6) - delta;
+      if (cState.fidgetTimer <= 0) {
+        this.playMove(p, IDLE_FIDGETS[Math.floor(Math.random() * IDLE_FIDGETS.length)], { fromUser: false });
       }
+    }
 
-      // Head nodding to the beat
-      if (bones.head) {
-        bones.head.rotation.x = Math.sin(beatTime) * 0.32 + 0.15;
-        bones.head.rotation.y = Math.cos(beatTime * 0.5) * 0.08;
+    // Look-at: glance at the opponent while standing around (or the camera when selected)
+    if (idleFree) {
+      let look = clampAngle(oppAngle, 0.9) * 0.55;
+      if (this.drivenPlayer === p) {
+        const toCam = Math.atan2(this.camera.position.x - char.position.x, this.camera.position.z - char.position.z);
+        look = clampAngle(wrapAngle(toCam - cState.facing), 0.9) * 0.6;
       }
-
-      // SCRATCHING ARM:
-      // Left arm for Player 1, Right arm for Player 2
-      const scratchArm = isP1 ? bones.lArm : bones.rArm;
-      const scratchForeArm = isP1 ? bones.lForeArm : bones.rForeArm;
-      const scratchHand = isP1 ? bones.lHand : bones.rHand;
-
-      if (scratchArm && scratchForeArm) {
-        // Extend arm forward onto the vinyl platter
-        scratchArm.rotation.x = 0.85;
-        scratchArm.rotation.y = isP1 ? -0.1 : 0.1;
-        scratchArm.rotation.z = isP1 ? 0.22 : -0.22;
-
-        scratchForeArm.rotation.x = 0.75;
-        scratchForeArm.rotation.y = isP1 ? 0.25 : -0.25;
-
-        // Rhythmic vinyl baby scratching motion
-        const isPlaying = this.audioState[p];
-        const scratchSpeed = isPlaying ? 10 : 4;
-        const scratchCycle = Math.sin(elapsed * scratchSpeed);
-
-        scratchForeArm.rotation.z = scratchCycle * 0.18;
-        if (scratchHand) {
-          scratchHand.rotation.x = 0.25 + scratchCycle * 0.35;
-        }
-
-        // Real-time micro-scratch rotation on vinyl platter
-        if (this.turntables[p] && isPlaying) {
-          this.turntables[p].rotation.y += scratchCycle * delta * 2.5;
-        }
-      }
-
-      // MIXER / EQ TWEAKING ARM:
-      // Right arm for Player 1, Left arm for Player 2
-      const mixArm = isP1 ? bones.rArm : bones.lArm;
-      const mixForeArm = isP1 ? bones.rForeArm : bones.lForeArm;
-      const mixHand = isP1 ? bones.rHand : bones.lHand;
-
-      if (mixArm && mixForeArm) {
-        // Reaching inward towards center mixer knobs
-        mixArm.rotation.x = 0.68;
-        mixArm.rotation.y = isP1 ? 0.38 : -0.38;
-        mixArm.rotation.z = isP1 ? -0.15 : 0.15;
-
-        mixForeArm.rotation.x = 0.55;
-        mixForeArm.rotation.y = isP1 ? -0.2 : 0.2;
-
-        // Wrist flick adjusting EQ knobs / sliding crossfader
-        if (mixHand) {
-          mixHand.rotation.y = Math.sin(elapsed * 4) * 0.4;
-        }
-      }
-
-      // Stand legs relaxed
-      if (bones.lUpLeg) bones.lUpLeg.rotation.x = 0.05;
-      if (bones.rUpLeg) bones.rUpLeg.rotation.x = -0.05;
+      cState.look = (cState.look || 0) + (look - (cState.look || 0)) * Math.min(1, delta * 3);
+      anim.head({ turn: cState.look }, 1 - emoteW);
     } else {
-      // IDLE_STATION:
-      // Smoothly relax arms and legs back to idle
-      const isPlaying = this.audioState[p];
-      if (isPlaying) {
-        // Hype bobbing and swaying
-        const bob = Math.sin(beatTime) * 0.035;
-        char.position.y = baseY + Math.max(0, bob);
-        if (bones.head) bones.head.rotation.x = Math.sin(beatTime) * 0.25 + 0.1;
-        if (bones.spine) bones.spine.rotation.x = 0.08 + Math.sin(beatTime) * 0.04;
-      } else {
-        char.position.y += (baseY - char.position.y) * 0.1;
-        if (bones.lUpLeg) bones.lUpLeg.rotation.x += (0 - bones.lUpLeg.rotation.x) * 0.1;
-        if (bones.rUpLeg) bones.rUpLeg.rotation.x += (0 - bones.rUpLeg.rotation.x) * 0.1;
-        if (bones.lLeg) bones.lLeg.rotation.x += (0 - bones.lLeg.rotation.x) * 0.1;
-        if (bones.rLeg) bones.rLeg.rotation.x += (0 - bones.rLeg.rotation.x) * 0.1;
+      cState.look = (cState.look || 0) * (1 - Math.min(1, delta * 4));
+    }
+
+    // ---- 3. Root transform ----
+    char.rotation.y = cState.facing + anim.rootYaw;
+    char.position.y = baseY + anim.rootLift;
+
+    // Selection ring follows the feet
+    const ring = this.selectionRings[p];
+    if (ring && ring.visible) {
+      ring.position.set(char.position.x, 0.02, char.position.z);
+      ring.material.opacity = 0.55 + 0.25 * Math.sin(elapsed * 5);
+    }
+  }
+
+  /** Advance the active and fading moves; returns the active move's weight */
+  updateEmote(p, cState, anim, ctx, delta) {
+    let activeW = 0;
+    const fade = cState.fadingEmote;
+    if (fade) {
+      fade.t += delta;
+      fade.stopT += delta;
+      const w = fade.w0 !== undefined ? fade.w0 * (1 - fade.stopT / EMOTE_FADE_OUT) : 1 - fade.stopT / EMOTE_FADE_OUT;
+      if (w <= 0) cState.fadingEmote = null;
+      else fade.move.fn(anim, fade.t, ctx, w);
+    }
+
+    const e = cState.emote;
+    if (!e) return 0;
+    e.t += delta;
+    let w = Math.min(1, e.t / EMOTE_FADE_IN);
+    if (!e.move.loop && e.t >= e.move.duration - EMOTE_FADE_OUT) e.stopping = true;
+    if (e.stopping) {
+      e.stopT += delta;
+      w *= Math.max(0, 1 - e.stopT / EMOTE_FADE_OUT);
+      if (w <= 0) {
+        if (e.move.mocap) this.setMocapAction(p, null);
+        cState.emote = null;
+        cState.fidgetTimer = 6 + Math.random() * 8;
+        if (typeof this.onMoveChange === 'function') this.onMoveChange(p, null);
+        return 0;
       }
+    }
+    e.move.fn(anim, e.t, ctx, w);
+    activeW = w;
+    return activeW;
+  }
+
+  /** Keep the two contestants from walking through each other */
+  applyCharacterSeparation(p, next) {
+    const other = this.characters[p === 1 ? 2 : 1];
+    if (!other) return;
+    const dx = next.x - other.position.x;
+    const dz = next.z - other.position.z;
+    const d = Math.hypot(dx, dz);
+    const min = CHAR_RADIUS * 2.2;
+    if (d < min && d > 0.0001) {
+      next.x = other.position.x + (dx / d) * min;
+      next.z = other.position.z + (dz / d) * min;
     }
   }
 
@@ -2008,9 +2267,7 @@ class DJControllerRenderer {
 
     // 1. Update Skeletal Animation Mixers (Breathing Idle)
     [1, 2].forEach(p => {
-      if (this.mixers[p]) {
-        this.mixers[p].update(delta);
-      }
+      this.animators[p]?.beginFrame(delta);
     });
 
     // 2. Turntables Rotation & Tonearm Groove Tracking
@@ -2040,6 +2297,7 @@ class DJControllerRenderer {
     // 3. Character Locomotion & DJ Console Interaction
     [1, 2].forEach(p => {
       this.updateCharacterLocomotion(p, delta, elapsed);
+      this.animators[p]?.endFrame();
     });
 
     // 4. Update Click-to-Walk Ripple Rings

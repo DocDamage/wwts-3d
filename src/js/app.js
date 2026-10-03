@@ -24,6 +24,7 @@ import { BattleSessionEngine } from './battleEngine.js';
 import { BattleStorageManager } from './storage.js';
 import { ProducerReportModal } from './producerReport.js';
 import { OverlayPanelManager } from './overlayPanels.js';
+import { CharacterControls } from './characterControls.js';
 
 // ============================================================
 // Initialize all modules
@@ -38,6 +39,7 @@ const history = new HistoryManager();
 const notes = new NotesManager();
 const djController = new DJControllerRenderer();
 const overlayPanels = new OverlayPanelManager();
+const characterControls = new CharacterControls(djController);
 const soundboard = new SoundboardManager();
 const gamepad = new GamepadManager();
 const announcer = new AnnouncerManager();
@@ -477,6 +479,8 @@ function updateContestantDisplay(num) {
     seriesNameEl.textContent = name.slice(0, 12);
   }
   djController.setContestantName(num, name);
+  const dockTitle = document.getElementById(`dock-title-${num}`);
+  if (dockTitle) dockTitle.textContent = `${name} · Moves`;
 }
 
 function updatePickerPreviews() {
@@ -1155,6 +1159,7 @@ function init() {
   // DJ Controller 3D & Real Audio Reactivity
   djController.init();
   overlayPanels.init();
+  characterControls.init();
   djController.setAudioPlayer(audio);
 
   // Connect Audio Player state changes to 3D DJ Stage

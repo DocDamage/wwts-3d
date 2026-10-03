@@ -166,7 +166,7 @@ class GamepadManager {
     const lx = pad.axes[0];
     const ly = pad.axes[1];
     if (Math.hypot(lx, ly) > this.deadzone && this.djController) {
-      const activePlayer = this.audio?.isPlaying(2) && !this.audio?.isPlaying(1) ? 2 : 1;
+      const activePlayer = this.djController.drivenPlayer || (this.audio?.isPlaying(2) && !this.audio?.isPlaying(1) ? 2 : 1);
       this.djController.moveCharacterDirect(activePlayer, lx, ly, delta);
     }
 
@@ -421,7 +421,7 @@ class GamepadManager {
     if (axisIndex === 0 || axisIndex === 1) {
       const lx = axisIndex === 0 ? value : 0;
       const ly = axisIndex === 1 ? value : 0;
-      const activePlayer = this.audio?.isPlaying(2) && !this.audio?.isPlaying(1) ? 2 : 1;
+      const activePlayer = this.djController.drivenPlayer || (this.audio?.isPlaying(2) && !this.audio?.isPlaying(1) ? 2 : 1);
       this.djController.moveCharacterDirect(activePlayer, lx, ly, 0.05);
     } else if (axisIndex === 2 || axisIndex === 3) {
       const rx = axisIndex === 2 ? value : 0;
