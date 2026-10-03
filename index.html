@@ -729,9 +729,29 @@
           <button class="modal-close" data-close="tournament-modal">&times;</button>
         </div>
         <div id="tournament-setup" class="tournament-setup">
-          <p class="tournament-info">Select contestants from the current league roster to compete in a single-elimination bracket.</p>
-          <div id="tournament-contestant-picks" class="tournament-picks-grid"></div>
-          <button id="btn-start-tournament" class="control-btn primary" disabled>Start Tournament</button>
+          <div class="tourney-setup-grid">
+            <div class="tourney-setup-opts">
+              <label class="form-label" for="tournament-name">Name</label>
+              <input type="text" id="tournament-name" class="form-input" maxlength="40" />
+              <label class="form-label" for="tournament-format">Format</label>
+              <select id="tournament-format" class="form-input">
+                <option value="single">Single Elimination — lose once and you're out</option>
+                <option value="double">Double Elimination — winners &amp; losers brackets</option>
+                <option value="roundrobin">Round Robin — everyone battles everyone</option>
+              </select>
+              <label class="tourney-check" id="tournament-rr-final-wrap" style="display:none">
+                <input type="checkbox" id="tournament-rr-final" /> Top two meet in a final
+              </label>
+              <p class="tournament-info">Seeds come from Elo ratings (average score breaks ties). Unrated producers are drawn at random after them. Byes go to the top seeds. Drag a row (or use ▲▼) to change a seed.</p>
+              <div class="tourney-seed-btns">
+                <button type="button" id="btn-seed-rating" class="control-btn secondary">📈 Seed by Rating</button>
+                <button type="button" id="btn-seed-random" class="control-btn secondary">🎲 Random Draw</button>
+              </div>
+              <p class="tourney-summary" id="tournament-summary"></p>
+              <button id="btn-start-tournament" class="control-btn primary" disabled>Start Tournament</button>
+            </div>
+            <ol class="tourney-seed-list" id="tournament-seed-list"></ol>
+          </div>
         </div>
         <div id="tournament-bracket" class="bracket-container" style="display:none"></div>
       </div>

@@ -945,7 +945,7 @@ function showWinner(finalResult, unlocks = []) {
     : `<h4>Standings</h4><div class="wst-row wst-head"><span></span><span>Record</span><span>Rating</span><span>Rank</span></div>${statLine(c1, 1)}${statLine(c2, 2)}`
       + (unlocks.length ? `<div class="wst-badges">${unlocks.map(u => `<span class="wst-badge" title="${esc(u.name)}: ${esc(u.badge.desc)}">${u.badge.icon} ${esc(u.badge.name)}${u.badge.tierLabel ? ` · ${esc(u.badge.tierLabel)}` : ''}</span>`).join('')}</div>` : '');
 
-  const next = tournament.isTournamentActive() ? tournament.getNextPlayableMatch() : null;
+  const next = tournament.bracket && !tournament.isTournamentComplete() ? tournament.getNextPlayableMatch() : null;
   const nextBtn = document.getElementById('btn-winner-next-match');
   if (nextBtn) {
     nextBtn.style.display = next ? '' : 'none';
@@ -977,42 +977,6 @@ function handleResetBattle() {
 submitBtn?.addEventListener('click', handleFinalizeBattle);
 resetBtn?.addEventListener('click', handleResetBattle);
 
-function showTournamentAdvanceToast(nextMatch) {
-  let toast = document.getElementById('tournament-advance-toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'tournament-advance-toast';
-    toast.className = 'tournament-advance-toast';
-    document.body.appendChild(toast);
-  }
-
-  toast.innerHTML = `
-    <div>
-      <strong style="font-family:'Orbitron',monospace; font-size:0.82rem; color:#ffaa00;">🏆 MATCH RECORDED</strong>
-      <div style="font-size:0.75rem; color:#eaeef8; margin-top:2px;">Next: <strong>${nextMatch.p1Name}</strong> vs <strong>${nextMatch.p2Name}</strong></div>
-    </div>
-    <div class="toast-actions">
-      <button class="toast-btn" id="btn-toast-load-next">Load Match ⏩</button>
-      <button class="toast-btn secondary" id="btn-toast-view-bracket">Bracket</button>
-      <button class="toast-btn secondary" id="btn-toast-dismiss">✕</button>
-    </div>
-  `;
-
-  document.getElementById('btn-toast-load-next')?.addEventListener('click', () => {
-    toast.remove();
-    tournament.selectMatch(nextMatch.round, nextMatch.match);
-  });
-
-  document.getElementById('btn-toast-view-bracket')?.addEventListener('click', () => {
-    toast.remove();
-    tournament.openModal();
-  });
-
-  document.getElementById('btn-toast-dismiss')?.addEventListener('click', () => {
-    toast.remove();
-  });
-}
-
 // ============================================================
 // Results card buttons
 // ============================================================
@@ -1031,9 +995,9 @@ document.getElementById('btn-dismiss-winner')?.addEventListener('click', () => {
 });
 
 document.getElementById('btn-winner-next-match')?.addEventListener('click', () => {
-  const next = tournament.isTournamentActive() ? tournament.getNextPlayableMatch() : null;
+  const next = tournament.bracket && !tournament.isTournamentComplete() ? tournament.getNextPlayableMatch() : null;
   closeReveal();
-  if (next) tournament.selectMatch(next.round, next.match);
+  if (next) tournament.selectMatch(next.matchId);
 });
 
 document.getElementById('btn-winner-report')?.addEventListener('click', () => {
@@ -1081,7 +1045,8 @@ function openNotesTab() {
 // ============================================================
 // Tournament integration
 // ============================================================
-tournament.onMatchSelect = (player1Id, player2Id) => {
+tournament.onMatchSelect = (player1Id, player2Id, match) => {
+  if (match) setTimeout(() => showToast(`🏆 ${tournament.bracket?.name} · ${tournament.matchLabel(match)}`), 300);
   // Complete battle session reset so prior match state cannot carry forward
   battleEngine.resetBattleSession();
 
