@@ -18,6 +18,7 @@ import { StageArena } from './stageArena.js';
 import { addRimLight } from './rimLight.js';
 import { MocapLibrary, MocapRig } from './mocap.js';
 import { FightDirector } from './fightDirector.js';
+import { CAST_BY_KEY } from './fightCast.js';
 import {
   MOVES_BY_ID, TAUNT_REACTIONS, HYPE_REACTIONS, IDLE_FIDGETS, walkCycle, djStation, groove, registerMove
 } from './characterMoves.js';
@@ -1274,11 +1275,39 @@ class DJControllerRenderer {
   setPlayerAvatar(playerNum, key) {
     if (key === 'male') key = 'white_male';
     if (key === 'female') key = 'black_female';
-    const valid = ['black_male', 'black_female', 'white_male', 'white_female'];
-    if (!valid.includes(key)) return;
+    if (!CAST_BY_KEY[key]) return Promise.resolve(false);
 
     this.currentAvatars[playerNum] = key;
-    this.spawnContestant(playerNum, key);
+    if (this.loadedFbxCache[key]) {
+      this.spawnContestant(playerNum, key);
+      return Promise.resolve(true);
+    }
+    return this.ensureAvatar(key).then(ok => {
+      // Only spawn if this is still the wanted avatar (the user may have clicked on)
+      if (ok && this.currentAvatars[playerNum] === key) this.spawnContestant(playerNum, key);
+      return ok;
+    });
+  }
+
+  /** Load a cast model on demand (the four originals load at startup) */
+  ensureAvatar(key) {
+    if (this.loadedFbxCache[key]) return Promise.resolve(true);
+    this._avatarLoads = this._avatarLoads || {};
+    if (this._avatarLoads[key]) return this._avatarLoads[key];
+    const entry = CAST_BY_KEY[key];
+    if (!entry) return Promise.resolve(false);
+    this._avatarLoads[key] = new Promise(resolve => {
+      new FBXLoader().load(entry.file, (object) => {
+        this.setupCharacterMaterials(object);
+        this.loadedFbxCache[key] = object;
+        resolve(true);
+      }, undefined, (err) => {
+        console.warn('Could not load fighter', key, err);
+        delete this._avatarLoads[key];
+        resolve(false);
+      });
+    });
+    return this._avatarLoads[key];
   }
 
   /**
@@ -2211,7 +2240,7 @@ class DJControllerRenderer {
     if (moveSpeed > 0) cState.walkPhase += delta * moveSpeed * 4.6;
     const mocapWalk = rig && rig.ready('mx_walk');
     if (cState.moveW > 0.01 && !mocapWalk) walkCycle(anim, cState.walkPhase, cState.runW, cState.moveW);
-    if (rig) {
+    if (rig && !cState.fighting) {
       rig.setLocomotion(moveSpeed * cState.moveW, cState.runW, { back: cState.backpedal && moveSpeed > 0 ? 1 : 0 });
       const moving = moveSpeed > 0;
       if (!cState.fighting && mocapWalk && !cState.emote && !turning && !cState.backpedal) {
@@ -2388,6 +2417,7 @@ class DJControllerRenderer {
 
     const realDelta = this.clock.getDelta();
     this.fight?.update(realDelta);
+    this.fightGame?.update(realDelta);
     const delta = realDelta * (this.timeScale ?? 1);
     const elapsed = this.clock.getElapsedTime();
 
@@ -2508,6 +2538,8 @@ class DJControllerRenderer {
       this.desiredCamPos.set(targetX, targetY, targetZ);
     }
 
+    // Directed cameras get down among the pit crowd: keep fans out of the lens
+    if (this.arena) this.arena.clearZone = this.cameraOverride ? this.camera.position : null;
     if (this.cameraOverride && !this.isDragging) {
       this._overrideTarget = this._overrideTarget || new THREE.Vector3();
       this.cameraOverride(this.desiredCamPos, this._overrideTarget);

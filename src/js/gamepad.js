@@ -136,6 +136,8 @@ class GamepadManager {
   }
 
   update(delta) {
+    // The Fight section reads the pads itself
+    if (window.__fightInputActive) return;
     if (this.activeGamepadIndex === null) {
       // Periodic re-check for gamepads that connect after page load
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];

@@ -578,7 +578,8 @@ class StageArena {
     const stride = this.crowdStride || 1;
     let p = 0;
     this.fans.forEach((f, i) => {
-      if (i % stride !== 0) {
+      const cz = this.clearZone;
+      if (i % stride !== 0 || (cz && f.pit && (f.x - cz.x) ** 2 + (f.z - cz.z) ** 2 < 6.25)) {
         this.crowdBody.setMatrixAt(i, this._hidden);
         this.crowdArms.setMatrixAt(i, this._hidden);
         if (f.phone) this.phonePositions[p++ * 3 + 1] = -100;

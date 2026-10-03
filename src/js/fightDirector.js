@@ -120,8 +120,10 @@ class FightDirector {
   update(dt) {
     if (!this.active) return;
     // Slow motion / hit-stop scale game time; the mixers follow via dj.timeScale
+    // (hit-stop is measured in real time: game time barely moves during it)
+    this.realTime = (this.realTime || 0) + dt;
     let scale = this.slowmo;
-    if (this.time < this.hitstopUntil) scale = 0.04;
+    if (this.realTime < this.hitstopUntil) scale = 0.04;
     if (this.slowUntil && this.time > this.slowUntil) { this.slowmo = 1; this.slowUntil = 0; }
     this.dj.timeScale = scale;
     const gdt = dt * scale;
@@ -194,6 +196,7 @@ class FightDirector {
       st.state = 'IDLE_STATION';
       st.targetFacingAngle = null;
       dj.rigs[p]?.setFightMode(true);
+      dj.rigs[p]?.setLocomotion(0);
       dj.rigs[p]?.stop(0.2);
     });
     if (dj.drivenPlayer) dj.setDrivenPlayer(null);
@@ -261,7 +264,7 @@ class FightDirector {
   }
 
   pickAttack(p, { maxPower = 3, minPower = 1, filter } = {}) {
-    const pool = this.attacks.filter(a => (a.power || 1) <= maxPower && (a.power || 1) >= minPower && !a.projectile && a.id !== this.lastAttack[p] && (!filter || filter(a)));
+    const pool = this.attacks.filter(a => !a.noFight && (a.power || 1) <= maxPower && (a.power || 1) >= minPower && !a.projectile && a.id !== this.lastAttack[p] && (!filter || filter(a)));
     const weights = pool.map(a => (a.power === 3 ? 0.6 : a.power === 2 ? 1.1 : 1.3) * (a.hits.length > 2 ? 0.7 : 1));
     let x = this.rng() * weights.reduce((s, w) => s + w, 0);
     for (let i = 0; i < pool.length; i++) {
@@ -367,7 +370,7 @@ class FightDirector {
     this.spark(headPos, power === 3 ? 0xffd04a : 0xfff2c0, 0.6 + power * 0.25);
     this.sound(power === 3 ? 'heavy' : 'punch');
     this.shake = Math.max(this.shake, 0.03 + power * 0.025);
-    if (power >= 2 && last) this.hitstopUntil = this.time + (power === 3 ? 0.09 : 0.05);
+    if (power >= 2 && last) this.hitstopUntil = (this.realTime || 0) + (power === 3 ? 0.09 : 0.05);
     if (this.combo[atk] >= 3 && last) this.popText(atk, `${this.combo[atk]} HIT COMBO!`, '#ffcf3a', true);
 
     if (finisher) return; // the finisher's knockout is played by the caller
@@ -376,6 +379,11 @@ class FightDirector {
     if (def !== this.winner && this.winner && last && power === 3 && !this.knockedDown[def] && this.hp[def] < 60) {
       this.knockedDown[def] = true;
       this.knockdown(def);
+      return;
+    }
+    // Sweeps take the legs out
+    if (attack.sweep && last) {
+      this.sweepDown(def);
       return;
     }
     // Hit reaction scaled to the shot
@@ -422,6 +430,20 @@ class FightDirector {
     if (!this.active) return;
     const getup = fall === 'mx_fight_knockdown' ? 'mx_getup_knockdown' : 'mx_getup_stomach';
     rig.play(getup, { rootMotion: true, fadeIn: 0.25, fadeOut: 0.35, timeScale: getup === 'mx_getup_stomach' ? 1.6 : 1.2 });
+    await this.wait(rig.remaining() + 0.1);
+    st.noFace = false;
+  }
+
+  async sweepDown(p) {
+    const st = this.dj.characterStates[p];
+    const rig = this.dj.rigs[p];
+    st.noFace = true;
+    rig.play('mx_sweep_fall', { rootMotion: true, rmScale: 0.6, hold: true, fadeIn: 0.05 });
+    this.sound('thud', 0.5);
+    this.popText(p, 'SWEPT!', '#ffb03a', true);
+    await this.wait(2.3);
+    if (!this.active) return;
+    rig.play('mx_getup_back', { rootMotion: true, fadeIn: 0.25, fadeOut: 0.35, timeScale: 1.9 });
     await this.wait(rig.remaining() + 0.1);
     st.noFace = false;
   }

@@ -11,6 +11,7 @@ import { AudioPlayerManager } from './audioPlayer.js';
 import { TournamentManager } from './tournament.js';
 import { HistoryManager } from './history.js';
 import { NotesManager } from './notes.js';
+import { FightScreen } from './fightScreen.js';
 import { DJControllerRenderer } from './djController.js';
 import { SoundboardManager } from './soundboard.js';
 import { GamepadManager } from './gamepad.js';
@@ -178,9 +179,16 @@ function switchScreen(screenId) {
   document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.main-nav-btn').forEach(b => b.classList.remove('active'));
 
-  const screen = document.getElementById(`screen-${screenId}`);
+  // Fight Club runs on top of the battle stage
+  const screen = document.getElementById(`screen-${screenId === 'fight' ? 'battle' : screenId}`);
   if (screen) screen.classList.add('active');
   if (screenId !== 'battle') overlayPanels.setStageView(false);
+  if (screenId === 'fight') {
+    fightScreen.enter();
+    setTimeout(() => djController.onResize(), 80);
+  } else if (fightScreen.open) {
+    fightScreen.leave();
+  }
 
   const btn = document.querySelector(`.main-nav-btn[data-screen="${screenId}"]`);
   if (btn) btn.classList.add('active');
@@ -197,6 +205,12 @@ function switchScreen(screenId) {
 document.querySelectorAll('.main-nav-btn').forEach(btn => {
   btn.addEventListener('click', () => switchScreen(btn.dataset.screen));
 });
+
+// Fight Club (player-controlled fighting game)
+const fightScreen = new FightScreen(djController);
+fightScreen.init();
+fightScreen.onExit = () => switchScreen('battle');
+window.fightScreen = fightScreen;
 
 // ============================================================
 // League Selector (header dropdown)
@@ -1732,7 +1746,7 @@ function init() {
       setTimeout(() => djController.onResize(), 100);
     },
     onScratch: () => {
-      audio.triggerVinylScratch(1);
+      audio.playScratchSound?.(1);
       soundboard.play('needle_stop');
     },
     onDjAction: () => {

@@ -5305,3 +5305,92 @@ body.reveal-mode .fight-hud ~ * .winner-overlay { opacity: 0.4; }
 body.fight-mode #winner-overlay { opacity: 0; pointer-events: none; transform: translateY(40px); transition: opacity 0.4s, transform 0.4s; }
 .winner-autofight { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-secondary); padding: 0 6px; cursor: pointer; }
 html.fight-active .stage-hud { opacity: 0; transition: opacity 0.3s; }
+
+/* =========================================================
+   FIGHT CLUB (player-controlled fighting game)
+   ========================================================= */
+body.fight-screen-on #screen-battle > :not(#stage-viewport),
+body.fight-screen-on .stage-hud,
+body.fight-screen-on .overlay-show-panels,
+body.fight-match-on #app-header { visibility: hidden; }
+body.fight-screen-on #btn-show-panels,
+body.fight-screen-on #app-header .header-right { display: none !important; }
+.fight-screen { position: fixed; inset: 0; z-index: 2500; pointer-events: none; font-family: 'Bebas Neue', 'Orbitron', sans-serif; color: #fff; }
+.fight-screen[hidden] { display: none; }
+.fs-select { position: absolute; inset: var(--fs-top, 64px) 0 0 0; display: flex; flex-direction: column; pointer-events: none; }
+.fs-select[hidden] { display: none; }
+.fs-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 22px; pointer-events: auto; background: linear-gradient(180deg, rgba(6,6,12,0.85), rgba(6,6,12,0)); flex-wrap: wrap; }
+.fs-title { margin: 0; font-size: 2.4rem; letter-spacing: 0.1em; text-shadow: 0 0 18px rgba(255,60,40,0.7); }
+.fs-title span { color: #ff3b30; }
+.fs-options { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-family: 'Inter', sans-serif; font-size: 0.8rem; }
+.fs-options label { display: flex; gap: 6px; align-items: center; color: #cfd3e0; }
+.fs-options select { background: rgba(20,20,30,0.9); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 4px 6px; }
+.fs-seg { display: flex; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; overflow: hidden; }
+.fs-seg button { background: rgba(10,10,18,0.8); color: #cfd3e0; border: none; padding: 7px 14px; font-family: 'Bebas Neue', sans-serif; font-size: 1.05rem; letter-spacing: 0.08em; cursor: pointer; }
+.fs-seg button.active { background: #ff3b30; color: #fff; }
+.fs-body { flex: 1; display: grid; grid-template-columns: minmax(220px, 300px) 1fr minmax(220px, 300px); gap: 14px; padding: 6px 18px 18px; min-height: 0; }
+.fs-side { pointer-events: auto; display: flex; flex-direction: column; gap: 8px; background: rgba(8,8,14,0.72); border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 12px; overflow: hidden; backdrop-filter: blur(4px); }
+.fs-side.p1 { border-color: rgba(255,80,70,0.5); }
+.fs-side.p2 { border-color: rgba(40,210,255,0.5); }
+.fs-side-head { display: flex; align-items: baseline; gap: 8px; }
+.fs-tag { font-size: 1.2rem; padding: 0 8px; border-radius: 6px; background: #ff3b30; }
+.fs-side.p2 .fs-tag { background: #12b8e6; }
+.fs-pick-name { font-size: 1.7rem; letter-spacing: 0.06em; }
+.fs-pick-style { font-family: 'Inter', sans-serif; font-size: 0.7rem; color: #9aa3b8; margin-left: auto; }
+.fs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; overflow-y: auto; padding-right: 2px; }
+.fs-tile { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 4px; border-radius: 10px; border: 2px solid transparent; background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 35%, #11121a), #0b0c12); color: #fff; cursor: pointer; transition: transform 0.1s, border-color 0.1s; }
+.fs-tile:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.4); }
+.fs-tile.picked { border-color: var(--tile); box-shadow: 0 0 14px color-mix(in srgb, var(--tile) 70%, transparent); }
+.fs-tile-init { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--tile); color: #000; font-size: 1.15rem; }
+.fs-tile-name { font-size: 0.95rem; letter-spacing: 0.05em; white-space: nowrap; }
+.fs-center { pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding-bottom: 4px; }
+.fs-center > * { pointer-events: auto; }
+.fs-start { font-family: inherit; font-size: 2.4rem; letter-spacing: 0.12em; padding: 6px 46px; border-radius: 14px; border: 2px solid #ffd23a; background: linear-gradient(180deg, #ff4a2a, #b81d12); color: #fff; cursor: pointer; text-shadow: 2px 2px 0 #000; box-shadow: 0 0 26px rgba(255,80,40,0.6); }
+.fs-start:hover { filter: brightness(1.15); }
+.fs-small { font-family: 'Inter', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(10,10,18,0.8); color: #dfe3ee; cursor: pointer; }
+.fs-help { width: min(680px, 100%); max-height: 34vh; overflow: auto; background: rgba(8,8,14,0.82); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 6px 12px; font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #cfd3e0; }
+.fs-help summary { cursor: pointer; font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 0.08em; color: #fff; }
+.fs-help-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; padding: 6px 0; }
+.fs-help h4 { margin: 2px 0; font-family: 'Bebas Neue', sans-serif; font-size: 0.95rem; letter-spacing: 0.06em; color: #ffd23a; }
+.fs-help p { margin: 2px 0; }
+.fs-help kbd { display: inline-block; min-width: 16px; padding: 0 4px; border-radius: 4px; background: #232633; border: 1px solid #3a3f52; font-size: 0.7rem; text-align: center; margin-right: 2px; }
+.fs-specials { grid-column: 1 / -1; }
+.fs-result { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: auto; background: rgba(0,0,0,0.35); }
+.fs-result[hidden] { display: none; }
+.fs-result-box { text-align: center; background: rgba(8,8,14,0.9); border: 2px solid #ffd23a; border-radius: 18px; padding: 22px 36px; box-shadow: 0 0 40px rgba(255,200,60,0.4); }
+.fs-result-title { font-size: 3.4rem; letter-spacing: 0.08em; color: #ffe27a; }
+.fs-result-sub { font-family: 'Inter', sans-serif; color: #cfd3e0; margin: 4px 0 14px; }
+.fs-result-actions { display: flex; gap: 12px; justify-content: center; align-items: center; }
+.fs-result-actions .fs-start { font-size: 1.8rem; padding: 4px 28px; }
+.fs-loading { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 1.6rem; letter-spacing: 0.1em; background: rgba(0,0,0,0.7); padding: 10px 22px; border-radius: 10px; }
+.fs-loading[hidden] { display: none; }
+/* In-match HUD extras */
+.fight-timer { font-size: 2.6rem; min-width: 64px; text-align: center; color: #ffd23a; text-shadow: 0 0 14px rgba(255,170,0,0.7), 2px 2px 0 #000; }
+.fight-pips { display: flex; gap: 5px; margin-top: 2px; }
+.fight-side.p2 .fight-pips { justify-content: flex-end; }
+.fight-pips .pip { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.7); background: rgba(0,0,0,0.5); }
+.fight-pips .pip.won { background: #ffd23a; box-shadow: 0 0 10px #ffd23a; }
+.fight-meter { position: relative; width: 60%; height: 10px; border: 1px solid rgba(255,255,255,0.6); border-radius: 3px; background: rgba(0,0,0,0.6); overflow: hidden; margin-top: 4px; }
+.fight-side.p2 .fight-meter { margin-left: auto; }
+.fight-meter-fill { position: absolute; inset: 0; background: linear-gradient(90deg, #3a7bff, #9a5aff); transform-origin: left center; transform: scaleX(0); }
+.fight-side.p2 .fight-meter-fill { transform-origin: right center; }
+.fight-meter span { position: absolute; inset: 0; font-size: 0.6rem; letter-spacing: 0.15em; text-align: center; line-height: 10px; color: rgba(255,255,255,0.75); }
+.fight-meter.full { animation: meterFull 0.6s ease-in-out infinite alternate; }
+.fight-meter.full .fight-meter-fill { background: linear-gradient(90deg, #ffd23a, #ff6a3a); }
+@keyframes meterFull { to { box-shadow: 0 0 12px #ffd23a; } }
+.fight-flash { position: absolute; inset: 0; background: #fff; animation: fightFlash 0.45s ease-out forwards; }
+@keyframes fightFlash { from { opacity: 0.85; } to { opacity: 0; } }
+.fight-pause { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,0.55); pointer-events: auto; }
+.fight-pause[hidden] { display: none; }
+.fight-pause-box { display: flex; flex-direction: column; gap: 10px; background: rgba(8,8,14,0.92); border: 1px solid rgba(255,255,255,0.25); border-radius: 14px; padding: 18px 34px; text-align: center; }
+.fight-pause-box h3 { margin: 0 0 6px; font-size: 2.4rem; letter-spacing: 0.12em; }
+.fight-pause-box button { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 0.08em; padding: 6px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: #1c1e2a; color: #fff; cursor: pointer; }
+.fight-pause-box button:hover { background: #ff3b30; }
+@media (max-width: 900px) {
+  .fs-select { overflow-y: auto; pointer-events: auto; }
+  .fs-body { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+  .fs-side { max-height: 46vh; }
+  .fs-grid { grid-template-columns: repeat(2, 1fr); }
+  .fs-center { grid-column: 1 / -1; grid-row: 2; }
+  .fs-start { font-size: 1.8rem; padding: 4px 30px; }
+}

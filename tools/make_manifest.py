@@ -179,6 +179,56 @@ T = {
   'fight_victory': ('Victory', '🏆', 'taunt', False, {}),
   'fight_victory_boxing': ('Boxing Victory', '🥇', 'taunt', False, {}),
   'fight_defeat': ('Defeat', '😞', 'taunt', False, {}),
+
+  # ---- second wave of fight moves
+  'fight_kick_mid': ('Mid Kick', '🦶', 'fight', False, {'power': 2, 'reach': 1.15, 'body': True}),
+  'fight_sweep_back': ('Back Sweep', '🧹', 'fight', False, {'power': 2, 'reach': 1.05, 'low': True, 'sweep': True}),
+  'fight_sweep_360_back': ('360 Back Sweep', '🧹', 'fight', False, {'power': 2, 'reach': 1.05, 'low': True, 'sweep': True}),
+  'fight_sweep_front': ('Front Sweep', '🧹', 'fight', False, {'power': 2, 'reach': 1.0, 'low': True, 'sweep': True}),
+  'fight_sweep_360': ('360 Sweep Kick', '🧹', 'fight', False, {'power': 2, 'reach': 1.05, 'low': True, 'sweep': True}),
+  'fight_flying_sidekick': ('Flying Side Kick', '🦅', 'fight', False, {'power': 3, 'reach': 1.2}),
+  'fight_armada_escape': ('Armada Escape', '🌪️', 'fight', False, {'power': 2, 'reach': 1.15}),
+  'fight_meia_lua_back': ('Retreating Meia Lua', '🌙', 'fight', False, {'power': 2, 'reach': 1.15}),
+  'fight_chapa_giratoria': ('Spinning Chapa', '🌀', 'fight', False, {'power': 2, 'reach': 1.15, 'body': True}),
+  'fight_martelo': ('Martelo', '🦶', 'fight', False, {'power': 2, 'reach': 1.1}),
+  'fight_martelo_ground': ('Handstand Martelo', '🤸', 'fight', False, {'power': 3, 'reach': 1.1}),
+  'fight_martelo_step': ('Stepping Martelo', '🦶', 'fight', False, {'power': 2, 'reach': 1.15}),
+  'fight_chapa': ('Chapa Side Kick', '🦶', 'fight', False, {'power': 2, 'reach': 1.2, 'body': True}),
+  'fight_spin_back_kick_adv': ('Advancing Spin Kick', '🌪️', 'fight', False, {'power': 3, 'reach': 1.15}),
+  'fight_ground_spin_kick': ('Ground Spin Kick', '🌀', 'fight', False, {'power': 2, 'reach': 1.05, 'low': True, 'sweep': True}),
+  'fight_capoeira_kicks': ('Capoeira Combo', '🌀', 'fight', False, {'power': 2, 'reach': 1.15}),
+  'fight_hook_body_short': ('Short Body Hook', '🥊', 'fight', False, {'power': 1, 'reach': 0.8, 'body': True}),
+  'fight_hook_body_mid': ('Body Hook', '🥊', 'fight', False, {'power': 2, 'reach': 0.85, 'body': True}),
+  'fight_hook_head_mid': ('Head Hook', '🥊', 'fight', False, {'power': 2, 'reach': 0.85}),
+  'fight_hook_head_long': ('Long Hook', '🥊', 'fight', False, {'power': 2, 'reach': 0.95}),
+  'fight_right_hook': ('Haymaker', '💥', 'fight', False, {'power': 3, 'reach': 0.9}),
+  'fight_jab2': ('Snap Jab', '👊', 'fight', False, {'power': 1, 'reach': 0.95}),
+  'fight_cross2': ('Straight Right', '🥊', 'fight', False, {'power': 2, 'reach': 0.95}),
+  'fight_hook_rear2': ('Rear Hook 2', '🥊', 'fight', False, {'power': 2, 'reach': 0.85}),
+  'fight_hook_lead2': ('Lead Hook 2', '🥊', 'fight', False, {'power': 2, 'reach': 0.85}),
+  'fight_body_punch_knee': ('Body Shot + Knee', '💥', 'fight', False, {'power': 2, 'reach': 0.8, 'body': True}),
+  'fight_roundhouse_adv': ('Advancing Roundhouse', '🦶', 'fight', False, {'power': 2, 'reach': 1.15}),
+  'fight_roundhouse_side': ('Roundhouse To Ribs', '🦶', 'fight', False, {'power': 2, 'reach': 1.15, 'body': True}),
+  'fight_roundhouse_rear': ('Rear Roundhouse', '🦶', 'fight', False, {'power': 3, 'reach': 1.15}),
+  'fight_roll_kick': ('Rolling Kick', '🌀', 'fight', False, {'power': 3, 'reach': 1.1}),
+  'fight_double_snap_kick': ('Double Snap Kick', '🦶', 'fight', False, {'power': 2, 'reach': 1.1}),
+  'fight_crescent_kick': ('Aerial Crescent Kick', '🌙', 'fight', False, {'power': 3, 'reach': 1.1}),
+  'fight_flying_shoulder_throw': ('Lucha Throw', '🤼', 'fight', False, {'power': 3, 'reach': 0.8}),
+  'fight_block_inward': ('Parry', '🛡️', 'defend', False, {}),
+  'fhit_groin': ('Low Blow', '😖', 'react', False, {'hit': 'body', 'size': 2}),
+  'fhit_body_punch': ('Body Punch Hit', '😫', 'react', False, {'hit': 'body', 'size': 2}),
+  'fhit_stomach_uppercut': ('Gut Uppercut Hit', '🤢', 'react', False, {'hit': 'body', 'size': 3}),
+  'fhit_face_uppercut': ('Face Uppercut Hit', '😵', 'react', False, {'hit': 'head', 'size': 3, 'side': 'c'}),
+  'fhit_groin_fall': ('Low Blow Fall', '😖', 'falls', False, {'then': 'getup_stomach', 'floor': True}),
+  'fko_death_knee': ('KO Collapse', '☠️', 'falls', False, {'then': 'getup_stomach', 'floor': True, 'ko': True}),
+  'fko_death_standing': ('KO Drop', '☠️', 'falls', False, {'then': 'getup_back', 'floor': True, 'ko': True}),
+  'fight_kipup': ('Corkscrew Kip-Up', '🤸', 'jumps', False, {}),
+  'fight_kipup_kick': ('Kip-Up Kick', '🤸', 'jumps', False, {}),
+  'fight_backflip': ('Backflip', '🔄', 'jumps', False, {}),
+  'fight_idle_empty': ('Open Stance', '🥋', 'base', True, {}),
+  'fight_ready_jump': ('Jump In Ready', '😤', 'taunt', False, {}),
+  'fight_taunt_arms': ('Come On!', '😤', 'taunt', False, {}),
+  'fight_insult': ('Insult', '🙄', 'taunt', False, {}),
 }
 
 missing = [f for f in files if f not in T]
@@ -196,7 +246,18 @@ H = {
  'kick_high': [0.7], 'kick_spin_back': [1.0], 'flip_kick': [0.87], 'spin_flip_kick': [1.5],
  'bicycle_kick': [0.25, 0.45], 'drop_kick': [0.75], 'hurricane_kick': [0.5, 0.9, 1.3], 'flying_knee': [1.37],
  'armada': [1.17], 'meia_lua': [0.93], 'hadouken': [2.23], 'grab_slam': [2.7],
+ # second wave
+ 'kick_mid': [0.67], 'sweep_back': [0.65], 'sweep_360_back': [1.2], 'sweep_front': [0.6], 'sweep_360': [1.3],
+ 'flying_sidekick': [0.37], 'armada_escape': [1.37], 'meia_lua_back': [1.6], 'chapa_giratoria': [1.77],
+ 'martelo': [1.23], 'martelo_ground': [1.27], 'martelo_step': [0.87], 'chapa': [0.67], 'spin_back_kick_adv': [1.83],
+ 'ground_spin_kick': [1.63], 'capoeira_kicks': [3.97, 5.37, 12.53, 13.9], 'hook_body_short': [0.9], 'hook_body_mid': [1.0],
+ 'hook_head_mid': [0.5], 'hook_head_long': [0.63], 'right_hook': [0.6], 'jab2': [0.57], 'cross2': [0.37],
+ 'hook_rear2': [0.4], 'hook_lead2': [0.57], 'body_punch_knee': [0.9, 1.53], 'roundhouse_adv': [1.0],
+ 'roundhouse_side': [1.1], 'roundhouse_rear': [0.63], 'roll_kick': [0.6], 'double_snap_kick': [0.63, 0.87],
+ 'crescent_kick': [1.33], 'flying_shoulder_throw': [1.0],
 }
+# Long or special-purpose clips the fight AI shouldn't pick as normal attacks
+NO_FIGHT = {'fight_capoeira_kicks', 'fight_flying_shoulder_throw', 'fight_grab_slam', 'fight_backflip_uppercut', 'fight_knees_uppercut'}
 
 entries = []
 for fid in files:
@@ -209,6 +270,8 @@ for fid in files:
     hk = fid.replace('fight_', '')
     if cat == 'fight' and hk in H:
         e['hits'] = H[hk]
+    if fid in NO_FIGHT:
+        e['noFight'] = True
     entries.append(e)
 json.dump(entries, open(OUT, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 print(len(entries), 'entries;', {c: sum(1 for e in entries if e['category'] == c) for c in sorted({e['category'] for e in entries})})
