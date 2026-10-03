@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   TournamentManager, standardSeedOrder, seedEntrants, createTournament, applyResult,
-  roundRobinTable, playableMatches, BYE
+  roundRobinTable, playableMatches, BYE, editSwap, editPlace, editAdd, editRemove
 } from '../src/js/tournament.js';
 
 const entrants = (n) => Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}`, seed: i + 1, rating: 1600 - i * 20 }));
@@ -168,5 +168,79 @@ describe('Tournament manager', () => {
     expect(tm.isTournamentComplete()).toBe(true);
     expect(tm.bracket.championId).toBe(next.player1Id);
     expect(BYE).toBe('BYE');
+  });
+});
+
+describe('Bracket editing', () => {
+  const slotOfPlayer = (t, id) => {
+    const m = t.matches.find(x => !x.completed && (x.p1 === id || x.p2 === id));
+    return { matchId: m.id, side: m.p1 === id ? 1 : 2 };
+  };
+
+  it('swaps two first-round producers by swapping their seeds', () => {
+    const t = createTournament({ name: 'T', format: 'single', entrants: entrants(4) });
+    expect(editSwap(t, slotOfPlayer(t, 'p4'), slotOfPlayer(t, 'p3')).ok).toBe(true);
+    const m = t.matches.find(x => x.id === 'W1-0');
+    expect([m.p1, m.p2].sort()).toEqual(['p1', 'p3']);
+  });
+
+  it('moves a producer into a bye slot', () => {
+    const t = createTournament({ name: 'T', format: 'single', entrants: entrants(3) }); // seed 4 is a bye vs p1
+    const byeSlot = { matchId: 'W1-0', side: 2 };
+    expect(editSwap(t, slotOfPlayer(t, 'p3'), byeSlot).ok).toBe(true);
+    const w10 = t.matches.find(x => x.id === 'W1-0');
+    expect([w10.p1, w10.p2].sort()).toEqual(['p1', 'p3']);
+    const w11 = t.matches.find(x => x.id === 'W1-1');
+    expect(w11.isBye).toBe(true);
+  });
+
+  it('fills a bye from the bench and substitutes a producer who has not battled', () => {
+    const t = createTournament({ name: 'T', format: 'single', entrants: entrants(3) });
+    expect(editPlace(t, { matchId: 'W1-0', side: 2 }, 'newbie').ok).toBe(true);
+    expect(t.entrants).toHaveLength(4);
+    expect(playableMatches(t)).toHaveLength(2);
+    expect(editPlace(t, slotOfPlayer(t, 'p2'), 'sub').ok).toBe(true);
+    expect(t.entrants.map(e => e.id)).toContain('sub');
+    expect(editPlace(t, slotOfPlayer(t, 'sub'), 'p1').code).toBe('already-in');
+  });
+
+  it('refuses edits that would undo a played battle', () => {
+    const t = createTournament({ name: 'T', format: 'single', entrants: entrants(4) });
+    const m = t.matches.find(x => x.id === 'W1-0');
+    applyResult(t, m.id, result(m, 'p1'));
+    expect(editRemove(t, 'p4').code).toBe('has-results');
+    expect(editSwap(t, { matchId: 'W1-0', side: 2 }, slotOfPlayer(t, 'p3')).code).toBe('locked');
+    // Swapping the two unplayed producers is fine, and the played result survives the rebuild
+    expect(editSwap(t, slotOfPlayer(t, 'p2'), slotOfPlayer(t, 'p3')).ok).toBe(true);
+    expect(t.matches.find(x => x.id === 'W1-0').winnerId).toBe('p1');
+    expect(t.results).toHaveLength(1);
+  });
+
+  it('swaps players in later rounds with manual placements', () => {
+    const t = createTournament({ name: 'T', format: 'double', entrants: entrants(4) });
+    ['W1-0', 'W1-1'].forEach(id => { const m = t.matches.find(x => x.id === id); applyResult(t, id, result(m, m.p1)); });
+    const before = t.matches.find(x => x.id === 'W2-0');
+    expect([before.p1, before.p2].sort()).toEqual(['p1', 'p2']);
+    const loserSlot = slotOfPlayer(t, 'p4'); // losers bracket
+    expect(editSwap(t, { matchId: 'W2-0', side: 2 }, loserSlot).ok).toBe(true);
+    const w2 = t.matches.find(x => x.id === 'W2-0');
+    expect([w2.p1, w2.p2].sort()).toEqual(['p1', 'p4']);
+  });
+
+  it('adds and removes producers, resizing the bracket and closing seeds', () => {
+    const t = createTournament({ name: 'T', format: 'single', entrants: entrants(4) });
+    expect(editAdd(t, 'late').ok).toBe(true);
+    expect(t.meta.size).toBe(8);
+    expect(editRemove(t, 'p2').ok).toBe(true);
+    expect(t.meta.size).toBe(4);
+    expect(t.entrants.map(e => e.seed).sort()).toEqual([1, 2, 3, 4]);
+    const two = createTournament({ name: 'T', format: 'single', entrants: entrants(2) });
+    expect(editRemove(two, 'p1').code).toBe('too-few');
+  });
+
+  it('round robin substitutes and re-schedules on add', () => {
+    const t = createTournament({ name: 'T', format: 'roundrobin', entrants: entrants(3) });
+    expect(editAdd(t, 'p9').ok).toBe(true);
+    expect(t.matches.filter(m => m.bracket === 'RR')).toHaveLength(6);
   });
 });

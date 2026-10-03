@@ -1021,6 +1021,11 @@ function closeTabDrawer() {
 
 document.querySelectorAll('.nav-tab').forEach(tab => {
   tab.addEventListener('click', () => {
+    // The bracket lives in its own (bigger) window
+    if (tab.dataset.tab === 'bracket') {
+      tournament.openModal();
+      return;
+    }
     const wasActive = tab.classList.contains('active');
     closeTabDrawer();
     if (wasActive) return;
@@ -1045,6 +1050,19 @@ function openNotesTab() {
 // ============================================================
 // Tournament integration
 // ============================================================
+tournament.onShowProfile = (id) => openProfileModal(id);
+tournament.onChange = updateTournamentButton;
+
+/** Tournament button doubles as "View Bracket" while one is running */
+function updateTournamentButton() {
+  const btn = document.getElementById('btn-tournament');
+  if (!btn) return;
+  const label = tournament.bracket ? (tournament.isTournamentComplete() ? '🏆 Final Bracket' : '🏆 View Bracket') : 'Tournament';
+  const textNode = [...btn.childNodes].find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+  if (textNode) textNode.textContent = ` ${label} `;
+  btn.classList.toggle('has-tournament', !!tournament.bracket);
+}
+
 tournament.onMatchSelect = (player1Id, player2Id, match) => {
   if (match) setTimeout(() => showToast(`🏆 ${tournament.bracket?.name} · ${tournament.matchLabel(match)}`), 300);
   // Complete battle session reset so prior match state cannot carry forward
@@ -1354,6 +1372,7 @@ function init() {
 
   // Tournament
   tournament.init();
+  updateTournamentButton();
 
   // DJ Controller 3D & Real Audio Reactivity
   djController.init();

@@ -211,8 +211,9 @@ function resolveTournament(t) {
     changed = false;
     t.matches.forEach(m => {
       if (m.completed) return;
-      const p1 = pull(m.src1);
-      const p2 = pull(m.src2);
+      const ov = t.overrides?.[m.id] || {};
+      const p1 = ov.p1 ?? pull(m.src1);
+      const p2 = ov.p2 ?? pull(m.src2);
       if (p1 !== m.p1 || p2 !== m.p2) {
         m.p1 = p1;
         m.p2 = p2;
@@ -258,10 +259,14 @@ function resolveTournament(t) {
   return t;
 }
 
-function createTournament({ name, format, entrants, rrFinal = false }) {
-  const built = format === 'double' ? buildDouble(entrants)
-    : format === 'roundrobin' ? buildRoundRobin(entrants, rrFinal)
+function buildFor(format, entrants, options = {}) {
+  return format === 'double' ? buildDouble(entrants)
+    : format === 'roundrobin' ? buildRoundRobin(entrants, !!options.rrFinal)
     : buildSingle(entrants);
+}
+
+function createTournament({ name, format, entrants, rrFinal = false }) {
+  const built = buildFor(format, entrants, { rrFinal });
   const t = {
     id: `t_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
     name: name || 'Tournament',
@@ -270,6 +275,9 @@ function createTournament({ name, format, entrants, rrFinal = false }) {
     entrants,
     matches: built.matches,
     meta: built.meta,
+    options: { rrFinal },
+    overrides: {}, // matchId -> { p1?, p2? } manual placements from bracket edits
+    results: [],   // played battles, in order — replayed whenever the bracket is edited
     currentMatchId: null,
     championId: null,
     status: 'active'
@@ -278,9 +286,25 @@ function createTournament({ name, format, entrants, rrFinal = false }) {
 }
 
 /** Apply an official battle result to a match */
-function applyResult(t, matchId, finalResult) {
+function applyResult(t, matchId, finalResult, { replay = false } = {}) {
   const m = t.matches.find(x => x.id === matchId);
   if (!m || m.completed || !finalResult) return false;
+  if (!replay) {
+    const ss = finalResult.seriesSummary || {};
+    (t.results || (t.results = [])).push({
+      p1: m.p1,
+      p2: m.p2,
+      result: {
+        id: finalResult.id,
+        contestant1: { id: finalResult.contestant1?.id },
+        contestant2: { id: finalResult.contestant2?.id },
+        winnerId: finalResult.winnerId || null,
+        decisionMethod: finalResult.decisionMethod,
+        seriesSummary: { avgRound1: ss.avgRound1, avgRound2: ss.avgRound2, roundsWon1: ss.roundsWon1, roundsWon2: ss.roundsWon2 },
+        roundResults: finalResult.roundResults ? finalResult.roundResults.map(r => ({ total1: r.total1, total2: r.total2 })) : undefined
+      }
+    });
+  }
   const c1 = finalResult.contestant1?.id;
   const ss = finalResult.seriesSummary || {};
   const flip = c1 === m.p2; // battle loaded the other way round
@@ -317,6 +341,145 @@ function playableMatches(t) {
   return t.matches.filter(m => !m.completed && m.p1 && m.p2 && m.p1 !== BYE && m.p2 !== BYE);
 }
 
+/* ---------------- Bracket editing ---------------- */
+
+const samePair = (m, a, b) => (m.p1 === a && m.p2 === b) || (m.p1 === b && m.p2 === a);
+const hasResults = (t, id) => (t.results || []).some(r => r.p1 === id || r.p2 === id);
+
+/**
+ * Rebuild matches from the entrants and replay every played battle.
+ * Fails (without touching `t`'s caller copy) if a played pairing no longer exists.
+ */
+function rebuildTournament(t) {
+  const live = t.currentMatchId ? t.matches.find(m => m.id === t.currentMatchId) : null;
+  const livePair = live ? [live.p1, live.p2] : null;
+  const built = buildFor(t.format, t.entrants, t.options || {});
+  // Manual placements are tied to match ids, which change if the bracket resizes
+  if (t.format === 'roundrobin' || t.meta?.size !== built.meta.size) t.overrides = {};
+  t.matches = built.matches;
+  t.meta = built.meta;
+  t.championId = null;
+  resolveTournament(t);
+  for (const r of t.results || []) {
+    const m = playableMatches(t).find(x => samePair(x, r.p1, r.p2));
+    if (!m) return { ok: false, code: 'played', players: [r.p1, r.p2] };
+    applyResult(t, m.id, r.result, { replay: true });
+  }
+  t.currentMatchId = livePair ? (playableMatches(t).find(x => samePair(x, livePair[0], livePair[1]))?.id || null) : null;
+  return { ok: true };
+}
+
+/** Run an edit on a copy; commit only if every played battle still fits */
+function tryEdit(t, mutate) {
+  const copy = JSON.parse(JSON.stringify(t));
+  copy.overrides = copy.overrides || {};
+  copy.results = copy.results || [];
+  const pre = mutate(copy);
+  if (pre && pre.ok === false) return pre;
+  const res = rebuildTournament(copy);
+  if (!res.ok) return res;
+  Object.keys(t).forEach(k => delete t[k]);
+  Object.assign(t, copy);
+  return { ok: true };
+}
+
+function slotOf(t, slot) {
+  const m = t.matches.find(x => x.id === slot.matchId);
+  if (!m) return null;
+  return { m, src: slot.side === 1 ? m.src1 : m.src2, player: slot.side === 1 ? m.p1 : m.p2 };
+}
+
+/** A slot can be edited until its battle is played (first-round bye slots stay editable) */
+function slotEditable(t, slot) {
+  const info = slotOf(t, slot);
+  if (!info) return false;
+  if (info.src.seed !== undefined) return !info.m.completed || info.m.isBye;
+  return !info.m.completed;
+}
+
+/** Swap the producers in two slots (drag one name onto another) */
+function editSwap(t, a, b) {
+  if (a.matchId === b.matchId && a.side === b.side) return { ok: true };
+  const A = slotOf(t, a);
+  const B = slotOf(t, b);
+  if (!A || !B) return { ok: false, code: 'missing' };
+  if (!slotEditable(t, a) || !slotEditable(t, b)) return { ok: false, code: 'locked' };
+  return tryEdit(t, (c) => {
+    if (A.src.seed !== undefined && B.src.seed !== undefined && !c.overrides[a.matchId] && !c.overrides[b.matchId]) {
+      // Both first-round seed slots: swap the seeds (an empty slot is a bye)
+      const ea = c.entrants.find(e => e.seed === A.src.seed);
+      const eb = c.entrants.find(e => e.seed === B.src.seed);
+      if (ea) ea.seed = B.src.seed;
+      if (eb) eb.seed = A.src.seed;
+      return null;
+    }
+    const pa = A.player;
+    const pb = B.player;
+    if (!pa || !pb || pa === BYE || pb === BYE) return { ok: false, code: 'needs-players' };
+    const key = (side) => (side === 1 ? 'p1' : 'p2');
+    (c.overrides[a.matchId] || (c.overrides[a.matchId] = {}))[key(a.side)] = pb;
+    (c.overrides[b.matchId] || (c.overrides[b.matchId] = {}))[key(b.side)] = pa;
+    return null;
+  });
+}
+
+/** Drop a bench producer into a first-round slot (fills a bye or substitutes the producer there) */
+function editPlace(t, slot, producerId) {
+  if (t.entrants.some(e => e.id === producerId)) return { ok: false, code: 'already-in' };
+  const S = slotOf(t, slot);
+  if (!S) return { ok: false, code: 'missing' };
+  if (t.format === 'roundrobin') {
+    if (!S.player || S.player === BYE) return { ok: false, code: 'missing' };
+    return editSubstitute(t, S.player, producerId);
+  }
+  if (S.src.seed === undefined || !slotEditable(t, slot)) return { ok: false, code: 'first-round-only' };
+  return tryEdit(t, (c) => {
+    const occupant = c.entrants.find(e => e.seed === S.src.seed);
+    if (occupant) {
+      if (hasResults(c, occupant.id)) return { ok: false, code: 'has-results', players: [occupant.id] };
+      occupant.id = producerId;
+      occupant.rating = undefined;
+    } else {
+      c.entrants.push({ id: producerId, seed: S.src.seed });
+    }
+    return null;
+  });
+}
+
+function editSubstitute(t, outId, inId) {
+  return tryEdit(t, (c) => {
+    if (hasResults(c, outId)) return { ok: false, code: 'has-results', players: [outId] };
+    const e = c.entrants.find(x => x.id === outId);
+    if (!e) return { ok: false, code: 'missing' };
+    e.id = inId;
+    return null;
+  });
+}
+
+/** Add a producer to the tournament (takes the next seed; the bracket grows if needed) */
+function editAdd(t, producerId) {
+  if (t.entrants.some(e => e.id === producerId)) return { ok: false, code: 'already-in' };
+  return tryEdit(t, (c) => {
+    c.entrants.push({ id: producerId, seed: c.entrants.length + 1 });
+    return null;
+  });
+}
+
+/** Take a producer out (only before they've battled); remaining seeds close ranks */
+function editRemove(t, producerId) {
+  const min = t.format === 'double' ? 3 : 2;
+  if (hasResults(t, producerId)) return { ok: false, code: 'has-results', players: [producerId] };
+  if (t.entrants.length - 1 < min) return { ok: false, code: 'too-few' };
+  return tryEdit(t, (c) => {
+    c.entrants = c.entrants.filter(e => e.id !== producerId).sort((x, y) => x.seed - y.seed).map((e, i) => ({ ...e, seed: i + 1 }));
+    Object.values(c.overrides).forEach(ov => {
+      if (ov.p1 === producerId) delete ov.p1;
+      if (ov.p2 === producerId) delete ov.p2;
+    });
+    return null;
+  });
+}
+
 /* ============================================================
    MANAGER (state, persistence, UI)
    ============================================================ */
@@ -328,6 +491,10 @@ class TournamentManager {
     this.t = null;
     this.setupOrder = [];   // seeded entrants on the setup screen (host can reorder)
     this.onMatchSelect = null;
+    this.onShowProfile = null; // (contestantId) — click a name/photo for their bio
+    this.onChange = null;      // tournament created / edited / ended
+    this.pendingMove = null;   // tap-to-move: slot or bench producer waiting for a target
+    this.editMessage = null;
     this.loadState();
   }
 
@@ -427,7 +594,7 @@ class TournamentManager {
       return `<li class="seed-row ${e.excluded ? 'excluded' : ''}" draggable="${!e.excluded}" data-index="${i}">
         <span class="seed-grip" aria-hidden="true">⠿</span>
         <span class="seed-num">${label}</span>
-        <span class="seed-name">${this.escape(c?.name || e.id)}</span>
+        <button type="button" class="seed-name chip-face" data-profile="${e.id}" title="See bio">${this.avatar(e.id)}<span>${this.escape(c?.name || e.id)}</span></button>
         <span class="seed-rating">${e.unrated ? '<em>unrated</em>' : e.rating}</span>
         <span class="seed-moves">
           <button type="button" data-move="-1" title="Move up" ${e.excluded ? 'disabled' : ''}>▲</button>
@@ -437,6 +604,7 @@ class TournamentManager {
       </li>`;
     }).join('');
 
+    list.querySelectorAll('[data-profile]').forEach(btn => btn.addEventListener('click', () => this.onShowProfile?.(btn.dataset.profile)));
     list.querySelectorAll('.seed-row').forEach(row => {
       const i = Number(row.dataset.index);
       row.querySelectorAll('[data-move]').forEach(b => b.addEventListener('click', () => this.moveSeed(i, Number(b.dataset.move))));
@@ -506,6 +674,7 @@ class TournamentManager {
     this.t = createTournament({ name, format, entrants, rrFinal });
     this.saveState();
     this.showBracket();
+    this.onChange?.();
     return true;
   }
 
@@ -572,12 +741,15 @@ class TournamentManager {
     const ok = applyResult(this.t, m.id, finalResult);
     this.saveState();
     this.renderBracket();
+    this.onChange?.();
     return ok;
   }
 
   resetTournament() {
     this.t = null;
+    this.pendingMove = null;
     this.saveState();
+    this.onChange?.();
     if (typeof document !== 'undefined' && document.getElementById('tournament-setup')) this.showSetup();
   }
 
@@ -597,6 +769,50 @@ class TournamentManager {
     if (left === 1) return `${prefix}Semifinals`;
     if (left === 2) return `${prefix}Quarterfinals`;
     return `${prefix}Round of ${Math.pow(2, left + 1)}`;
+  }
+
+  /** Profile photo if the producer has one, otherwise coloured initials */
+  avatar(id, size = 'sm') {
+    const c = this.roster?.getById(id);
+    if (!c) return `<span class="t-avatar ${size} empty">?</span>`;
+    if (c.photo) return `<span class="t-avatar ${size}"><img src="${this.escape(c.photo)}" alt="" loading="lazy" /></span>`;
+    const initials = c.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    let hash = 0;
+    for (const ch of c.id) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
+    return `<span class="t-avatar ${size}" style="--hue:${hash}">${this.escape(initials)}</span>`;
+  }
+
+  nameOf(id) {
+    return this.roster?.getById(id)?.name || 'that producer';
+  }
+
+  /** Run a bracket edit and report the outcome in the bracket view */
+  applyEdit(kind, ...args) {
+    if (!this.t) return;
+    const fn = { swap: editSwap, place: editPlace, add: editAdd, remove: editRemove }[kind];
+    const res = fn(this.t, ...args);
+    if (res.ok) {
+      this.saveState();
+      this.editMessage = { ok: true, text: 'Bracket updated.' };
+      this.onChange?.();
+    } else {
+      const who = (res.players || []).map(id => this.nameOf(id));
+      const min = this.t.format === 'double' ? 3 : 2;
+      this.editMessage = {
+        ok: false,
+        text: {
+          locked: "That battle has already been played — its slots are locked.",
+          played: `Can't do that — ${who[0]} vs ${who[1]} has already battled, and that pairing would disappear.`,
+          'has-results': `${who[0]} has already battled in this tournament, so they can't be swapped out.`,
+          'first-round-only': 'Bench producers can only go into first-round slots.',
+          'needs-players': 'Both slots need a producer to swap.',
+          'too-few': `A ${FORMAT_LABELS[this.t.format].toLowerCase()} tournament needs at least ${min} producers.`,
+          'already-in': 'That producer is already in the tournament.'
+        }[res.code] || "That move isn't possible."
+      };
+    }
+    this.pendingMove = null;
+    this.renderBracket();
   }
 
   showBracket() {
@@ -627,6 +843,11 @@ class TournamentManager {
       }
     }
 
+    const inIds = new Set(t.entrants.map(e => e.id));
+    const bench = this.leagueContestants().filter(c => !inIds.has(c.id));
+    const msg = this.editMessage;
+    this.editMessage = null;
+
     container.innerHTML = `
       <div class="tourney-head">
         <div>
@@ -638,14 +859,129 @@ class TournamentManager {
           <button type="button" class="control-btn secondary" id="btn-tourney-end">${champ ? 'New Tournament' : 'End Tournament'}</button>
         </div>
       </div>
-      ${champ ? `<div class="tourney-champ">👑 <b>${this.escape(champ.name)}</b> wins ${this.escape(t.name)}!</div>` : ''}
-      ${body}`;
+      ${champ ? `<div class="tourney-champ">${this.avatar(champ.id, 'md')} <span>👑 <b>${this.escape(champ.name)}</b> wins ${this.escape(t.name)}!</span></div>` : ''}
+      <p class="tourney-edit-hint">Drag a name onto another slot to swap them · drag from the bench to fill a slot · drag a name to the bench to take them out · ⇄ to move by tapping · click a name for their bio. Played battles are locked.</p>
+      ${msg ? `<div class="tourney-msg ${msg.ok ? 'ok' : 'err'}" role="status">${this.escape(msg.text)}</div>` : ''}
+      ${this.pendingMove ? `<div class="tourney-msg pending">Moving <b>${this.escape(this.nameOf(this.pendingMove.id))}</b> — tap the slot to put them in (or tap ⇄ again to cancel).</div>` : ''}
+      <div class="tourney-edit-layout">
+        <div class="tourney-main">${body}</div>
+        <aside class="tourney-bench" id="tourney-bench" aria-label="Bench">
+          <h4>Bench</h4>
+          <p class="bench-hint">League producers not in this tournament.</p>
+          <div class="bench-list">
+            ${bench.length ? bench.map(c => `
+              <div class="bm-chip bench-chip ${this.pendingMove?.id === c.id ? 'moving' : ''}" draggable="true" data-bench="${c.id}">
+                <button type="button" class="chip-face" data-profile="${c.id}">${this.avatar(c.id)}<span class="chip-name">${this.escape(c.name)}</span></button>
+                <button type="button" class="chip-move" data-move-bench="${c.id}" title="Tap, then tap a slot">⇄</button>
+              </div>`).join('') : '<p class="bench-empty">Everyone in the league is entered.</p>'}
+          </div>
+          <div class="bench-add" id="tourney-bench-add">Drop a bench producer here to <b>add them</b> (they take the next seed)</div>
+        </aside>
+      </div>`;
 
     container.querySelector('#btn-tourney-next')?.addEventListener('click', () => this.selectMatch(next.matchId));
     container.querySelector('#btn-tourney-end')?.addEventListener('click', () => {
       if (champ || confirm(`End "${t.name}"? The bracket will be cleared (battles already played stay in history).`)) this.resetTournament();
     });
-    container.querySelectorAll('.bmatch.playable').forEach(el => el.addEventListener('click', () => this.selectMatch(el.dataset.id)));
+    this.bindEditor(container);
+  }
+
+  bindEditor(container) {
+    const readDrag = (ev) => {
+      try { return JSON.parse(ev.dataTransfer.getData('application/json') || ev.dataTransfer.getData('text/plain')); } catch { return null; }
+    };
+    const setDrag = (ev, payload) => {
+      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setData('application/json', JSON.stringify(payload));
+      ev.dataTransfer.setData('text/plain', JSON.stringify(payload));
+      container.classList.add('is-dragging');
+    };
+    container.addEventListener('dragend', () => {
+      container.classList.remove('is-dragging');
+      container.querySelectorAll('.drop-over').forEach(el => el.classList.remove('drop-over'));
+    });
+
+    // Bio on click (chips are buttons; dragging doesn't fire click)
+    container.querySelectorAll('[data-profile]').forEach(btn => btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onShowProfile?.(btn.dataset.profile);
+    }));
+
+    // Slot chips: drag source + tap-to-move
+    container.querySelectorAll('.bm-chip[data-slot-match]').forEach(chip => {
+      const slot = { matchId: chip.dataset.slotMatch, side: Number(chip.dataset.slotSide) };
+      chip.addEventListener('dragstart', (ev) => setDrag(ev, { kind: 'slot', ...slot, id: chip.dataset.player }));
+      chip.querySelector('.chip-move')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.pendingMove = this.pendingMove?.matchId === slot.matchId && this.pendingMove?.side === slot.side ? null : { kind: 'slot', ...slot, id: chip.dataset.player };
+        this.renderBracket();
+      });
+    });
+    container.querySelectorAll('.bench-chip').forEach(chip => {
+      chip.addEventListener('dragstart', (ev) => setDrag(ev, { kind: 'bench', id: chip.dataset.bench }));
+      chip.querySelector('.chip-move')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.pendingMove = this.pendingMove?.id === chip.dataset.bench ? null : { kind: 'bench', id: chip.dataset.bench };
+        this.renderBracket();
+      });
+    });
+
+    const dropOnSlot = (payload, slot) => {
+      if (!payload) return;
+      if (payload.kind === 'slot') this.applyEdit('swap', { matchId: payload.matchId, side: payload.side }, slot);
+      else if (payload.kind === 'bench') this.applyEdit('place', slot, payload.id);
+    };
+
+    // Slot rows: drop targets (drag) and tap targets (tap-to-move)
+    container.querySelectorAll('.bm-player[data-drop-match]').forEach(row => {
+      const slot = { matchId: row.dataset.dropMatch, side: Number(row.dataset.dropSide) };
+      row.addEventListener('dragover', (ev) => { ev.preventDefault(); row.classList.add('drop-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('drop-over'));
+      row.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        dropOnSlot(readDrag(ev), slot);
+      });
+      row.addEventListener('click', (e) => {
+        if (!this.pendingMove) return;
+        e.stopPropagation();
+        dropOnSlot(this.pendingMove, slot);
+      });
+    });
+
+    // Bench: drop a slot chip to take that producer out; drop a bench chip on "add" to enter them
+    const benchEl = container.querySelector('#tourney-bench');
+    benchEl?.addEventListener('dragover', (ev) => { ev.preventDefault(); benchEl.classList.add('drop-over'); });
+    benchEl?.addEventListener('dragleave', (ev) => { if (!benchEl.contains(ev.relatedTarget)) benchEl.classList.remove('drop-over'); });
+    benchEl?.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      const payload = readDrag(ev);
+      if (payload?.kind === 'slot' && payload.id) this.applyEdit('remove', payload.id);
+      else benchEl.classList.remove('drop-over');
+    });
+    benchEl?.addEventListener('click', (e) => {
+      if (this.pendingMove?.kind === 'slot' && !e.target.closest('.bench-chip')) this.applyEdit('remove', this.pendingMove.id);
+    });
+    const addEl = container.querySelector('#tourney-bench-add');
+    addEl?.addEventListener('dragover', (ev) => { ev.preventDefault(); addEl.classList.add('drop-over'); });
+    addEl?.addEventListener('dragleave', () => addEl.classList.remove('drop-over'));
+    addEl?.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const payload = readDrag(ev);
+      if (payload?.kind === 'bench') this.applyEdit('add', payload.id);
+    });
+    addEl?.addEventListener('click', (e) => {
+      if (this.pendingMove?.kind !== 'bench') return;
+      e.stopPropagation();
+      this.applyEdit('add', this.pendingMove.id);
+    });
+
+    // Playable card → load the battle (but not when the click was on a name or during a move)
+    container.querySelectorAll('.bmatch.playable').forEach(el => el.addEventListener('click', (e) => {
+      if (this.pendingMove || e.target.closest('.bm-chip')) return;
+      this.selectMatch(el.dataset.id);
+    }));
   }
 
   renderSection(bracket, title) {
@@ -670,7 +1006,7 @@ class TournamentManager {
 
   renderRoundRobin() {
     const table = roundRobinTable(this.t);
-    const name = (id) => this.escape(this.roster.getById(id)?.name || '—');
+    const name = (id) => `<button type="button" class="chip-face rr-name" data-profile="${id}">${this.avatar(id)}<span>${this.escape(this.roster.getById(id)?.name || '—')}</span></button>`;
     const rounds = [...new Set(this.t.matches.filter(m => m.bracket === 'RR').map(m => m.round))];
     const fin = this.t.matches.find(m => m.bracket === 'F');
     return `
@@ -691,23 +1027,37 @@ class TournamentManager {
 
   matchCard(m) {
     const seedOf = (id) => this.t.entrants.find(e => e.id === id)?.seed;
-    const row = (id, score, rw, isWinner) => {
+    const row = (side, id, score, rw, isWinner) => {
+      const slot = { matchId: m.id, side };
+      const editable = slotEditable(this.t, slot) && !(m.conditional);
+      const isReal = id && id !== BYE;
+      const moving = this.pendingMove?.kind === 'slot' && this.pendingMove.matchId === m.id && this.pendingMove.side === side;
       let label;
       if (id === BYE) label = '<span class="bm-bye">BYE</span>';
       else if (!id) label = '<span class="bm-tbd">TBD</span>';
-      else label = `<span class="bm-seed">${seedOf(id) ?? ''}</span>${this.escape(this.roster.getById(id)?.name || '—')}`;
+      else {
+        label = `<span class="bm-chip ${moving ? 'moving' : ''}" ${editable ? `draggable="true" data-slot-match="${m.id}" data-slot-side="${side}"` : ''} data-player="${id}">
+          <button type="button" class="chip-face" data-profile="${id}" title="See ${this.escape(this.nameOf(id))}'s bio">
+            <span class="bm-seed">${seedOf(id) ?? ''}</span>${this.avatar(id)}<span class="chip-name">${this.escape(this.roster.getById(id)?.name || '—')}</span>
+          </button>
+          ${editable ? '<button type="button" class="chip-move" title="Move (tap, then tap a slot)">⇄</button>' : ''}
+        </span>`;
+      }
       const sc = m.completed && !m.isBye && score !== undefined ? `${typeof rw === 'number' && (m.roundsWon1 + m.roundsWon2) > 1 ? `${rw}W · ` : ''}${Number(score).toFixed(2)}` : '';
-      return `<div class="bm-player ${isWinner ? 'won' : ''} ${m.completed && !isWinner && id && id !== BYE ? 'out' : ''}"><span class="bm-name">${label}</span><span class="bm-score">${sc}</span></div>`;
+      const dropAttrs = editable ? `data-drop-match="${m.id}" data-drop-side="${side}"` : '';
+      return `<div class="bm-player ${isWinner ? 'won' : ''} ${m.completed && !isWinner && isReal ? 'out' : ''} ${editable ? 'editable' : ''}" ${dropAttrs}>
+        <span class="bm-name">${label}</span><span class="bm-score">${sc}</span></div>`;
     };
     const playable = !m.completed && m.p1 && m.p2 && m.p1 !== BYE && m.p2 !== BYE;
     const live = this.t.currentMatchId === m.id;
+    const locked = m.completed && !m.isBye;
     const note = m.advancedOnSeed ? '<span class="bm-note">drew · higher seed advances</span>'
       : m.decision === 'DRAW_TIEBREAK' ? '<span class="bm-note">drew · advanced on points</span>'
       : m.draw ? '<span class="bm-note">draw</span>' : '';
-    return `<div class="bmatch ${m.completed ? 'done' : ''} ${playable ? 'playable' : ''} ${live ? 'live' : ''} ${m.isBye ? 'bye' : ''}" data-id="${m.id}" ${playable ? 'title="Load this battle"' : ''}>
-      ${live ? '<span class="bm-live">LIVE</span>' : ''}
-      ${row(m.p1, m.score1, m.roundsWon1, m.winnerId && m.winnerId === m.p1)}
-      ${row(m.p2, m.score2, m.roundsWon2, m.winnerId && m.winnerId === m.p2)}
+    return `<div class="bmatch ${m.completed ? 'done' : ''} ${playable ? 'playable' : ''} ${live ? 'live' : ''} ${m.isBye ? 'bye' : ''}" data-id="${m.id}" ${playable ? 'title="Click the card to load this battle"' : ''}>
+      ${live ? '<span class="bm-live">LIVE</span>' : locked ? '<span class="bm-lock" title="Played — locked">🔒</span>' : playable ? '<span class="bm-play">▶</span>' : ''}
+      ${row(1, m.p1, m.score1, m.roundsWon1, m.winnerId && m.winnerId === m.p1)}
+      ${row(2, m.p2, m.score2, m.roundsWon2, m.winnerId && m.winnerId === m.p2)}
       ${note}
     </div>`;
   }
@@ -719,5 +1069,6 @@ class TournamentManager {
 
 export {
   TournamentManager, standardSeedOrder, seedEntrants, createTournament, applyResult,
-  resolveTournament, roundRobinTable, playableMatches, BYE
+  resolveTournament, roundRobinTable, playableMatches, BYE,
+  rebuildTournament, editSwap, editPlace, editAdd, editRemove, slotEditable
 };
