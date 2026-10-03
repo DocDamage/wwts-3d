@@ -107,7 +107,18 @@ class BattleSessionEngine {
       photo: c2?.photo || ''
     };
 
-    const hasSeries = seriesData && (seriesData.roundsWon1 > 0 || seriesData.roundsWon2 > 0 || seriesData.totalRounds > 1);
+    // A series only exists once more than one round has actually been scored
+    const playedRounds = seriesData?.rounds
+      ? Object.entries(seriesData.rounds).filter(([, d]) => d && (d.total1 > 0 || d.total2 > 0))
+      : [];
+    const roundsPlayed = seriesData?.roundsPlayed ?? playedRounds.length;
+    const hasSeries = !!seriesData && roundsPlayed > 1;
+    const avgOf = (key) => (playedRounds.length ? playedRounds.reduce((sum, [, d]) => sum + (d[key] || 0), 0) / playedRounds.length : 0);
+    const avgRound1 = avgOf('total1');
+    const avgRound2 = avgOf('total2');
+    // Single-round battles score off that round (not whatever card is on screen)
+    const singleRound = !hasSeries && playedRounds.length === 1 ? playedRounds[0][1] : null;
+    const roundSnap = singleRound ? { ...scoringSnapshot, total1: singleRound.total1, total2: singleRound.total2 } : scoringSnapshot;
     const roundsWon1 = seriesData ? (seriesData.roundsWon1 || 0) : 0;
     const roundsWon2 = seriesData ? (seriesData.roundsWon2 || 0) : 0;
     const grandTotal1 = seriesData ? (seriesData.grandTotal1 || 0) : (scoringSnapshot ? scoringSnapshot.total1 : 0);
@@ -121,8 +132,8 @@ class BattleSessionEngine {
     let decisionTally = '0 - 0';
     let isClinch = false;
 
-    // 1. Check Panel Consensus if in Panel Mode
-    if (judgeMode === 'panel' && judgeData) {
+    // 1. Panel consensus decides a single-round battle (in a series the panel already decided each round)
+    if (judgeMode === 'panel' && judgeData && !hasSeries) {
       const {
         votes1 = 0,
         votes2 = 0,
@@ -162,27 +173,27 @@ class BattleSessionEngine {
       if (roundsWon1 >= 2 && roundsWon2 === 0) {
         winnerId = contestant1.id;
         winnerName = contestant1.name;
-        winnerScore = grandTotal1;
+        winnerScore = avgRound1;
         decisionMethod = 'ROUNDS_WON';
         decisionTally = `${roundsWon1} - ${roundsWon2} (Clinch)`;
         isClinch = true;
       } else if (roundsWon2 >= 2 && roundsWon1 === 0) {
         winnerId = contestant2.id;
         winnerName = contestant2.name;
-        winnerScore = grandTotal2;
+        winnerScore = avgRound2;
         decisionMethod = 'ROUNDS_WON';
         decisionTally = `${roundsWon2} - ${roundsWon1} (Clinch)`;
         isClinch = true;
       } else if (roundsWon1 > roundsWon2) {
         winnerId = contestant1.id;
         winnerName = contestant1.name;
-        winnerScore = grandTotal1;
+        winnerScore = avgRound1;
         decisionMethod = hasOvertime ? 'SUDDEN_DEATH' : 'ROUNDS_WON';
         decisionTally = `${roundsWon1} - ${roundsWon2}`;
       } else if (roundsWon2 > roundsWon1) {
         winnerId = contestant2.id;
         winnerName = contestant2.name;
-        winnerScore = grandTotal2;
+        winnerScore = avgRound2;
         decisionMethod = hasOvertime ? 'SUDDEN_DEATH' : 'ROUNDS_WON';
         decisionTally = `${roundsWon2} - ${roundsWon1}`;
       } else {
@@ -190,19 +201,19 @@ class BattleSessionEngine {
         if (grandTotal1 > grandTotal2) {
           winnerId = contestant1.id;
           winnerName = contestant1.name;
-          winnerScore = grandTotal1;
+          winnerScore = avgRound1;
           decisionMethod = 'TOTAL_POINTS';
           decisionTally = `${grandTotal1.toFixed(2)} - ${grandTotal2.toFixed(2)}`;
         } else if (grandTotal2 > grandTotal1) {
           winnerId = contestant2.id;
           winnerName = contestant2.name;
-          winnerScore = grandTotal2;
+          winnerScore = avgRound2;
           decisionMethod = 'TOTAL_POINTS';
           decisionTally = `${grandTotal2.toFixed(2)} - ${grandTotal1.toFixed(2)}`;
         } else {
           winnerId = null;
           winnerName = 'DRAW';
-          winnerScore = grandTotal1;
+          winnerScore = avgRound1;
           decisionMethod = 'DRAW';
           decisionTally = `${grandTotal1.toFixed(2)} - ${grandTotal2.toFixed(2)}`;
         }
@@ -210,25 +221,25 @@ class BattleSessionEngine {
     }
 
     // 3. Single Round Resolution (if neither panel nor series resolved)
-    if (!winnerId && !hasSeries && scoringSnapshot) {
-      if (scoringSnapshot.total1 > scoringSnapshot.total2) {
+    if (!winnerId && !hasSeries && roundSnap && decisionMethod !== 'INCOMPLETE_PANEL' && !(judgeMode === 'panel' && judgeData)) {
+      if (roundSnap.total1 > roundSnap.total2) {
         winnerId = contestant1.id;
         winnerName = contestant1.name;
-        winnerScore = scoringSnapshot.total1;
+        winnerScore = roundSnap.total1;
         decisionMethod = 'TOTAL_POINTS';
-        decisionTally = `${scoringSnapshot.total1.toFixed(2)} - ${scoringSnapshot.total2.toFixed(2)}`;
-      } else if (scoringSnapshot.total2 > scoringSnapshot.total1) {
+        decisionTally = `${roundSnap.total1.toFixed(2)} - ${roundSnap.total2.toFixed(2)}`;
+      } else if (roundSnap.total2 > roundSnap.total1) {
         winnerId = contestant2.id;
         winnerName = contestant2.name;
-        winnerScore = scoringSnapshot.total2;
+        winnerScore = roundSnap.total2;
         decisionMethod = 'TOTAL_POINTS';
-        decisionTally = `${scoringSnapshot.total2.toFixed(2)} - ${scoringSnapshot.total1.toFixed(2)}`;
+        decisionTally = `${roundSnap.total2.toFixed(2)} - ${roundSnap.total1.toFixed(2)}`;
       } else {
         winnerId = null;
         winnerName = 'DRAW';
-        winnerScore = scoringSnapshot.total1;
+        winnerScore = roundSnap.total1;
         decisionMethod = 'DRAW';
-        decisionTally = `${scoringSnapshot.total1.toFixed(2)} - ${scoringSnapshot.total2.toFixed(2)}`;
+        decisionTally = `${roundSnap.total1.toFixed(2)} - ${roundSnap.total2.toFixed(2)}`;
       }
     }
 
@@ -285,6 +296,9 @@ class BattleSessionEngine {
         roundsWon2,
         grandTotal1: parseFloat(grandTotal1.toFixed(2)),
         grandTotal2: parseFloat(grandTotal2.toFixed(2)),
+        avgRound1: parseFloat(avgRound1.toFixed(2)),
+        avgRound2: parseFloat(avgRound2.toFixed(2)),
+        roundsPlayed,
         totalRounds: seriesData ? seriesData.totalRounds : 1,
         hasOvertime,
         format: hasSeries ? 'best_of_3' : 'single_round'
@@ -339,7 +353,11 @@ class BattleSessionEngine {
     // Gather snapshots
     const scoringSnap = this.scoring ? this.scoring.getSnapshot() : null;
     const seriesData = this.rounds ? this.rounds.getSeriesSummary() : null;
-    const judgeData = (this.judges && this.judges.mode === 'panel') ? this.judges.getConsensus() : null;
+    const panelMode = !!(this.judges && this.judges.mode === 'panel');
+    const scoredRounds = seriesData?.rounds
+      ? Object.keys(seriesData.rounds).map(Number).filter(r => seriesData.rounds[r].total1 > 0 || seriesData.rounds[r].total2 > 0)
+      : [];
+    const judgeData = panelMode ? this.judges.getConsensus(scoredRounds.length ? scoredRounds[scoredRounds.length - 1] : undefined) : null;
     const scoringRules = this.scoring?.getRulesSnapshot ? this.scoring.getRulesSnapshot() : null;
     const notesText = this.notes ? this.notes.getCurrentNote() : '';
 
@@ -357,20 +375,33 @@ class BattleSessionEngine {
       isDemo: this.isDemoMode
     });
 
+    // Keep every judge's card per round with the official result
+    if (panelMode) {
+      officialResult.roundResults.forEach(rr => {
+        const c = this.judges.getConsensus(rr.round);
+        rr.panel = {
+          decisionType: c.decisionType,
+          decisionTally: c.decisionTally,
+          winner: c.consensusWinner,
+          judges: c.judges.map(j => ({ name: j.judgeName, total1: j.total1, total2: j.total2, winner: j.winner, scored: j.scored, phone: j.remote }))
+        };
+      });
+    }
+
     // Mark finalized
     this.isFinalized = true;
     this.finalizedResult = officialResult;
     this.setPhase('finalized');
 
     // Feed the single official result into all downstream consumers:
-    // 1. History (if not demo mode, or flagged in history)
-    if (this.history) {
-      this.history.addFinalizedBattle(officialResult);
+    // 1. Roster stats + ratings first (official matches only) so history keeps the rating swing
+    if (this.roster && !this.isDemoMode) {
+      officialResult.ratingChanges = this.roster.recordFinalizedBattle(officialResult) || null;
     }
 
-    // 2. Roster Stats (only for non-demo official matches)
-    if (this.roster && !this.isDemoMode) {
-      this.roster.recordFinalizedBattle(officialResult);
+    // 2. History (demo battles are flagged there)
+    if (this.history) {
+      this.history.addFinalizedBattle(officialResult);
     }
 
     // 3. Tournament match advancement

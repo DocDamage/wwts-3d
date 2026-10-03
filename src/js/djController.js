@@ -212,6 +212,7 @@ class DJControllerRenderer {
     // Soft atmospheric ambient
     const ambient = new THREE.AmbientLight(0x454b60, 1.4);
     this.scene.add(ambient);
+    this.ambientLight = ambient;
 
     // Front Stage Fill Light (illuminates faces, clothing, and speaker cones)
     const frontFill = new THREE.DirectionalLight(0xfff2e6, 2.0);
@@ -838,6 +839,12 @@ class DJControllerRenderer {
       this.orbitAngles.phi = 1.0;
       this.orbitAngles.radius = 3.1;
       this.cameraTarget.set(0, 1.05, 0);
+    } else if (mode === 'reveal') {
+      // Low, close and centred on the face-off spot for the winner announcement
+      this.orbitAngles.theta = 0;
+      this.orbitAngles.phi = 0.2;
+      this.orbitAngles.radius = 5.4;
+      this.cameraTarget.set(0, 1.15, 1.4);
     } else if (mode === 'staredown') {
       this.orbitAngles.theta = -0.65;
       this.orbitAngles.phi = 0.22;
@@ -1755,6 +1762,130 @@ class DJControllerRenderer {
     });
   }
 
+  /* ============================================================
+     WINNER REVEAL — dim, face-off, spotlight, confetti
+     ============================================================ */
+  startReveal() {
+    if (this.revealActive) return;
+    this.revealActive = true;
+    this.preRevealLights = {
+      ambient: this.ambientLight?.intensity,
+      p1: this.stageLights.spotP1?.intensity,
+      p2: this.stageLights.spotP2?.intensity,
+      deck: this.stageLights.deckLight?.intensity
+    };
+    if (this.ambientLight) this.ambientLight.intensity = 0.35;
+    if (this.stageLights.deckLight) this.stageLights.deckLight.intensity = 0.4;
+    if (this.stageLights.spotP1) this.stageLights.spotP1.intensity = 2.0;
+    if (this.stageLights.spotP2) this.stageLights.spotP2.intensity = 2.0;
+    [1, 2].forEach(p => {
+      this.stopMove(p);
+      this.sendCharacterToCenter(p);
+    });
+    this.setCameraView('reveal');
+  }
+
+  /** winnerNum: 1, 2 or null for a draw */
+  revealWinner(winnerNum) {
+    const win = winnerNum === 1 ? this.stageLights.spotP1 : winnerNum === 2 ? this.stageLights.spotP2 : null;
+    const lose = winnerNum === 1 ? this.stageLights.spotP2 : winnerNum === 2 ? this.stageLights.spotP1 : null;
+    if (win) win.intensity = 12;
+    if (lose) lose.intensity = 0.6;
+    if (!winnerNum) {
+      if (this.stageLights.spotP1) this.stageLights.spotP1.intensity = 7;
+      if (this.stageLights.spotP2) this.stageLights.spotP2.intensity = 7;
+    }
+    if (this.ambientLight) this.ambientLight.intensity = 0.8;
+
+    if (winnerNum) {
+      this.playResultReaction(winnerNum);
+      this.burstConfetti(winnerNum === 1 ? [0xff2d2d, 0xffd21a, 0xffffff] : [0x00e5ff, 0xffd21a, 0xffffff]);
+      this.triggerSmokeBlast(3.2, 0xffaa00);
+    } else {
+      [1, 2].forEach(p => this.playMove(p, Math.random() < 0.5 ? 'smoke' : 'shake_no', { fromUser: false }));
+      this.burstConfetti([0xffd21a, 0xffffff]);
+      this.triggerSmokeBlast(2.4, 0xffffff);
+    }
+    if (!this.noFlash) this.triggerCameraFlashes(10);
+    this.pulse();
+  }
+
+  endReveal() {
+    if (!this.revealActive) return;
+    this.revealActive = false;
+    const prev = this.preRevealLights || {};
+    if (this.ambientLight && prev.ambient !== undefined) this.ambientLight.intensity = prev.ambient;
+    if (this.stageLights.spotP1 && prev.p1 !== undefined) this.stageLights.spotP1.intensity = prev.p1;
+    if (this.stageLights.spotP2 && prev.p2 !== undefined) this.stageLights.spotP2.intensity = prev.p2;
+    if (this.stageLights.deckLight && prev.deck !== undefined) this.stageLights.deckLight.intensity = prev.deck;
+    this.setCameraView('front');
+  }
+
+  /** Paper confetti raining over the face-off (one instanced mesh, no per-piece objects) */
+  burstConfetti(colors = [0xffd21a, 0xffffff]) {
+    const COUNT = this.qualityPreset === 'low' ? 160 : 420;
+    if (!this.confetti) {
+      const geo = new THREE.PlaneGeometry(0.045, 0.028);
+      const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false });
+      const mesh = new THREE.InstancedMesh(geo, mat, 420);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this.confetti = { mesh, pieces: [], dummy: new THREE.Object3D() };
+    }
+    const c = this.confetti;
+    c.pieces = [];
+    const color = new THREE.Color();
+    for (let i = 0; i < 420; i++) {
+      const live = i < COUNT;
+      c.pieces.push({
+        live,
+        pos: new THREE.Vector3((Math.random() - 0.5) * 4.2, 3.4 + Math.random() * 2.2, 1.4 + (Math.random() - 0.5) * 2.2),
+        vel: new THREE.Vector3((Math.random() - 0.5) * 0.6, -(0.5 + Math.random() * 0.7), (Math.random() - 0.5) * 0.6),
+        rot: new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6),
+        spin: new THREE.Vector3((Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9),
+        phase: Math.random() * 6
+      });
+      color.setHex(colors[i % colors.length]);
+      c.mesh.setColorAt(i, color);
+    }
+    c.mesh.instanceColor.needsUpdate = true;
+    c.mesh.visible = true;
+    c.age = 0;
+  }
+
+  updateConfetti(delta) {
+    const c = this.confetti;
+    if (!c || !c.mesh.visible) return;
+    c.age += delta;
+    let alive = 0;
+    c.pieces.forEach((p, i) => {
+      if (p.live && p.pos.y > 0.01) {
+        alive++;
+        p.phase += delta * 3;
+        p.pos.x += (p.vel.x + Math.sin(p.phase) * 0.35) * delta;
+        p.pos.y += p.vel.y * delta;
+        p.pos.z += (p.vel.z + Math.cos(p.phase * 0.8) * 0.25) * delta;
+        p.rot.x += p.spin.x * delta;
+        p.rot.y += p.spin.y * delta;
+        p.rot.z += p.spin.z * delta;
+        c.dummy.position.copy(p.pos);
+        c.dummy.rotation.copy(p.rot);
+        c.dummy.scale.setScalar(1);
+      } else {
+        // Landed pieces stay on the floor a while, unused ones are hidden
+        c.dummy.position.copy(p.pos);
+        c.dummy.position.y = p.live ? 0.012 : -10;
+        c.dummy.rotation.set(-Math.PI / 2, 0, p.rot.z);
+        c.dummy.scale.setScalar(p.live ? 1 : 0);
+      }
+      c.dummy.updateMatrix();
+      c.mesh.setMatrixAt(i, c.dummy.matrix);
+    });
+    c.mesh.instanceMatrix.needsUpdate = true;
+    if (!alive && c.age > 14) c.mesh.visible = false;
+  }
+
   /** Which contestant (if any) a ray hits */
   pickCharacter(raycaster) {
     const targets = [1, 2].map(p => this.characters[p]).filter(Boolean);
@@ -2201,8 +2332,9 @@ class DJControllerRenderer {
       }
     });
 
-    // 5. Cryogenic Smoke Cannons Update
+    // 5. Cryogenic Smoke Cannons Update + reveal confetti
     this.updateSmoke(delta);
+    this.updateConfetti(delta);
 
     // 6. Stage Jumbotron Screen Update
     this.updateJumbotron(elapsed);

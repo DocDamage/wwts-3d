@@ -494,6 +494,8 @@
       <div id="tab-history" class="tab-panel active">
         <div class="tab-panel-inner">
           <h2>Achievements & History</h2>
+          <h3>League Standings</h3>
+          <div id="standings-table" class="standings-table"></div>
           <div id="achievements-list" class="achievements-grid"></div>
           <h3>Battle History</h3>
           <div id="history-list" class="history-entries"></div>
@@ -1257,7 +1259,7 @@
         <div class="shortcuts-grid">
           <div class="shortcut-group">
             <h3>⏱️ Battle &amp; Timer</h3>
-            <div class="shortcut-item"><kbd>Space</kbd> <span>Play / Pause Round Timer</span></div>
+            <div class="shortcut-item"><kbd>Space</kbd> <span>Play / Pause the live beat (the round timer follows it)</span></div>
             <div class="shortcut-item"><kbd>Enter</kbd> <span>Submit Battle &amp; Lock Scores</span></div>
             <div class="shortcut-item"><kbd>R</kbd> <span>Reset Scores &amp; Round</span></div>
           </div>
@@ -1302,14 +1304,26 @@
     </div>
 
     <!-- ===== WINNER ANNOUNCEMENT OVERLAY ===== -->
-    <div id="winner-overlay" class="winner-overlay" style="display:none">
+    <div id="winner-overlay" class="winner-overlay" style="display:none" role="dialog" aria-labelledby="winner-name">
       <div class="winner-content">
-        <div class="winner-trophy">🏆</div>
-        <h2 class="winner-title">WINNER</h2>
-        <p class="winner-name" id="winner-name"></p>
-        <div class="winner-score" id="winner-score"></div>
-        <button id="btn-dismiss-winner" class="control-btn primary">Continue</button>
-        <button id="btn-winner-report" class="control-btn secondary" style="margin-top:10px;">📊 View Producer Report</button>
+        <button type="button" class="winner-close" id="btn-close-winner" title="Hide results (the battle stays finalized)">&times;</button>
+        <div class="winner-head">
+          <span class="winner-kicker" id="winner-kicker">THE WINNER IS</span>
+          <h2 class="winner-name" id="winner-name"></h2>
+          <span class="winner-decision" id="winner-decision"></span>
+        </div>
+        <div class="winner-scoreline" id="winner-scoreline"></div>
+        <div class="winner-detail-grid">
+          <div class="winner-rounds" id="winner-rounds"></div>
+          <div class="winner-judges" id="winner-judges"></div>
+          <div class="winner-stats" id="winner-stats"></div>
+        </div>
+        <div class="winner-actions">
+          <button id="btn-winner-report" class="control-btn secondary">📊 Producer Report</button>
+          <button id="btn-winner-export" class="control-btn secondary">🖼️ Export Card</button>
+          <button id="btn-winner-next-match" class="control-btn tournament" style="display:none">⏩ Next Match</button>
+          <button id="btn-dismiss-winner" class="control-btn primary">New Battle</button>
+        </div>
       </div>
     </div>
 

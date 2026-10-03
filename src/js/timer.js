@@ -90,6 +90,7 @@ class BattleTimer {
       this.elapsedBeforePause = 0;
     }
 
+    const fresh = this.elapsedBeforePause === 0; // starting from the full time, not resuming
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     this.startTime = now;
     this.running = true;
@@ -98,7 +99,7 @@ class BattleTimer {
     this.speakerVisual?.classList.add('active');
 
     if (typeof this.onStart === 'function') {
-      this.onStart();
+      this.onStart(fresh);
     }
 
     // High precision tick loop (checks every 250ms, computes real elapsed seconds)

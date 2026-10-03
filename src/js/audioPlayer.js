@@ -779,6 +779,53 @@ class AudioPlayerManager {
     if (input) input.value = title;
   }
 
+  /** Snare roll that speeds up and swells for `seconds`, ending on a crash (winner reveal) */
+  playDrumroll(seconds = 2.6) {
+    this.ensureAudioContext();
+    const ctx = this.audioContext;
+    if (!ctx) return;
+    const out = this.masterIn || ctx.destination;
+    const noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.06), ctx.sampleRate);
+    const d = noise.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.018));
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1800;
+    bp.Q.value = 0.7;
+    bp.connect(out);
+
+    const t0 = ctx.currentTime + 0.05;
+    let t = 0;
+    while (t < seconds) {
+      const u = t / seconds;
+      const hit = ctx.createBufferSource();
+      hit.buffer = noise;
+      const g = ctx.createGain();
+      g.gain.value = 0.12 + 0.5 * u * u;
+      hit.connect(g);
+      g.connect(bp);
+      hit.start(t0 + t);
+      t += 1 / (9 + 22 * u); // 9 → 31 hits per second
+    }
+
+    // Crash on the reveal
+    const crashLen = 2.2;
+    const crashBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * crashLen), ctx.sampleRate);
+    const cd = crashBuf.getChannelData(0);
+    for (let i = 0; i < cd.length; i++) cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.55));
+    const crash = ctx.createBufferSource();
+    crash.buffer = crashBuf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 3500;
+    const cg = ctx.createGain();
+    cg.gain.value = 0.55;
+    crash.connect(hp);
+    hp.connect(cg);
+    cg.connect(out);
+    crash.start(t0 + seconds);
+  }
+
   /** Synthesized scratch — used when the real-beat buffer isn't available */
   playScratchSound(playerNum = 1) {
     try {

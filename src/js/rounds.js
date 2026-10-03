@@ -23,7 +23,31 @@ class RoundManager {
     };
 
     this.onRoundChange = null;
-    this.scoreProvider = null; // (round) => { scores1, scores2, total1, total2 } | null
+    this.scoreProvider = null;  // (round) => { scores1, scores2, total1, total2 } | null
+    this.winnerProvider = null; // (round) => 1 | 2 | 'draw' | null  (panel vote decides rounds)
+  }
+
+  /** Who took a round: the judges' vote when a panel decides it, otherwise the higher total */
+  roundWinner(r) {
+    const data = this.rounds[r];
+    if (!data || !(data.total1 > 0 || data.total2 > 0)) return null;
+    const voted = typeof this.winnerProvider === 'function' ? this.winnerProvider(r) : undefined;
+    if (voted === 1 || voted === 2 || voted === 'draw') return voted;
+    if (data.total1 > data.total2) return 1;
+    if (data.total2 > data.total1) return 2;
+    return 'draw';
+  }
+
+  /** Rounds won by each side across rounds 1..upTo */
+  countWins(upTo = this.totalRounds) {
+    let won1 = 0;
+    let won2 = 0;
+    for (let r = 1; r <= upTo; r++) {
+      const w = this.roundWinner(r);
+      if (w === 1) won1++;
+      else if (w === 2) won2++;
+    }
+    return { won1, won2 };
   }
 
   init() {
@@ -110,17 +134,8 @@ class RoundManager {
 
   isSeriesClinched() {
     this.saveCurrentRoundState();
-    let won1 = 0;
-    let won2 = 0;
-    for (let r = 1; r <= 3; r++) {
-      const t1 = this.rounds[r].total1;
-      const t2 = this.rounds[r].total2;
-      if (t1 > 0 || t2 > 0) {
-        if (t1 > t2) won1++;
-        else if (t2 > t1) won2++;
-      }
-    }
-    return (won1 >= 2 || won2 >= 2);
+    const { won1, won2 } = this.countWins(3);
+    return won1 >= 2 || won2 >= 2;
   }
 
   nextRound() {
@@ -211,17 +226,10 @@ class RoundManager {
 
   isSeriesTied() {
     this.saveCurrentRoundState();
-    let won1 = 0;
-    let won2 = 0;
-    for (let r = 1; r <= 3; r++) {
-      const t1 = this.rounds[r].total1;
-      const t2 = this.rounds[r].total2;
-      if (t1 > 0 || t2 > 0) {
-        if (t1 > t2) won1++;
-        else if (t2 > t1) won2++;
-      }
-    }
-    return (won1 === won2 && (won1 > 0 || won2 > 0));
+    const { won1, won2 } = this.countWins(3);
+    const played = [1, 2, 3].filter(r => this.roundWinner(r)).length;
+    // Level after the regulation rounds (including all-draw series) → overtime decides it
+    return won1 === won2 && played > 0 && (played === 3 || won1 > 0);
   }
 
   renderTabs() {
@@ -261,20 +269,11 @@ class RoundManager {
 
     let grandTotal1 = 0;
     let grandTotal2 = 0;
-    let roundsWon1 = 0;
-    let roundsWon2 = 0;
-
     for (let r = 1; r <= this.totalRounds; r++) {
-      const t1 = this.rounds[r].total1;
-      const t2 = this.rounds[r].total2;
-      grandTotal1 += t1;
-      grandTotal2 += t2;
-
-      if (t1 > 0 || t2 > 0) {
-        if (t1 > t2) roundsWon1++;
-        else if (t2 > t1) roundsWon2++;
-      }
+      grandTotal1 += this.rounds[r].total1;
+      grandTotal2 += this.rounds[r].total2;
     }
+    const { won1: roundsWon1, won2: roundsWon2 } = this.countWins();
 
     // Update cumulative series score displays
     if (typeof document !== 'undefined') {
@@ -294,21 +293,23 @@ class RoundManager {
     this.saveCurrentRoundState();
     let total1 = 0;
     let total2 = 0;
-    let won1 = 0;
-    let won2 = 0;
-
+    let played = 0;
+    const winners = {};
     for (let r = 1; r <= this.totalRounds; r++) {
       total1 += this.rounds[r].total1;
       total2 += this.rounds[r].total2;
-      if (this.rounds[r].total1 > this.rounds[r].total2) won1++;
-      else if (this.rounds[r].total2 > this.rounds[r].total1) won2++;
+      winners[r] = this.roundWinner(r);
+      if (winners[r]) played++;
     }
+    const { won1, won2 } = this.countWins();
 
     return {
       grandTotal1: total1,
       grandTotal2: total2,
       roundsWon1: won1,
       roundsWon2: won2,
+      roundsPlayed: played,
+      roundWinners: winners,
       hasOvertime: this.hasOvertime,
       totalRounds: this.totalRounds,
       rounds: this.rounds

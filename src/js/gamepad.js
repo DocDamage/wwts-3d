@@ -335,6 +335,11 @@ class GamepadManager {
   }
 
   toggleBattleTimer() {
+    // The round timer follows the deck, so the "timer" button plays/pauses the live beat
+    if (typeof this.onToggleBeat === 'function') {
+      this.onToggleBeat();
+      return;
+    }
     if (!this.timer) return;
     if (typeof this.timer.toggle === 'function') {
       this.timer.toggle();

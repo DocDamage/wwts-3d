@@ -439,13 +439,37 @@ function refreshBattle() {
 
   updatePickerPreviews();
 
-  // History & achievements
+  // Standings, history & achievements
+  renderStandings(leagueId);
   history.renderAchievements('achievements-list', leagueId);
   history.renderHistory('history-list', 'history-empty', leagueId);
 
   // Notes
   const battles = history.getForLeague(leagueId);
   notes.renderSavedNotes('saved-notes', battles);
+}
+
+function renderStandings(leagueId) {
+  const el = document.getElementById('standings-table');
+  if (!el) return;
+  const rows = leagueId ? roster.getStandings(leagueId) : [];
+  if (!rows.length) {
+    el.innerHTML = '<p class="empty-state">No contestants in this league yet.</p>';
+    return;
+  }
+  const streak = (n) => (n > 0 ? `W${n}` : n < 0 ? `L${-n}` : '—');
+  el.innerHTML = `<table>
+    <thead><tr><th>#</th><th>Producer</th><th>W</th><th>L</th><th>D</th><th>Win %</th><th>Rating</th><th>Avg</th><th>Streak</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td class="st-rank">${r.rank}</td>
+      <td class="st-name">${esc(r.name)}</td>
+      <td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td>
+      <td>${r.battles ? Math.round(r.winRate * 100) + '%' : '—'}</td>
+      <td class="st-rating">${r.rating}</td>
+      <td>${r.avgScore ? r.avgScore.toFixed(2) : '—'}</td>
+      <td class="${r.streak > 0 ? 'st-hot' : r.streak < 0 ? 'st-cold' : ''}">${streak(r.streak)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
 }
 
 // Contestant pickers
@@ -618,50 +642,24 @@ function handlePrimaryFlowAction() {
       return;
     }
     soundboard.play('needle_drop');
-    djController.triggerContestantAction(1, 'deck');
+    djController.sendCharacterToDeck(1);
     battleEngine.setPhase('soundcheck');
-  } else if (phase === 'soundcheck') {
-    battleEngine.setActiveContestant(1);
-    battleEngine.setPhase('play_a');
-    audio.play(1).catch(() => {});
-    timer.start();
-    djController.setCameraView('dj_pov');
-  } else if (phase === 'play_a') {
-    if (audio.players[1]?.playing) {
-      audio.pause(1);
-      timer.pause();
-      battleEngine.setPhase('review_a');
-    } else {
-      audio.play(1).catch(() => {});
-      timer.start();
-    }
-  } else if (phase === 'review_a') {
-    battleEngine.setActiveContestant(2);
-    battleEngine.setPhase('play_b');
-    audio.play(2).catch(() => {});
-    timer.reset();
-    timer.start();
-    djController.setCameraView('dj_pov');
-  } else if (phase === 'play_b') {
-    if (audio.players[2]?.playing) {
-      audio.pause(2);
-      timer.pause();
-      battleEngine.setPhase('review_b');
-    } else {
-      audio.play(2).catch(() => {});
-      timer.start();
-    }
+  } else if (phase === 'soundcheck' || phase === 'play_a') {
+    // The round timer follows the deck (see syncTimerToDeck)
+    audio.togglePlay(1);
+    if (phase === 'soundcheck') djController.setCameraView('dj_pov');
+  } else if (phase === 'review_a' || phase === 'play_b') {
+    audio.togglePlay(2);
+    if (phase === 'review_a') djController.setCameraView('dj_pov');
   } else if (phase === 'review_b') {
-    rounds.saveRoundScores();
-    audio.pauseAll();
-    timer.stop();
-    battleEngine.setPhase('round_locked');
+    lockCurrentRound();
   } else if (phase === 'round_locked') {
-    if (isClinched || rounds.currentRound >= 3) {
+    if (isClinched || (rounds.currentRound >= 3 && !rounds.isSeriesTied()) || rounds.currentRound === 4) {
       handleFinalizeBattle();
     } else {
       rounds.nextRound();
-      battleEngine.setPhase('play_a');
+      battleEngine.setActiveContestant(1);
+      battleEngine.setPhase('soundcheck');
     }
   } else if (phase === 'finalized') {
     if (battleEngine.finalizedResult) {
@@ -675,25 +673,65 @@ function handlePrimaryFlowAction() {
 document.getElementById('btn-primary-flow')?.addEventListener('click', handlePrimaryFlowAction);
 
 document.getElementById('btn-flow-pause-all')?.addEventListener('click', () => {
-  audio.pauseAll();
-  timer.stop();
+  audio.pauseAll(); // the timer pauses with the deck
   updateBattleFlowUI();
 });
 
 document.getElementById('btn-flow-stop-all')?.addEventListener('click', () => {
   audio.pauseAll();
+  const live = timerOwner;
+  if (live) audio.seek(live, audio.players[live].cuePoint || 0);
   timer.stop();
-  timer.reset();
   updateBattleFlowUI();
 });
 
-document.getElementById('btn-flow-lock-round')?.addEventListener('click', () => {
-  rounds.saveRoundScores();
+document.getElementById('btn-flow-lock-round')?.addEventListener('click', lockCurrentRound);
+
+/** Freeze the round: stop the beat and timer, store the round, lock phones */
+function lockCurrentRound() {
   audio.pauseAll();
-  timer.stop();
+  timer.pause();
+  if (judges.mode === 'panel') judges.saveCurrentJudgeScores();
+  rounds.saveCurrentRoundState();
+  rounds.updateSeriesTotals();
   battleEngine.setPhase('round_locked');
+  soundboard.play('bell');
   updateBattleFlowUI();
-});
+}
+
+// ============================================================
+// Round timer follows the deck: play starts it, pause pauses it,
+// switching to the other contestant's beat resets it to the full round time.
+// ============================================================
+let timerOwner = null; // contestant whose beat the timer is currently tracking
+
+function syncTimerToDeck(playerNum, isPlaying) {
+  const phase = battleEngine.phase;
+  const roundOpen = !['round_locked', 'finalized'].includes(phase);
+  if (isPlaying) {
+    if (timerOwner !== playerNum) {
+      timer.stop(); // back to the full round time for the new contestant
+      timerOwner = playerNum;
+    }
+    battleEngine.setActiveContestant(playerNum);
+    if (roundOpen && timer.remaining > 0) timer.play();
+    if (roundOpen) battleEngine.setPhase(playerNum === 1 ? 'play_a' : 'play_b');
+  } else if (playerNum === timerOwner) {
+    timer.pause();
+    if (phase === 'play_a' && playerNum === 1) battleEngine.setPhase('review_a');
+    if (phase === 'play_b' && playerNum === 2) battleEngine.setPhase('review_b');
+  }
+}
+
+/** Space / gamepad: play-pause whichever contestant's beat is up */
+function toggleActiveDeck() {
+  const deck = timerOwner || battleEngine.activeContestant || 1;
+  if (!audio.players[deck]?.loaded) {
+    showToast(`Load Contestant ${deck}'s beat first`);
+    return;
+  }
+  audio.togglePlay(deck);
+}
 
 // ============================================================
 // Submit & Reset (Central Authority via BattleSessionEngine)
@@ -701,10 +739,54 @@ document.getElementById('btn-flow-lock-round')?.addEventListener('click', () => 
 const submitBtn = document.getElementById('btn-submit');
 const resetBtn = document.getElementById('btn-reset');
 
-function handleFinalizeBattle() {
+const DECISION_LABELS = {
+  UNANIMOUS: 'Unanimous Decision',
+  SPLIT: 'Split Decision',
+  MAJORITY: 'Majority Decision',
+  ROUNDS_WON: 'Wins the Series',
+  SUDDEN_DEATH: 'Sudden Death Victory',
+  TOTAL_POINTS: 'Wins on Points',
+  DRAW: 'Draw',
+  INCOMPLETE_PANEL: 'Panel Incomplete — No Decision'
+};
+const roundLabel = (r) => (r === 4 ? 'OT' : r === 3 ? 'Final' : `R${r}`);
+const wait = (ms) => new Promise(res => setTimeout(res, ms));
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+}
+
+/** Submit: checks, official result, then the on-stage reveal */
+async function handleFinalizeBattle() {
   if (!selectedContestant1Id || !selectedContestant2Id) {
-    alert('Please select both contestants before finalizing.');
+    alert('Please select both contestants before submitting.');
     return;
+  }
+  if (battleEngine.isFinalized && battleEngine.finalizedResult) {
+    showWinner(battleEngine.finalizedResult);
+    return;
+  }
+
+  // Bank the card on screen and the current round before deciding anything
+  if (judges.mode === 'panel') judges.saveCurrentJudgeScores();
+  rounds.saveCurrentRoundState();
+  const summary = rounds.getSeriesSummary();
+  if (!summary.roundsPlayed) {
+    showToast('Score at least one round before submitting.');
+    return;
+  }
+
+  if (judges.mode === 'panel') {
+    const pending = [1, 2, 3, 4]
+      .filter(r => summary.roundWinners[r])
+      .map(r => ({ r, c: judges.getConsensus(r) }))
+      .filter(x => !x.c.isComplete);
+    if (pending.length) {
+      const lines = pending.map(x => `${roundLabel(x.r)}: waiting on ${x.c.judges.filter(j => !j.scored).map(j => j.judgeName).join(', ')}`).join('\n');
+      if (!confirm(`Not every judge has turned in a card:\n\n${lines}\n\nSubmit anyway? Rounds without a full panel are decided by the judges who scored.`)) return;
+    }
+  } else if (scoring.hasUnscoredCategories(1) || scoring.hasUnscoredCategories(2)) {
+    const missing = scoring.getUnscoredCount(1) + scoring.getUnscoredCount(2);
+    if (!confirm(`${missing} categor${missing === 1 ? 'y is' : 'ies are'} still unscored and will count as 0. Submit anyway?`)) return;
   }
 
   const res = battleEngine.finalizeCurrentBattle(selectedContestant1Id, selectedContestant2Id);
@@ -712,61 +794,129 @@ function handleFinalizeBattle() {
     alert(res?.error || 'Unable to finalize battle.');
     return;
   }
-
   const finalResult = res.result;
+  storage.clearActiveSession();
+  postBroadcast('BATTLE_FINALIZED', finalResult);
+  updateBattleFlowUI();
+  await runWinnerReveal(finalResult);
+  refreshBattle();
+}
 
-  // DJ Controller pulse & smoke blast
-  djController.pulse();
-  djController.triggerSmokeBlast(3.2, 0xffaa00);
+/** Lights down, face-off, drumroll… then the winner */
+async function runWinnerReveal(finalResult) {
+  const winNum = finalResult.winnerId === selectedContestant1Id ? 1 : finalResult.winnerId === selectedContestant2Id ? 2 : null;
+  document.body.classList.add('reveal-mode');
+  closeTabDrawer();
+  audio.pauseAll();
+  timer.pause();
+  djController.startReveal();
+  setTimeout(() => announcer.play('whowillwin'), 350);
+  audio.playDrumroll(2.8);
+  await wait(2950);
 
-  // Soundboard winner bell and crowd cheering
-  soundboard.play('bell');
-  setTimeout(() => soundboard.play('crowd_cheer'), 400);
-
-  // Announcer winner call tailored to decision
+  djController.revealWinner(winNum);
+  soundboard.play('crowd_cheer');
+  const method = finalResult.decisionMethod;
   setTimeout(() => {
-    if (finalResult.decisionMethod === 'UNANIMOUS') {
-      announcer.play('winner', () => {
-        setTimeout(() => announcer.play('excellent'), 400);
-      });
-    } else if (finalResult.decisionMethod === 'SPLIT') {
-      announcer.play('winner', () => {
-        setTimeout(() => announcer.play('thatwasclose'), 400);
-      });
+    if (!winNum) {
+      announcer.play('thatwasclose');
     } else {
-      announcer.announceWinner(false);
+      const follow = method === 'UNANIMOUS' ? 'untouchable'
+        : method === 'SPLIT' ? 'thatwasclose'
+        : method === 'SUDDEN_DEATH' ? 'itsallontheline'
+        : 'excellent';
+      announcer.play('winner', () => setTimeout(() => announcer.play(follow), 350));
     }
-  }, 1200);
+  }, 300);
 
-  // Show winner overlay
-  showWinner(finalResult.winnerName, finalResult.winnerScore, finalResult);
-
-  const winNum = finalResult.winnerId === selectedContestant1Id ? 1 : (finalResult.winnerId === selectedContestant2Id ? 2 : null);
-  if (winNum) {
-    const totalEl = document.getElementById(`contestant-${winNum}-total`);
-    if (totalEl) totalEl.classList.add('winner-glow');
-  }
-
-  // Show Producer Report button
+  if (winNum) document.getElementById(`contestant-${winNum}-total`)?.classList.add('winner-glow');
   const reportBtn = document.getElementById('btn-view-report');
   if (reportBtn) reportBtn.style.display = 'inline-flex';
+  showWinner(finalResult);
+}
 
-  // Tournament advance toast
-  if (tournament.isTournamentActive()) {
-    const nextMatch = tournament.getNextPlayableMatch();
-    if (nextMatch) {
-      showTournamentAdvanceToast(nextMatch);
-    }
+/** Fill the results card (lower third, the stage stays visible above it) */
+function showWinner(finalResult) {
+  const overlay = document.getElementById('winner-overlay');
+  if (!overlay || !finalResult) return;
+  const c1 = finalResult.contestant1;
+  const c2 = finalResult.contestant2;
+  const winNum = finalResult.winnerId === c1.id ? 1 : finalResult.winnerId === c2.id ? 2 : null;
+  const ss = finalResult.seriesSummary || {};
+  const rr = finalResult.roundResults || [];
+  const avg1 = ss.avgRound1 ?? rr[0]?.total1 ?? 0;
+  const avg2 = ss.avgRound2 ?? rr[0]?.total2 ?? 0;
+
+  document.getElementById('winner-kicker').textContent = winNum ? 'THE WINNER IS' : finalResult.decisionMethod === 'INCOMPLETE_PANEL' ? 'NO DECISION' : "IT'S A";
+  document.getElementById('winner-name').textContent = winNum ? finalResult.winnerName : finalResult.decisionMethod === 'INCOMPLETE_PANEL' ? 'Judges Still Scoring' : 'DRAW';
+  overlay.dataset.winner = winNum || 'draw';
+  document.getElementById('winner-decision').textContent =
+    `${DECISION_LABELS[finalResult.decisionMethod] || finalResult.decisionMethod}${finalResult.decisionTally ? ` · ${finalResult.decisionTally}` : ''}${finalResult.isDemo ? ' · DEMO (not recorded)' : ''}`;
+
+  const side = (n, name, score) => `
+    <div class="ws-side p${n} ${winNum === n ? 'won' : ''}">
+      <span class="ws-name">${esc(name)}</span>
+      <span class="ws-score">${Number(score).toFixed(2)}</span>
+    </div>`;
+  document.getElementById('winner-scoreline').innerHTML =
+    `${side(1, c1.name, avg1)}<span class="ws-vs">${rr.length > 1 ? 'AVG / 100' : 'OUT OF 100'}</span>${side(2, c2.name, avg2)}`;
+
+  document.getElementById('winner-rounds').innerHTML = `<h4>Rounds</h4>` + rr.map(r => {
+    const w = r.panel?.winner ?? r.winner;
+    const tag = w === 1 ? esc(c1.name) : w === 2 ? esc(c2.name) : 'Draw';
+    return `<div class="wr-row">
+      <span class="wr-label">${roundLabel(r.round)}</span>
+      <span class="wr-score ${w === 1 ? 'won' : ''}">${r.total1.toFixed(2)}</span>
+      <span class="wr-score p2 ${w === 2 ? 'won' : ''}">${r.total2.toFixed(2)}</span>
+      <span class="wr-tag">${tag}${r.panel ? ` <small>${esc(r.panel.decisionTally)}</small>` : ''}</span>
+    </div>`;
+  }).join('');
+
+  const lastPanel = [...rr].reverse().find(r => r.panel)?.panel;
+  const judgesEl = document.getElementById('winner-judges');
+  judgesEl.hidden = !lastPanel;
+  if (lastPanel) {
+    judgesEl.innerHTML = `<h4>Judges${rr.length > 1 ? ` · ${roundLabel([...rr].reverse().find(r => r.panel).round)}` : ''}</h4>` + lastPanel.judges.map(j => `
+      <div class="wj-row">
+        <span class="wj-name">${j.phone ? '📱 ' : ''}${esc(j.name)}</span>
+        <span class="wj-pick ${j.winner === 1 ? 'p1' : j.winner === 2 ? 'p2' : ''}">${!j.scored ? '—' : j.winner === 1 ? esc(c1.name) : j.winner === 2 ? esc(c2.name) : 'Draw'}</span>
+        <span class="wj-cards">${j.total1.toFixed(2)} – ${j.total2.toFixed(2)}</span>
+      </div>`).join('');
   }
 
-  // Clear crash recovery autosave
-  storage.clearActiveSession();
+  const statsEl = document.getElementById('winner-stats');
+  const standings = roster.getStandings(finalResult.leagueId || leagues.activeLeagueId);
+  const statLine = (c, n) => {
+    const p = roster.getById(c.id);
+    const st = p?.stats || {};
+    const row = standings.find(x => x.id === c.id);
+    const rc = finalResult.ratingChanges?.[c.id];
+    const change = rc ? `<span class="wst-delta ${rc.change >= 0 ? 'up' : 'down'}">${rc.change >= 0 ? '+' : ''}${rc.change}</span>` : '';
+    return `<div class="wst-row p${n}">
+      <span class="wst-name">${esc(c.name)}</span>
+      <span>${st.wins || 0}-${st.losses || 0}${st.draws ? `-${st.draws}` : ''}</span>
+      <span>${rc ? rc.after : roster.ratingOf(p || {})} ${change}</span>
+      <span>${row ? `#${row.rank}` : '—'}</span>
+    </div>`;
+  };
+  statsEl.innerHTML = finalResult.isDemo
+    ? '<h4>Standings</h4><p class="wst-demo">Demo battle — records and ratings unchanged.</p>'
+    : `<h4>Standings</h4><div class="wst-row wst-head"><span></span><span>Record</span><span>Rating</span><span>Rank</span></div>${statLine(c1, 1)}${statLine(c2, 2)}`;
 
-  // Post to standalone OBS broadcast screen
-  postBroadcast('BATTLE_FINALIZED', finalResult);
+  const next = tournament.isTournamentActive() ? tournament.getNextPlayableMatch() : null;
+  const nextBtn = document.getElementById('btn-winner-next-match');
+  if (nextBtn) {
+    nextBtn.style.display = next ? '' : 'none';
+    nextBtn.textContent = next ? `⏩ Next: ${next.p1Name} vs ${next.p2Name}` : '⏩ Next Match';
+  }
+  overlay.style.display = 'flex';
+}
 
-  updateBattleFlowUI();
-  refreshBattle();
+function closeReveal() {
+  const overlay = document.getElementById('winner-overlay');
+  if (overlay) overlay.style.display = 'none';
+  document.body.classList.remove('reveal-mode');
+  djController.endReveal();
 }
 
 function handleResetBattle() {
@@ -822,46 +972,37 @@ function showTournamentAdvanceToast(nextMatch) {
 }
 
 // ============================================================
-// Winner Overlay
+// Results card buttons
 // ============================================================
-function showWinner(name, score, finalResult = null) {
-  const overlay = document.getElementById('winner-overlay');
-  if (!overlay) return;
-  const nameEl = document.getElementById('winner-name');
-  const scoreEl = document.getElementById('winner-score');
-  if (nameEl) nameEl.textContent = name;
-  if (scoreEl) {
-    const decisionText = finalResult?.decisionMethod ? ` (${finalResult.decisionMethod})` : '';
-    scoreEl.textContent = `${score.toFixed(2)} pts${decisionText}`;
-  }
-  overlay.style.display = 'flex';
-}
+document.getElementById('btn-close-winner')?.addEventListener('click', closeReveal);
 
 document.getElementById('btn-dismiss-winner')?.addEventListener('click', () => {
-  const overlay = document.getElementById('winner-overlay');
-  if (overlay) overlay.style.display = 'none';
-
-  // If tournament, show bracket
+  closeReveal();
+  // Tournament: crown a champion or show the updated bracket
   if (tournament.bracket) {
     if (tournament.isTournamentComplete()) {
       const champ = tournament.getTournamentWinner();
-      if (champ) {
-        setTimeout(() => showWinner('🏆 CHAMPION: ' + champ.name, 0), 300);
-        setTimeout(() => tournament.resetTournament(), 5000);
-      }
+      if (champ) showToast(`🏆 ${champ.name} wins the tournament!`);
     } else {
       tournament.openModal();
       tournament.renderBracket();
     }
   }
-
   handleResetBattle();
 });
 
+document.getElementById('btn-winner-next-match')?.addEventListener('click', () => {
+  const next = tournament.isTournamentActive() ? tournament.getNextPlayableMatch() : null;
+  closeReveal();
+  if (next) tournament.selectMatch(next.round, next.match);
+});
+
 document.getElementById('btn-winner-report')?.addEventListener('click', () => {
-  if (battleEngine.finalizedResult) {
-    producerReport.open(battleEngine.finalizedResult);
-  }
+  if (battleEngine.finalizedResult) producerReport.open(battleEngine.finalizedResult);
+});
+
+document.getElementById('btn-winner-export')?.addEventListener('click', () => {
+  document.getElementById('btn-export-card')?.click();
 });
 
 // ============================================================
@@ -921,23 +1062,30 @@ tournament.onMatchSelect = (player1Id, player2Id) => {
 // ============================================================
 // Timer integration
 // ============================================================
-timer.onTick = (remaining, isRunning) => {
+let roundAnnounced = false;
+
+timer.onTick = (remaining) => {
   postBroadcast('TIMER_UPDATE', {
     seconds: remaining,
-    formatted: timer.formattedTime,
-    isRunning,
-    isOvertime: timer.isOvertime
+    formatted: timer.getFormattedTime(),
+    isRunning: timer.running,
+    isOvertime: rounds.currentRound === 4
   });
 };
 
-timer.onStart = () => {
-  announcer.announceRoundStart(rounds.currentRound || 1);
-  djController.triggerSmokeBlast(2.2, 0x00e5ff);
+timer.onStart = (fresh) => {
+  // Hype only on a fresh start; resuming a paused beat stays quiet
+  if (fresh) {
+    if (!roundAnnounced) announcer.announceRoundStart(rounds.currentRound || 1);
+    else announcer.play('fight');
+    roundAnnounced = true;
+    djController.triggerSmokeBlast(2.2, timerOwner === 2 ? 0x00e5ff : 0xff2d2d);
+  }
   postBroadcast('TIMER_UPDATE', {
-    seconds: timer.remainingSeconds,
-    formatted: timer.formattedTime,
+    seconds: timer.remaining,
+    formatted: timer.getFormattedTime(),
     isRunning: true,
-    isOvertime: timer.isOvertime
+    isOvertime: rounds.currentRound === 4
   });
   updateBattleFlowUI();
 };
@@ -957,7 +1105,7 @@ timer.onComplete = () => {
     seconds: 0,
     formatted: '0:00',
     isRunning: false,
-    isOvertime: timer.isOvertime
+    isOvertime: rounds.currentRound === 4
   });
   if (battleEngine.phase === 'play_a') {
     battleEngine.setPhase('review_a');
@@ -1217,6 +1365,7 @@ function init() {
 
   // Connect Audio Player state changes to 3D DJ Stage
   audio.onStateChange((playerNum, isPlaying) => {
+    syncTimerToDeck(playerNum, isPlaying);
     djController.setAudioPlaying(playerNum, isPlaying);
     // Center record spins while either deck plays, tinted to the deck that's live
     const record = document.getElementById('speaker-icon');
@@ -1318,6 +1467,10 @@ function init() {
   rounds.onRoundChange = (roundNum, isOvertime) => {
     judges.setCurrentRound(roundNum);
     if (judges.mode === 'panel') judges.loadActiveCard();
+    audio.pauseAll();
+    timer.stop();
+    timerOwner = null;
+    roundAnnounced = false;
     judges.renderUI();
     judgeLink.pushState();
     if (radar) radar.update(scoring.scores[1], scoring.scores[2]);
@@ -1455,7 +1608,7 @@ function init() {
 
   // Keyboard Shortcuts & Pro Hotkeys Manager
   shortcuts = new KeyboardShortcutsManager({
-    onTimerToggle: () => timer.toggle(),
+    onTimerToggle: () => toggleActiveDeck(),
     onSubmit: () => submitBtn?.click(),
     onReset: () => resetBtn?.click(),
     onSmoke: () => {
@@ -1483,7 +1636,7 @@ function init() {
       soundboard.play('needle_stop');
     },
     onDjAction: () => {
-      djController.triggerContestantAction(1, 'deck');
+      djController.sendCharacterToDeck(1);
     }
   });
   shortcuts.init();
@@ -1537,6 +1690,7 @@ function init() {
 
   // Gamepad & Modern Controller Support
   gamepad.init({ djController, soundboard, audio, timer });
+  gamepad.onToggleBeat = toggleActiveDeck;
   setupGamepadUI();
 
   // Check Crash Recovery

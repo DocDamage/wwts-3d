@@ -49,11 +49,12 @@ class HistoryManager {
       contestant1Id: finalResult.contestant1?.id || 'c1',
       contestant1Name: finalResult.contestant1?.name || 'Contestant 1',
       scores1: finalResult.roundResults?.[0]?.scores1 || [],
-      total1: finalResult.seriesSummary?.grandTotal1 ?? (finalResult.roundResults?.[0]?.total1 || 0),
+      // Battle score = average round score (out of 100), not the sum of rounds
+      total1: finalResult.seriesSummary?.avgRound1 ?? (finalResult.roundResults?.[0]?.total1 || 0),
       contestant2Id: finalResult.contestant2?.id || 'c2',
       contestant2Name: finalResult.contestant2?.name || 'Contestant 2',
       scores2: finalResult.roundResults?.[0]?.scores2 || [],
-      total2: finalResult.seriesSummary?.grandTotal2 ?? (finalResult.roundResults?.[0]?.total2 || 0),
+      total2: finalResult.seriesSummary?.avgRound2 ?? (finalResult.roundResults?.[0]?.total2 || 0),
       winnerId: finalResult.winnerId, // Strictly official! Never recalculated!
       winnerName: finalResult.winnerName,
       decisionMethod: finalResult.decisionMethod || 'TOTAL_POINTS',
@@ -63,6 +64,8 @@ class HistoryManager {
       roundResults: finalResult.roundResults || [],
       scoringRules: finalResult.scoringRules || null,
       notes: finalResult.notes || '',
+      timestampedNotes: finalResult.timestampedNotes || [],
+      ratingChanges: finalResult.ratingChanges || null,
       timestamp: finalResult.timestamp || new Date().toISOString()
     };
 

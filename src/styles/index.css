@@ -4481,3 +4481,150 @@ body.stage-only #screen-battle .show-ui-btn {
 .battle-meta-row .judge-panel-bar { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .battle-meta-row .judge-panel-bar .judge-selector-group { flex-wrap: wrap; gap: 4px; }
 .battle-meta-row .judge-actions-group { display: flex; align-items: center; gap: 6px; }
+
+/* =========================================================
+   WINNER REVEAL — panels step aside, results as a lower third
+   ========================================================= */
+body.reveal-mode #app-header,
+body.reveal-mode #screen-battle [data-overlay-panel],
+body.reveal-mode #screen-battle .total-score-container,
+body.reveal-mode #screen-battle #bottom-nav {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none !important;
+}
+body.reveal-mode #screen-battle .stage-hud { display: flex; top: 16px; }
+
+#winner-overlay.winner-overlay {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px 18px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.75) 40%);
+  backdrop-filter: none;
+  align-items: flex-end;
+  animation: none;
+  pointer-events: none;
+}
+#winner-overlay .winner-content {
+  position: relative;
+  pointer-events: auto;
+  width: min(1100px, 100%);
+  padding: 16px 20px 14px;
+  border-radius: 18px;
+  background: rgba(8, 8, 12, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 3px solid var(--ember-amber);
+  box-shadow: 0 -10px 50px rgba(0, 0, 0, 0.6);
+  animation: winnerRise 0.55s cubic-bezier(0.2, 0.9, 0.2, 1.15);
+  text-align: left;
+}
+#winner-overlay[data-winner="1"] .winner-content { border-top-color: var(--ember-red); box-shadow: 0 -10px 60px rgba(255, 45, 45, 0.25); }
+#winner-overlay[data-winner="2"] .winner-content { border-top-color: var(--neon-cyan); box-shadow: 0 -10px 60px rgba(0, 229, 255, 0.22); }
+@keyframes winnerRise { from { transform: translateY(60px); opacity: 0; } }
+.winner-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+.winner-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-right: 40px; }
+.winner-kicker { font-family: 'Orbitron', monospace; font-size: 0.72rem; letter-spacing: 0.2em; color: var(--text-secondary); }
+#winner-overlay .winner-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2.2rem, 4.5vw, 3.6rem);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  margin: 0;
+  color: var(--ember-amber);
+  text-shadow: 0 0 24px rgba(255, 170, 0, 0.45);
+}
+#winner-overlay[data-winner="1"] .winner-name { color: var(--ember-red); text-shadow: 0 0 24px var(--ember-glow); }
+#winner-overlay[data-winner="2"] .winner-name { color: var(--neon-cyan); text-shadow: 0 0 24px rgba(0, 229, 255, 0.45); }
+.winner-decision {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.winner-scoreline { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin: 12px 0; }
+.ws-side { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 8px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; }
+.ws-side.p2 { flex-direction: row-reverse; }
+.ws-side.won.p1 { border-color: var(--ember-red); background: rgba(255, 45, 45, 0.1); }
+.ws-side.won.p2 { border-color: var(--neon-cyan); background: rgba(0, 229, 255, 0.08); }
+.ws-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-score { font-family: 'Orbitron', monospace; font-weight: 900; font-size: 1.6rem; }
+.ws-side.p1 .ws-score { color: var(--ember-red); }
+.ws-side.p2 .ws-score { color: var(--neon-cyan); }
+.ws-vs { font-family: 'Orbitron', monospace; font-size: 0.6rem; color: var(--text-muted); letter-spacing: 0.1em; }
+
+.winner-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.winner-detail-grid > div { padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); min-width: 0; }
+.winner-detail-grid > div[hidden] { display: none; }
+.winner-detail-grid h4 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.12em; color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 4px; }
+.wr-row, .wj-row, .wst-row { display: grid; align-items: center; gap: 8px; font-size: 0.78rem; padding: 2px 0; }
+.wr-row { grid-template-columns: 38px 58px 58px 1fr; }
+.wr-label { font-family: 'Orbitron', monospace; font-size: 0.66rem; color: var(--text-muted); }
+.wr-score { font-family: 'Orbitron', monospace; font-size: 0.74rem; color: var(--text-secondary); }
+.wr-score.won { color: var(--ember-red); font-weight: 900; }
+.wr-score.p2.won { color: var(--neon-cyan); }
+.wr-tag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-tag small { color: var(--text-muted); }
+.wj-row { grid-template-columns: 1fr auto auto; }
+.wj-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wj-pick { font-weight: 700; }
+.wj-pick.p1 { color: var(--ember-red); }
+.wj-pick.p2 { color: var(--neon-cyan); }
+.wj-cards { font-family: 'Orbitron', monospace; font-size: 0.66rem; color: var(--text-muted); }
+.wst-row { grid-template-columns: 1fr 60px 86px 40px; }
+.wst-head { color: var(--text-muted); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.wst-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wst-row.p1 .wst-name { color: var(--ember-red); }
+.wst-row.p2 .wst-name { color: var(--neon-cyan); }
+.wst-delta { font-weight: 800; font-size: 0.7rem; }
+.wst-delta.up { color: var(--success-green); }
+.wst-delta.down { color: var(--danger-red); }
+.wst-demo { font-size: 0.78rem; color: var(--text-muted); }
+
+.winner-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; flex-wrap: wrap; }
+.winner-actions .control-btn { width: auto; }
+
+@media (max-width: 900px) {
+  .winner-detail-grid { grid-template-columns: 1fr; }
+  .winner-scoreline { grid-template-columns: 1fr; }
+  .ws-vs { text-align: center; }
+}
+
+/* League standings (Achievements & History tab) */
+.standings-table { margin-bottom: 18px; overflow-x: auto; }
+.standings-table table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.standings-table th {
+  text-align: left;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.standings-table td { padding: 7px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+.standings-table tbody tr:first-child td { background: rgba(255, 170, 0, 0.06); }
+.st-rank { font-family: 'Orbitron', monospace; font-weight: 900; color: var(--ember-amber); width: 32px; }
+.st-name { font-weight: 700; }
+.st-rating { font-family: 'Orbitron', monospace; }
+.st-hot { color: var(--success-green); font-weight: 700; }
+.st-cold { color: var(--danger-red); font-weight: 700; }

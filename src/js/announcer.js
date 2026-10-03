@@ -31,7 +31,15 @@ class AnnouncerManager {
       godlike: 'godlike.wav',
       amazing: 'amazing.wav',
       excellent: 'excellent.wav',
-      firstblood: 'firstblood.wav'
+      firstblood: 'firstblood.wav',
+      thatwasclose: 'thatwasclose.wav',
+      untouchable: 'untouchable.wav',
+      perfect: 'perfect.wav',
+      whowillwin: 'whowillwin.wav',
+      thisshouldbegood: 'thisshouldbegood.wav',
+      matchcomplete: 'matchcomplete.wav',
+      youreincredible: 'youreincredible.wav',
+      combobreaker: 'combobreaker.wav'
     };
 
     this.cache = {};

@@ -3,6 +3,18 @@
  */
 
 const STORAGE_KEY = 'beatbattle_contestants';
+const DEFAULT_CATEGORIES = [
+  'Creativity', 'Versatility', 'Mix', 'Drums', 'Melody',
+  'Bassline', 'Energy', 'Battle Ability', 'Arrangement', 'Sound Selection'
+];
+const ELO_K = 32;
+
+/** Standard Elo: scoreA is 1 (A won), 0 (A lost) or 0.5 (draw). Ratings stay whole numbers. */
+function eloUpdate(ratingA, ratingB, scoreA, k = ELO_K) {
+  const expectedA = 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
+  const delta = Math.round(k * (scoreA - expectedA));
+  return { newA: ratingA + delta, newB: ratingB - delta };
+}
 
 class RosterManager {
   constructor(leagueManager) {
@@ -18,6 +30,18 @@ class RosterManager {
     } catch {
       this.contestants = [];
     }
+    // Older saves kept averages out of 10; battle scores are out of 100 now
+    let migrated = false;
+    this.contestants.forEach(c => {
+      if (!c.stats) return;
+      if (c.stats.totalBattles > 0 && c.stats.avgScore > 0 && c.stats.avgScore <= 10 && !c.stats.scale100) {
+        c.stats.avgScore = parseFloat((c.stats.avgScore * 10).toFixed(2));
+        c.stats.totalScoreSum = parseFloat((c.stats.totalScoreSum * 10).toFixed(2));
+        migrated = true;
+      }
+      c.stats.scale100 = true;
+    });
+    if (migrated) this.save();
 
     // Seed default contestants for instant battle testing if empty
     if (this.contestants.length === 0) {
@@ -28,7 +52,7 @@ class RosterManager {
           photo: '',
           bio: 'Premier trap architect known for trunk-rattling 808 glides and intricate hi-hat rolls.',
           socialLinks: '@808smoke',
-          stats: { wins: 4, losses: 1, totalBattles: 5, avgScore: 8.8, bestCategory: 'Bass / 808', totalScoreSum: 44.0 },
+          stats: { wins: 4, losses: 1, draws: 0, totalBattles: 5, avgScore: 88.0, bestCategory: 'Bassline', totalScoreSum: 440.0, rating: 1548, peakRating: 1560, streak: 2, bestStreak: 3, scale100: true },
           createdAt: new Date().toISOString()
         },
         {
@@ -37,7 +61,7 @@ class RosterManager {
           photo: '',
           bio: 'Dusty vinyl crate digger chopping rare 70s soul and jazz into hypnotic battle heat.',
           socialLinks: '@vinylvixen',
-          stats: { wins: 3, losses: 1, totalBattles: 4, avgScore: 8.6, bestCategory: 'Creativity', totalScoreSum: 34.4 },
+          stats: { wins: 3, losses: 1, draws: 0, totalBattles: 4, avgScore: 86.0, bestCategory: 'Creativity', totalScoreSum: 344.0, rating: 1532, peakRating: 1532, streak: 1, bestStreak: 2, scale100: true },
           createdAt: new Date().toISOString()
         },
         {
@@ -46,7 +70,7 @@ class RosterManager {
           photo: '',
           bio: 'Boom-bap purist delivering punchy kicks, cracking snares, and gritty SP-1200 grit.',
           socialLinks: '@kickmaster',
-          stats: { wins: 2, losses: 2, totalBattles: 4, avgScore: 8.2, bestCategory: 'Drums', totalScoreSum: 32.8 },
+          stats: { wins: 2, losses: 2, draws: 0, totalBattles: 4, avgScore: 82.0, bestCategory: 'Drums', totalScoreSum: 328.0, rating: 1496, peakRating: 1516, streak: -1, bestStreak: 2, scale100: true },
           createdAt: new Date().toISOString()
         },
         {
@@ -55,7 +79,7 @@ class RosterManager {
           photo: '',
           bio: 'Polyphonic synth virtuoso layering analog saw leads, sidechain pads, and cinematic drops.',
           socialLinks: '@queenpoly',
-          stats: { wins: 3, losses: 0, totalBattles: 3, avgScore: 9.1, bestCategory: 'Melody', totalScoreSum: 27.3 },
+          stats: { wins: 3, losses: 0, draws: 0, totalBattles: 3, avgScore: 91.0, bestCategory: 'Melody', totalScoreSum: 273.0, rating: 1545, peakRating: 1545, streak: 3, bestStreak: 3, scale100: true },
           createdAt: new Date().toISOString()
         }
       ];
@@ -71,7 +95,11 @@ class RosterManager {
   }
 
   save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.contestants));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.contestants));
+    } catch {
+      // storage blocked — roster still works for this session
+    }
   }
 
   getAll() {
@@ -107,10 +135,16 @@ class RosterManager {
       stats: {
         wins: 0,
         losses: 0,
+        draws: 0,
         totalBattles: 0,
         avgScore: 0,
         bestCategory: '—',
-        totalScoreSum: 0
+        totalScoreSum: 0,
+        rating: 1500,
+        peakRating: 1500,
+        streak: 0,
+        bestStreak: 0,
+        scale100: true
       },
       createdAt: new Date().toISOString()
     };
@@ -159,57 +193,112 @@ class RosterManager {
    * Record battle results directly from an official FinalizedBattleResult
    */
   recordFinalizedBattle(finalResult) {
-    if (!finalResult || finalResult.isDemo) return;
+    if (!finalResult || finalResult.isDemo) return null;
 
     const c1Id = finalResult.contestant1?.id;
     const c2Id = finalResult.contestant2?.id;
-    if (!c1Id || !c2Id) return;
+    if (!c1Id || !c2Id) return null;
 
-    const categories = finalResult.scoringRules?.categories?.map(c => c.name || c) || [
-      'Creativity', 'Versatility', 'Mix', 'Drums', 'Melody',
-      'Bassline', 'Energy', 'Battle Ability', 'Arrangement', 'Sound Selection'
-    ];
+    const categories = finalResult.scoringRules?.categories?.map(c => c.name || c) || DEFAULT_CATEGORIES;
+    const played = finalResult.roundResults || [];
+    // Each producer's battle score is their average round score (out of 100)
+    const avg = (key) => (played.length ? played.reduce((s, r) => s + (r[key] || 0), 0) / played.length : 0);
+    const score1 = finalResult.seriesSummary?.avgRound1 ?? avg('total1');
+    const score2 = finalResult.seriesSummary?.avgRound2 ?? avg('total2');
+    const sumCats = (key) => categories.map((_, i) => played.reduce((s, r) => s + (r[key]?.[i] || 0), 0));
 
-    const score1 = finalResult.seriesSummary?.grandTotal1 ?? (finalResult.roundResults?.[0]?.total1 || 0);
-    const score2 = finalResult.seriesSummary?.grandTotal2 ?? (finalResult.roundResults?.[0]?.total2 || 0);
-    const c1Scores = finalResult.roundResults?.[0]?.scores1 || [];
-    const c2Scores = finalResult.roundResults?.[0]?.scores2 || [];
+    const outcome1 = finalResult.winnerId === c1Id ? 'win' : finalResult.winnerId === c2Id ? 'loss' : 'draw';
+    const outcome2 = outcome1 === 'win' ? 'loss' : outcome1 === 'loss' ? 'win' : 'draw';
 
-    const c1Won = finalResult.winnerId === c1Id;
-    const c2Won = finalResult.winnerId === c2Id;
+    // Elo update (both ratings computed from the pre-battle values)
+    const a = this.getById(c1Id);
+    const b = this.getById(c2Id);
+    const ra = a ? this.ratingOf(a) : 1500;
+    const rb = b ? this.ratingOf(b) : 1500;
+    const { newA, newB } = eloUpdate(ra, rb, outcome1 === 'win' ? 1 : outcome1 === 'loss' ? 0 : 0.5);
 
-    this.recordBattle(c1Id, score1, c1Won, c1Scores, categories);
-    this.recordBattle(c2Id, score2, c2Won, c2Scores, categories);
+    this.recordBattle(c1Id, score1, outcome1, sumCats('scores1'), categories, newA);
+    this.recordBattle(c2Id, score2, outcome2, sumCats('scores2'), categories, newB);
+
+    return {
+      [c1Id]: { before: ra, after: newA, change: newA - ra, outcome: outcome1 },
+      [c2Id]: { before: rb, after: newB, change: newB - rb, outcome: outcome2 }
+    };
+  }
+
+  ratingOf(c) {
+    return typeof c.stats?.rating === 'number' ? c.stats.rating : 1500;
   }
 
   /**
    * Record a battle result for a contestant
    */
-  recordBattle(contestantId, score, won, categoryScores, categories) {
+  recordBattle(contestantId, score, outcome, categoryScores, categories, newRating = null) {
     const c = this.getById(contestantId);
     if (!c) return;
+    // Older callers pass a boolean "won"
+    if (outcome === true) outcome = 'win';
+    if (outcome === false) outcome = 'loss';
 
     c.stats.totalBattles++;
-    if (won) c.stats.wins++;
-    else c.stats.losses++;
+    if (outcome === 'win') c.stats.wins++;
+    else if (outcome === 'loss') c.stats.losses++;
+    else c.stats.draws = (c.stats.draws || 0) + 1;
 
     c.stats.totalScoreSum += score;
     c.stats.avgScore = parseFloat((c.stats.totalScoreSum / c.stats.totalBattles).toFixed(2));
+    c.stats.bestScore = Math.max(c.stats.bestScore || 0, parseFloat(score.toFixed(2)));
 
-    // Find best category
+    // Streaks
+    if (outcome === 'win') c.stats.streak = (c.stats.streak > 0 ? c.stats.streak : 0) + 1;
+    else if (outcome === 'loss') c.stats.streak = (c.stats.streak < 0 ? c.stats.streak : 0) - 1;
+    else c.stats.streak = 0;
+    c.stats.bestStreak = Math.max(c.stats.bestStreak || 0, c.stats.streak);
+
+    if (newRating !== null) {
+      c.stats.rating = newRating;
+      c.stats.peakRating = Math.max(c.stats.peakRating || 1500, newRating);
+    }
+
+    // Best category across their career (running per-category totals)
     if (categoryScores && categories) {
-      let bestIdx = 0;
-      let bestVal = 0;
-      categoryScores.forEach((val, idx) => {
-        if (val > bestVal) {
-          bestVal = val;
-          bestIdx = idx;
-        }
+      c.stats.categoryTotals = c.stats.categoryTotals || {};
+      categories.forEach((name, idx) => {
+        c.stats.categoryTotals[name] = (c.stats.categoryTotals[name] || 0) + (categoryScores[idx] || 0);
       });
-      c.stats.bestCategory = categories[bestIdx];
+      const best = Object.entries(c.stats.categoryTotals).sort((x, y) => y[1] - x[1])[0];
+      if (best && best[1] > 0) c.stats.bestCategory = best[0];
     }
 
     this.save();
+  }
+
+  /**
+   * League table: wins, then win rate, then rating, then average score
+   */
+  getStandings(leagueId) {
+    const list = this.getForLeague(leagueId);
+    return list
+      .map(c => {
+        const s = c.stats || {};
+        const games = s.totalBattles || 0;
+        const draws = s.draws || 0;
+        return {
+          id: c.id,
+          name: c.name,
+          photo: c.photo,
+          wins: s.wins || 0,
+          losses: s.losses || 0,
+          draws,
+          battles: games,
+          winRate: games ? ((s.wins || 0) + draws * 0.5) / games : 0,
+          rating: this.ratingOf(c),
+          avgScore: s.avgScore || 0,
+          streak: s.streak || 0
+        };
+      })
+      .sort((a, b) => b.wins - a.wins || b.winRate - a.winRate || b.rating - a.rating || b.avgScore - a.avgScore)
+      .map((row, i) => ({ ...row, rank: i + 1 }));
   }
 
   /**
@@ -301,4 +390,4 @@ class RosterManager {
   }
 }
 
-export { RosterManager };
+export { RosterManager, eloUpdate };
