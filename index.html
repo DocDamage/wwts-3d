@@ -559,6 +559,7 @@
           <span class="director-label">🎥 Director:</span>
           <button type="button" class="cam-btn active" data-cam-view="front">Spectator</button>
           <button type="button" class="cam-btn" data-cam-view="dj_pov">DJ POV</button>
+          <button type="button" class="cam-btn" data-cam-view="decks" title="Close-up on the controller for mixing">Decks</button>
           <button type="button" class="cam-btn" data-cam-view="drone">Drone</button>
           <button type="button" class="cam-btn" data-cam-view="staredown">Face-Off</button>
           <button type="button" class="cam-btn" data-cam-view="auto">Auto-Cut</button>
@@ -621,47 +622,17 @@
           </div>
         </div>
         <div class="deck-strip-center">
-          <!-- DJ Battle Soundboard -->
+          <!-- Performance pads (mirror of the 20 pads on the 3D controller) -->
           <div class="dj-soundboard" id="dj-soundboard">
             <div class="soundboard-header">
-              <span class="soundboard-title">⚡ DJ SOUNDBOARD</span>
+              <span class="soundboard-title">⚡ PERFORMANCE PADS</span>
+              <button type="button" id="btn-pad-edit-mode" class="pad-edit-toggle" title="Edit mode: click a pad to change its sound (or right-click any pad)">✏️ Edit</button>
               <div class="soundboard-vol-wrap">
                 <span class="soundboard-vol-label">VOL</span>
-                <input type="range" id="soundboard-volume" min="0" max="1" step="0.05" value="0.85" title="Soundboard Volume" />
+                <input type="range" id="soundboard-volume" min="0" max="1" step="0.05" value="0.85" title="Pad Volume" />
               </div>
             </div>
-            <div class="soundboard-grid">
-              <button type="button" class="soundboard-pad pad-airhorn" data-sound="airhorn" title="Air Horn (HotKey: 1)">
-                <span class="pad-icon">📢</span>
-                <span class="pad-label">HORN</span>
-                <span class="pad-key">1</span>
-              </button>
-              <button type="button" class="soundboard-pad pad-bell" data-sound="bell" title="Round Bell (HotKey: 2)">
-                <span class="pad-icon">🔔</span>
-                <span class="pad-label">BELL</span>
-                <span class="pad-key">2</span>
-              </button>
-              <button type="button" class="soundboard-pad pad-react" data-sound="crowd_react" title="Crowd Oohs &amp; Aahhs (HotKey: 3)">
-                <span class="pad-icon">😲</span>
-                <span class="pad-label">REACT</span>
-                <span class="pad-key">3</span>
-              </button>
-              <button type="button" class="soundboard-pad pad-cheer" data-sound="crowd_cheer" title="Crowd Cheer &amp; Hype (HotKey: 4)">
-                <span class="pad-icon">👏</span>
-                <span class="pad-label">CHEER</span>
-                <span class="pad-key">4</span>
-              </button>
-              <button type="button" class="soundboard-pad pad-drop" data-sound="needle_drop" title="Vinyl Needle Drop (HotKey: 5)">
-                <span class="pad-icon">🎚️</span>
-                <span class="pad-label">DROP</span>
-                <span class="pad-key">5</span>
-              </button>
-              <button type="button" class="soundboard-pad pad-stop" data-sound="needle_stop" title="Vinyl Stop Scratch (HotKey: 6)">
-                <span class="pad-icon">🛑</span>
-                <span class="pad-label">STOP</span>
-                <span class="pad-key">6</span>
-              </button>
-            </div>
+            <div class="pad-grid" id="pad-grid"></div>
           </div>
           <!-- DJ Equal-Power Crossfader -->
           <div class="dj-crossfader-container">
@@ -1198,6 +1169,39 @@
       </div>
     </div>
 
+    <!-- ===== PAD EDITOR MODAL ===== -->
+    <div id="pad-editor-modal" class="modal-overlay" style="display:none">
+      <div class="modal-content pad-editor-content">
+        <div class="modal-header">
+          <h2 id="pad-editor-title">Pad</h2>
+          <button class="modal-close" data-close="pad-editor-modal">&times;</button>
+        </div>
+        <div class="pad-editor-body">
+          <label class="form-label" for="pad-label-input">Pad name</label>
+          <input type="text" id="pad-label-input" class="form-input" maxlength="24" />
+
+          <span class="form-label">Color</span>
+          <div class="pad-color-swatches" id="pad-color-swatches"></div>
+
+          <span class="form-label">Sound</span>
+          <div class="pad-source-row">
+            <label class="control-btn secondary pad-upload-btn">
+              📁 Upload Sound
+              <input type="file" id="pad-upload-input" accept="audio/*" hidden />
+            </label>
+            <button type="button" id="btn-pad-record" class="control-btn secondary">🎙️ Record Voice Line</button>
+          </div>
+          <select id="pad-library-select" class="form-input pad-library-select"></select>
+          <p class="pad-editor-status" id="pad-editor-status"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btn-pad-default" class="control-btn secondary">Reset to Default</button>
+          <button type="button" id="btn-pad-preview" class="control-btn secondary">▶ Preview</button>
+          <button type="button" id="btn-pad-save" class="control-btn primary">Save Pad</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== KEYBOARD SHORTCUTS CHEAT SHEET MODAL ===== -->
     <div id="shortcuts-modal" class="modal-overlay" style="display:none">
       <div class="modal-content shortcuts-modal-content">
@@ -1214,10 +1218,10 @@
           </div>
           <div class="shortcut-group">
             <h3>🥊 Rounds &amp; Overtime</h3>
-            <div class="shortcut-item"><kbd>1</kbd> <span>Select Round 1</span></div>
-            <div class="shortcut-item"><kbd>2</kbd> <span>Select Round 2</span></div>
-            <div class="shortcut-item"><kbd>3</kbd> <span>Select Final Round</span></div>
-            <div class="shortcut-item"><kbd>4</kbd> <span>Select Sudden Death OT</span></div>
+            <div class="shortcut-item"><kbd>Alt+1</kbd> <span>Select Round 1</span></div>
+            <div class="shortcut-item"><kbd>Alt+2</kbd> <span>Select Round 2</span></div>
+            <div class="shortcut-item"><kbd>Alt+3</kbd> <span>Select Final Round</span></div>
+            <div class="shortcut-item"><kbd>Alt+4</kbd> <span>Select Sudden Death OT</span></div>
           </div>
           <div class="shortcut-group">
             <h3>⚖️ Judges &amp; Broadcast</h3>
@@ -1231,6 +1235,19 @@
             <div class="shortcut-item"><kbd>H</kbd> <span>Announcer Fight Hype Call</span></div>
             <div class="shortcut-item"><kbd>S</kbd> <span>Vinyl Scratch Audio FX</span></div>
             <div class="shortcut-item"><kbd>D</kbd> <span>Send DJs to Console to Mix</span></div>
+          </div>
+          <div class="shortcut-group">
+            <h3>🎛️ Performance Pads</h3>
+            <div class="shortcut-item"><kbd>1</kbd>–<kbd>0</kbd> <span>Pads 1–10 (Deck 1 side)</span></div>
+            <div class="shortcut-item"><kbd>Shift+1</kbd>–<kbd>0</kbd> <span>Pads 11–20 (Deck 2 side)</span></div>
+            <div class="shortcut-item"><kbd>Right-click</kbd> <span>Change a pad's sound</span></div>
+          </div>
+          <div class="shortcut-group">
+            <h3>🕺 Characters &amp; View</h3>
+            <div class="shortcut-item"><kbd>Click</kbd> <span>Take control of a contestant</span></div>
+            <div class="shortcut-item"><kbd>Arrows</kbd> <span>Walk (hold Shift to run)</span></div>
+            <div class="shortcut-item"><kbd>Right-click</kbd> <span>Move wheel on a contestant</span></div>
+            <div class="shortcut-item"><kbd>V</kbd> <span>Stage View (hide all panels)</span></div>
           </div>
         </div>
         <div class="modal-footer">

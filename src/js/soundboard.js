@@ -3,7 +3,7 @@
  * Features:
  * - Pre-buffered audio for zero-latency playback
  * - Multi-voice polyphony (rapid repeat hits e.g. spamming air horn)
- * - Volume control & keyboard shortcuts (1-6)
+ * - Volume control (pad hotkeys live in padBank.js)
  * - Visual pad flash feedback & 3D stage event callbacks
  */
 
@@ -50,30 +50,6 @@ class SoundboardManager {
       });
       this.setVolume(parseFloat(volSlider.value));
     }
-
-    // Keyboard Hotkeys: 1-6 for instant DJ battle sound triggers
-    window.addEventListener('keydown', (e) => {
-      // Don't trigger if user is typing in an input or textarea
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
-
-      const keyMap = {
-        '1': 'airhorn',
-        '2': 'bell',
-        '3': 'crowd_react',
-        '4': 'crowd_cheer',
-        '5': 'needle_drop',
-        '6': 'needle_stop'
-      };
-
-      if (keyMap[e.key]) {
-        e.preventDefault();
-        const soundKey = keyMap[e.key];
-        this.play(soundKey);
-
-        const pad = document.querySelector(`.soundboard-pad[data-sound="${soundKey}"]`);
-        if (pad) this.flashPad(pad);
-      }
-    });
   }
 
   onPlay(callback) {

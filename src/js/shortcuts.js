@@ -35,7 +35,7 @@ class KeyboardShortcutsManager {
 
   handleKeyDown(e) {
     // Ignore hotkeys when typing in form inputs, textareas, or selects
-    const tag = e.target.tagName.toLowerCase();
+    const tag = (e.target?.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select') {
       if (e.key === 'Escape') {
         e.target.blur();
@@ -93,37 +93,23 @@ class KeyboardShortcutsManager {
         }
         break;
 
+      // Rounds: Alt+1–4 (the plain number row fires the performance pads) or numpad 1–4
       case 'Digit1':
-      case 'Numpad1':
-        if (e.altKey || e.ctrlKey) return;
-        if (typeof this.handlers.onRound === 'function') {
-          this.handlers.onRound(1);
-        }
-        break;
-
       case 'Digit2':
-      case 'Numpad2':
-        if (e.altKey || e.ctrlKey) return;
-        if (typeof this.handlers.onRound === 'function') {
-          this.handlers.onRound(2);
-        }
-        break;
-
       case 'Digit3':
-      case 'Numpad3':
-        if (e.altKey || e.ctrlKey) return;
-        if (typeof this.handlers.onRound === 'function') {
-          this.handlers.onRound(3);
-        }
-        break;
-
       case 'Digit4':
-      case 'Numpad4':
-        if (e.altKey || e.ctrlKey) return;
+      case 'Numpad1':
+      case 'Numpad2':
+      case 'Numpad3':
+      case 'Numpad4': {
+        const isDigitRow = e.code.startsWith('Digit');
+        if (e.ctrlKey || e.metaKey || (isDigitRow && !e.altKey)) return;
+        e.preventDefault();
         if (typeof this.handlers.onRound === 'function') {
-          this.handlers.onRound(4);
+          this.handlers.onRound(parseInt(e.code.slice(-1), 10));
         }
         break;
+      }
 
       case 'KeyJ':
         e.preventDefault();

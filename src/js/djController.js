@@ -1,11 +1,11 @@
 /**
  * DJ Battle Stage Renderer — Three.js 3D Soundstage Arena
  * Features:
- * - Center DJ Controller (FBX + PBR textures) with interactive spinning turntables
+ * - Center DJ Controller (FBX + PBR textures) made playable by DeckControls
  * - Audio Speaker & Subwoofer System (Left & Right front subwoofers + rear towers with real bass excursion)
  * - Contestant 3D Characters (Male & Female FBX models with real Breathing Idle animation)
  * - Dynamic DJ beat-dropping animation when music plays
- * - Live audio sync (turntables spin, subwoofers punch, characters vibe to the tempo)
+ * - Live audio sync (vinyl spins with the track, subwoofers punch, characters vibe to the tempo)
  * - Interactive camera orbit with smooth focus transitions
  */
 
@@ -27,6 +27,7 @@ const WALK_SPEED = 1.5;
 const RUN_SPEED = 3.4;
 const EMOTE_FADE_IN = 0.18;
 const EMOTE_FADE_OUT = 0.3;
+const DECK_LEVEL_TILT = -0.097; // radians; cancels the controller model's sloped top
 
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const clampAngle = (a, max) => Math.max(-max, Math.min(max, a));
@@ -42,10 +43,7 @@ class DJControllerRenderer {
 
     // Models & Components
     this.djDeck = null;
-    this.turntables = { 1: null, 2: null };
-    this.tonearms = { 1: null, 2: null };
-    this.tonearmTargets = { 1: 0, 2: 0 };
-    this.tonearmProgress = { 1: 0, 2: 0 };
+    this.deckControls = null; // DeckControls — set by the app before init()
     this.speakers = { 1: [], 2: [] }; // Subwoofers & towers with cones
     this.cones = []; // All vibrating cones { mesh, initialPos, playerNum, power }
 
@@ -100,7 +98,6 @@ class DJControllerRenderer {
 
     // Audio Playback State
     this.audioState = { 1: false, 2: false };
-    this.turntableSpeeds = { 1: 0, 2: 0 };
     this.bpm = 96; // Standard hip-hop beat battle BPM
     this.audioPlayer = null; // Real Web Audio Analyser source
     this.reducedMotion = false;
@@ -835,6 +832,12 @@ class DJControllerRenderer {
       this.orbitAngles.phi = 1.32;
       this.orbitAngles.radius = 5.2;
       this.cameraTarget.set(0, 0.6, 0);
+    } else if (mode === 'decks') {
+      // Over the DJs' shoulders, close on the controller for hands-on mixing
+      this.orbitAngles.theta = Math.PI;
+      this.orbitAngles.phi = 1.0;
+      this.orbitAngles.radius = 3.1;
+      this.cameraTarget.set(0, 1.05, 0);
     } else if (mode === 'staredown') {
       this.orbitAngles.theta = -0.65;
       this.orbitAngles.phi = 0.22;
@@ -1059,27 +1062,32 @@ class DJControllerRenderer {
 
         // Rotate flat so controls face up and horizontally stretch across the DJ table
         object.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
-        object.updateMatrixWorld(true);
 
         // Scale to fit on DJ stand table perfectly (3.1m wide across X)
+        object.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(object);
         const size = box.getSize(new THREE.Vector3());
         const targetWidth = 3.1;
-        const scale = targetWidth / Math.max(size.x, size.z);
-        object.scale.setScalar(scale);
+        object.scale.setScalar(targetWidth / Math.max(size.x, size.z));
+
+        // Face the controls toward the DJs behind the table (play/cue nearest them)
+        // and level the model's ~5.5° baked-in tilt
+        const deckRoot = new THREE.Group();
+        deckRoot.add(object);
+        deckRoot.rotation.set(DECK_LEVEL_TILT, Math.PI, 0);
+        deckRoot.updateMatrixWorld(true);
 
         // Center on top of table
-        box.setFromObject(object);
+        box.setFromObject(deckRoot);
         const center = box.getCenter(new THREE.Vector3());
-        object.position.x = -center.x;
-        object.position.y = 0.88 - box.min.y;
-        object.position.z = -center.z;
+        deckRoot.position.set(-center.x, 0.88 - box.min.y, -center.z);
+        deckRoot.updateMatrixWorld(true);
 
-        this.djDeck = object;
-        this.scene.add(object);
+        this.djDeck = deckRoot;
+        this.scene.add(deckRoot);
 
-        // Build interactive spinning turntables on top of jog wheels
-        this.buildInteractiveTurntables();
+        // Lay working controls (vinyl, pads, knobs, faders, buttons) over the model
+        this.deckControls?.build(deckRoot);
         this.checkAllLoaded();
       },
       undefined,
@@ -1103,153 +1111,7 @@ class DJControllerRenderer {
 
     this.djDeck = deckGroup;
     this.scene.add(deckGroup);
-    this.buildInteractiveTurntables();
-  }
-
-  /**
-   * Creates spinning vinyl disc slipmats over Player 1 (Left) and Player 2 (Right) jog wheels
-   */
-  buildInteractiveTurntables() {
-    // Platter Disc Geometry
-    const discGeo = new THREE.CylinderGeometry(0.44, 0.44, 0.02, 36);
-
-    // Left Platter (Player 1 - Red vinyl accents)
-    const matP1 = new THREE.MeshStandardMaterial({
-      color: 0x0f1015,
-      metalness: 0.85,
-      roughness: 0.25
-    });
-    const platter1 = new THREE.Mesh(discGeo, matP1);
-    platter1.position.set(-0.88, 0.94, -0.05);
-
-    // Platter center label (Red slipmat)
-    const labelGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.025, 24);
-    const labelMat1 = new THREE.MeshStandardMaterial({ color: 0xdd2222, roughness: 0.4 });
-    const label1 = new THREE.Mesh(labelGeo, labelMat1);
-    platter1.add(label1);
-
-    // Spindle
-    const spindleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.06, 12);
-    const spindleMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9 });
-    const spindle1 = new THREE.Mesh(spindleGeo, spindleMat);
-    platter1.add(spindle1);
-
-    // Strobe Marker on platter rim (so rotation is clearly visible)
-    const strobeGeo = new THREE.BoxGeometry(0.04, 0.03, 0.1);
-    const strobeMat1 = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
-    const strobe1 = new THREE.Mesh(strobeGeo, strobeMat1);
-    strobe1.position.set(0.38, 0.01, 0);
-    platter1.add(strobe1);
-
-    this.scene.add(platter1);
-    this.turntables[1] = platter1;
-
-    // Right Platter (Player 2 - Cyan vinyl accents)
-    const matP2 = new THREE.MeshStandardMaterial({
-      color: 0x0f1015,
-      metalness: 0.85,
-      roughness: 0.25
-    });
-    const platter2 = new THREE.Mesh(discGeo, matP2);
-    platter2.position.set(0.88, 0.94, -0.05);
-
-    const labelMat2 = new THREE.MeshStandardMaterial({ color: 0x00a8cc, roughness: 0.4 });
-    const label2 = new THREE.Mesh(labelGeo, labelMat2);
-    platter2.add(label2);
-
-    const spindle2 = new THREE.Mesh(spindleGeo, spindleMat);
-    platter2.add(spindle2);
-
-    const strobeMat2 = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
-    const strobe2 = new THREE.Mesh(strobeGeo, strobeMat2);
-    strobe2.position.set(0.38, 0.01, 0);
-    platter2.add(strobe2);
-
-    this.scene.add(platter2);
-    this.turntables[2] = platter2;
-
-    // Build DJ Tonearms with needles that pivot onto vinyl when playing
-    this.buildTonearm(1);
-    this.buildTonearm(2);
-  }
-
-  /**
-   * Builds realistic club DJ tonearms with gimbal pivot, counterweight,
-   * S-rod chrome arm, headshell, and stylus needle
-   */
-  buildTonearm(playerNum) {
-    const isP1 = playerNum === 1;
-    // Position tonearm base at rear corner of player platter
-    const baseX = isP1 ? -1.36 : 1.36;
-    const baseZ = -0.34;
-    const baseY = 0.94;
-
-    const baseGroup = new THREE.Group();
-    baseGroup.position.set(baseX, baseY, baseZ);
-
-    // Gimbal Base / Anti-skate cylinder
-    const baseGeo = new THREE.CylinderGeometry(0.055, 0.06, 0.035, 20);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0x20222a, metalness: 0.85, roughness: 0.25 });
-    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-    baseGroup.add(baseMesh);
-
-    // Tonearm Rest Cradle Post
-    const cradleGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.05, 10);
-    const cradle = new THREE.Mesh(cradleGeo, baseMat);
-    cradle.position.set(isP1 ? 0.04 : -0.04, 0.025, 0.24);
-    baseGroup.add(cradle);
-
-    // Pivot Assembly (Rotates horizontally onto the record)
-    const pivotGroup = new THREE.Group();
-    pivotGroup.position.set(0, 0.035, 0);
-
-    // Chrome Gimbal Ring
-    const gimbalGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.035, 16);
-    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f5, metalness: 0.95, roughness: 0.1 });
-    const gimbal = new THREE.Mesh(gimbalGeo, chromeMat);
-    pivotGroup.add(gimbal);
-
-    // Counterweight
-    const weightGeo = new THREE.CylinderGeometry(0.036, 0.036, 0.055, 18);
-    const weightMat = new THREE.MeshStandardMaterial({ color: 0x111216, metalness: 0.6, roughness: 0.35 });
-    const weight = new THREE.Mesh(weightGeo, weightMat);
-    weight.rotation.x = Math.PI / 2;
-    weight.position.set(0, 0.015, -0.055);
-    pivotGroup.add(weight);
-
-    // Chrome Tonearm Tube
-    const armGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.44, 12);
-    const arm = new THREE.Mesh(armGeo, chromeMat);
-    arm.rotation.x = Math.PI / 2;
-    arm.position.set(isP1 ? 0.04 : -0.04, 0.015, 0.21);
-    pivotGroup.add(arm);
-
-    // Headshell Cartridge
-    const headshellGeo = new THREE.BoxGeometry(0.028, 0.018, 0.06);
-    const headshellMat = new THREE.MeshStandardMaterial({
-      color: isP1 ? 0xff2d2d : 0x00e5ff,
-      metalness: 0.7,
-      roughness: 0.3
-    });
-    const headshell = new THREE.Mesh(headshellGeo, headshellMat);
-    headshell.position.set(isP1 ? 0.04 : -0.04, 0.008, 0.44);
-    headshell.rotation.y = isP1 ? 0.25 : -0.25;
-    pivotGroup.add(headshell);
-
-    // Stylus Needle
-    const stylusGeo = new THREE.ConeGeometry(0.005, 0.016, 8);
-    const stylusMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const stylus = new THREE.Mesh(stylusGeo, stylusMat);
-    stylus.rotation.x = Math.PI;
-    stylus.position.set(isP1 ? 0.04 : -0.04, -0.008, 0.46);
-    pivotGroup.add(stylus);
-
-    baseGroup.add(pivotGroup);
-    this.scene.add(baseGroup);
-
-    this.tonearms[playerNum] = pivotGroup;
-    this.tonearmTargets[playerNum] = 0;
-    this.tonearmProgress[playerNum] = 0;
+    this.deckControls?.build(deckGroup);
   }
 
   /* ============================================================
@@ -1719,6 +1581,7 @@ class DJControllerRenderer {
     let didMoveDrag = false;
 
     const onMouseDown = (e) => {
+      if (this.deckControls?.consumedClick) return; // a deck control has the pointer
       this.isDragging = true;
       this.previousMousePosition = { x: e.clientX, y: e.clientY };
       pointerDownPos = { x: e.clientX, y: e.clientY };
@@ -1746,6 +1609,10 @@ class DJControllerRenderer {
 
     const onMouseUp = (e) => {
       this.isDragging = false;
+      if (this.deckControls?.consumedClick) {
+        this.deckControls.consumedClick = false;
+        return;
+      }
 
       // If user clicked without dragging, treat as Click-to-Walk command
       if (!didMoveDrag && this.camera && this.scene) {
@@ -1784,14 +1651,40 @@ class DJControllerRenderer {
       this.orbitAngles.radius = Math.max(3.2, Math.min(11, this.orbitAngles.radius + e.deltaY * 0.004));
     };
 
-    // Right-click a contestant for the move wheel
-    canvas.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      if (!this.camera) return;
+    const rayFromEvent = (e) => {
       const rect = canvas.getBoundingClientRect();
       mouseCoord.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouseCoord.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouseCoord, this.camera);
+      return raycaster;
+    };
+
+    // Deck controls get first claim on the pointer (pointer events fire before mouse events)
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!this.deckControls || !this.camera) return;
+      if (this.deckControls.pointerDown(rayFromEvent(e), e)) {
+        canvas.setPointerCapture?.(e.pointerId);
+        e.preventDefault();
+      }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!this.deckControls || !this.camera) return;
+      if (this.deckControls.dragging || !this.isDragging) this.deckControls.pointerMove(rayFromEvent(e), e);
+    });
+    canvas.addEventListener('pointerup', (e) => {
+      canvas.releasePointerCapture?.(e.pointerId);
+      if (this.deckControls?.dragging) this.deckControls.pointerUp();
+    });
+    canvas.addEventListener('pointerleave', () => {
+      if (!this.deckControls?.dragging) this.deckControls?.hideTooltip();
+    });
+
+    // Right-click a contestant for the move wheel
+    canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (!this.camera) return;
+      rayFromEvent(e);
+      if (this.deckControls?.pick(raycaster)) return; // right-click on a pad opens its editor instead
       const picked = this.pickCharacter(raycaster) || this.drivenPlayer;
       if (picked && typeof this.onCharacterContext === 'function') {
         this.onCharacterContext(picked, e.clientX, e.clientY);
@@ -1819,6 +1712,7 @@ class DJControllerRenderer {
 
     // Touch support for mobile / tablets
     canvas.addEventListener('touchstart', (e) => {
+      if (this.deckControls?.consumedClick) return;
       if (e.touches.length === 1) {
         this.isDragging = true;
         this.previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -1826,7 +1720,7 @@ class DJControllerRenderer {
     }, { passive: true });
 
     canvas.addEventListener('touchmove', (e) => {
-      if (!this.isDragging || e.touches.length !== 1) return;
+      if (!this.isDragging || e.touches.length !== 1 || this.deckControls?.dragging) return;
       const deltaX = e.touches[0].clientX - this.previousMousePosition.x;
       const deltaY = e.touches[0].clientY - this.previousMousePosition.y;
 
@@ -1880,10 +1774,6 @@ class DJControllerRenderer {
      ============================================================ */
   setAudioPlaying(playerNum, isPlaying) {
     this.audioState[playerNum] = !!isPlaying;
-
-    if (this.tonearmTargets) {
-      this.tonearmTargets[playerNum] = isPlaying ? 1 : 0;
-    }
 
     // Automatically send active DJ to the deck to scratch & mix when audio plays!
     if (isPlaying) {
@@ -1977,19 +1867,8 @@ class DJControllerRenderer {
         if (this.stageLights.spotP1) this.stageLights.spotP1.intensity = this.audioState[1] ? 8.0 : 3.0;
         if (this.stageLights.spotP2) this.stageLights.spotP2.intensity = this.audioState[2] ? 8.0 : 3.0;
       }, 500);
-    } else if (soundKey === 'needle_drop') {
-      // Force tonearms to drop onto records and kickstart platter
-      [1, 2].forEach(p => {
-        this.tonearmTargets[p] = 1;
-        this.turntableSpeeds[p] = 4.8;
-      });
-    } else if (soundKey === 'needle_stop') {
-      // Vinyl scratch brake stop: reverse platter briefly then halt
-      [1, 2].forEach(p => {
-        this.turntableSpeeds[p] = -2.0;
-        this.tonearmTargets[p] = 0;
-        setTimeout(() => { this.turntableSpeeds[p] = 0; }, 220);
-      });
+    } else if (soundKey === 'needle_drop' || soundKey === 'needle_stop') {
+      this.pulse();
     }
   }
 
@@ -2270,29 +2149,8 @@ class DJControllerRenderer {
       this.animators[p]?.beginFrame(delta);
     });
 
-    // 2. Turntables Rotation & Tonearm Groove Tracking
-    [1, 2].forEach(p => {
-      const isPlaying = this.audioState[p];
-      const targetSpeed = isPlaying ? 3.5 : 0; // 33 RPM simulated angular speed
-      this.turntableSpeeds[p] += (targetSpeed - this.turntableSpeeds[p]) * 0.08;
-
-      if (this.turntables[p] && Math.abs(this.turntableSpeeds[p]) > 0.01) {
-        this.turntables[p].rotation.y += this.turntableSpeeds[p] * delta;
-      }
-
-      // Tonearm tracking
-      if (this.tonearms[p]) {
-        const target = this.tonearmTargets[p] ? 1 : 0;
-        this.tonearmProgress[p] += (target - this.tonearmProgress[p]) * 0.08;
-
-        const prog = this.tonearmProgress[p];
-        const sign = p === 1 ? 1 : -1;
-        // Swing from cradle (0) to outer vinyl groove (~0.38 rad)
-        this.tonearms[p].rotation.y = sign * prog * 0.38;
-        // Slight vertical lift off record when in cradle
-        this.tonearms[p].rotation.x = (1 - prog) * -0.04;
-      }
-    });
+    // 2. Playable DJ controller (vinyl, pads, knobs, faders follow the audio)
+    this.deckControls?.update(delta, elapsed);
 
     // 3. Character Locomotion & DJ Console Interaction
     [1, 2].forEach(p => {
@@ -2368,7 +2226,7 @@ class DJControllerRenderer {
     }
 
     // 9. Camera Management (Smooth Orbit + Focus on Active Contestant)
-    if (!this.isDragging) {
+    if (!this.isDragging && this.cameraMode !== 'decks') {
       // Gentle cinematic sway
       const baseTheta = (this.audioState[1] && !this.audioState[2])
         ? -0.25 // Frame contestant 1
@@ -2394,7 +2252,7 @@ class DJControllerRenderer {
     this.camera.position.copy(this.currentCamPos);
 
     // Look target follows active contestant slightly
-    const desiredTargetX = (this.audioState[1] && !this.audioState[2])
+    const desiredTargetX = this.cameraMode === 'decks' ? 0 : (this.audioState[1] && !this.audioState[2])
       ? -0.6
       : ((this.audioState[2] && !this.audioState[1]) ? 0.6 : 0);
     this.cameraTarget.x += (desiredTargetX - this.cameraTarget.x) * 0.05;

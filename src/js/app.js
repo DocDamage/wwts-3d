@@ -25,6 +25,8 @@ import { BattleStorageManager } from './storage.js';
 import { ProducerReportModal } from './producerReport.js';
 import { OverlayPanelManager } from './overlayPanels.js';
 import { CharacterControls } from './characterControls.js';
+import { PadBank } from './padBank.js';
+import { DeckControls } from './deckControls.js';
 
 // ============================================================
 // Initialize all modules
@@ -41,6 +43,9 @@ const djController = new DJControllerRenderer();
 const overlayPanels = new OverlayPanelManager();
 const characterControls = new CharacterControls(djController);
 const soundboard = new SoundboardManager();
+const padBank = new PadBank(soundboard, audio);
+const deckControls = new DeckControls(djController, audio, padBank);
+djController.deckControls = deckControls;
 const gamepad = new GamepadManager();
 const announcer = new AnnouncerManager();
 const exporter = new BattleCardExporter();
@@ -90,6 +95,8 @@ window.battleEngine = battleEngine;
 window.storage = storage;
 window.producerReport = producerReport;
 window.djController = djController;
+window.padBank = padBank;
+window.audioPlayer = audio;
 
 // Current battle state
 let selectedContestant1Id = null;
@@ -1149,6 +1156,21 @@ function init() {
   soundboard.onPlay((soundKey) => {
     djController.triggerSoundReaction(soundKey);
   });
+
+  // Performance pads (20, mirrored on the 3D controller)
+  padBank.onTrigger = (index) => deckControls.flashPad(index);
+  padBank.onChange = () => deckControls.refreshPadColors();
+  padBank.init();
+  document.getElementById('soundboard-volume')?.addEventListener('input', (e) => padBank.setVolume(parseFloat(e.target.value)));
+
+  // Keep the 2D strip and the 3D controller in sync with the mixer
+  audio.onMixChange = (num, param, value) => {
+    if (param === 'loaded' && num) deckControls.onTrackLoaded(num);
+    if (param === 'channel' && num) {
+      const vol = document.querySelector(`.audio-volume[data-player="${num}"]`);
+      if (vol && document.activeElement !== vol) vol.value = value;
+    }
+  };
 
   // Notes
   notes.init();

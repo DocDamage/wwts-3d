@@ -4293,3 +4293,87 @@ body.stage-only #screen-battle .show-ui-btn {
 }
 .weight-unit { color: var(--text-muted); font-size: 0.7rem; }
 .weights-hint { margin-top: 8px; font-size: 0.68rem; color: var(--text-muted); line-height: 1.4; }
+
+/* =========================================================
+   PLAYABLE DECK — tooltip, 20-pad grid, pad editor
+   ========================================================= */
+.deck-tooltip {
+  position: fixed;
+  z-index: 70;
+  pointer-events: none;
+  max-width: 280px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(8, 8, 12, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-primary);
+  font-size: 0.74rem;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.deck-tooltip[hidden] { display: none; }
+.deck-tooltip b { font-family: 'Orbitron', monospace; font-size: 0.72rem; color: #fff; }
+.deck-tooltip small { color: var(--text-muted); }
+
+.pad-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(44px, 1fr));
+  gap: 4px;
+}
+.pad-btn {
+  --pad-color: #ff2d2d;
+  position: relative;
+  min-height: 34px;
+  padding: 3px 4px 10px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--pad-color) 45%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pad-color) 18%, #15151b), #0d0d12);
+  color: var(--text-primary);
+  font-size: 0.56rem;
+  font-weight: 700;
+  line-height: 1.1;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 80ms, box-shadow 120ms;
+}
+.pad-btn .pad-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pad-btn .pad-key { position: absolute; bottom: 1px; right: 4px; font-size: 0.5rem; color: var(--text-muted); font-family: 'Orbitron', monospace; }
+.pad-btn:hover { box-shadow: 0 0 10px color-mix(in srgb, var(--pad-color) 45%, transparent); }
+.pad-btn.hit { transform: scale(0.94); background: var(--pad-color); color: #000; box-shadow: 0 0 18px var(--pad-color); }
+.pad-grid.editing .pad-btn { outline: 1px dashed rgba(255, 255, 255, 0.4); outline-offset: -3px; }
+.pad-edit-toggle {
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 2px 8px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.pad-edit-toggle.active { background: var(--ember-amber); color: #000; border-color: var(--ember-amber); }
+.deck-strip-center .dj-soundboard { min-width: 0; flex: 1; }
+.stage-deck-strip { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr) minmax(0, 0.8fr); }
+.audio-player-slot.drop-hover { outline: 2px dashed var(--ember-amber); outline-offset: -2px; }
+
+.pad-editor-content { max-width: 460px; }
+.pad-editor-body { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; }
+.pad-editor-body .form-label { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
+.pad-color-swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.pad-swatch { width: 26px; height: 26px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
+.pad-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6) inset; }
+.pad-source-row { display: flex; gap: 8px; }
+.pad-source-row .control-btn { flex: 1; }
+.pad-upload-btn { cursor: pointer; }
+#btn-pad-record.recording { background: var(--ember-red); color: #fff; animation: timerPulse 1s ease-in-out infinite; }
+.pad-library-select { width: 100%; }
+.pad-editor-status { min-height: 1.2em; font-size: 0.74rem; color: var(--text-muted); }
+.pad-editor-content .modal-footer { display: flex; gap: 8px; }
+.pad-editor-content .modal-footer .control-btn { flex: 1; width: auto; }
+
+/* The battle screen holds the fixed full-window stage, so it must never carry a
+   transform (that would make it the stage's containing block) — fade only. */
+#screen-battle.active { animation: screenFadeOpacity 0.35s ease; }
+@keyframes screenFadeOpacity { from { opacity: 0; } to { opacity: 1; } }
