@@ -7,7 +7,7 @@
   <title>BeatBattle Scoring App</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@500;700&family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/styles/index.css" />
 </head>
 <body>
@@ -504,17 +504,8 @@
       </div>
         <div id="tab-notes" class="tab-panel">
           <div class="tab-panel-inner">
-            <h2>Battle Notes</h2>
-            <!-- Timestamped Feedback Notes -->
-            <div class="timestamp-notes-panel">
-              <div class="ts-input-wrap">
-                <input type="text" id="input-timestamp-note" placeholder="0:42 — strong switch-up..." class="ts-note-input" />
-                <button type="button" id="btn-add-timestamp-note" class="ts-add-btn" title="Add timestamped note">⏱️ Note</button>
-              </div>
-              <div id="active-timestamp-notes-list" class="ts-notes-mini-list"></div>
-            </div>
-            <textarea id="notes-textarea" class="notes-input" placeholder="Jot down your observations during the battle..." rows="5"></textarea>
-            <div id="saved-notes" class="saved-notes-list"></div>
+            <!-- 3D reporter notepad (notepad.js): private & public sides, timestamped lines -->
+            <div id="notepad-root"></div>
           </div>
         </div>
         <div id="tab-h2h" class="tab-panel">

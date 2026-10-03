@@ -30,6 +30,7 @@ class JudgeLink {
     this.stateProvider = null;   // () => { battleId, contestants, round, roundLabel, locked }
     this.onScoresUpdated = null; // (seat, round) — host refreshes totals/flow
     this.onToast = null;         // (message)
+    this.onJudgeNote = null;     // (seat, { text, contestant, visibility })
     this.addresses = [];
     this.port = location.port;
     this.selectedAddress = null;
@@ -155,6 +156,11 @@ class JudgeLink {
         if (msg.submitted) this.toast(`✓ ${this.judges.judgeNames[seat]} submitted Round ${msg.round}`);
         this.onScoresUpdated?.(seat, msg.round);
         this.renderSeatList();
+        break;
+      }
+      case 'judge-note': {
+        const seat = this.judges.seatForDevice(msg.deviceId);
+        if (seat) this.onJudgeNote?.(seat, msg);
         break;
       }
       default:

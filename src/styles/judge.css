@@ -146,3 +146,29 @@ body.locked .j-step { pointer-events: none; }
 }
 .j-footer .j-btn { margin-top: 8px; max-width: 560px; display: block; margin-left: auto; margin-right: auto; }
 .j-footer-note { text-align: center; font-size: 0.8rem; color: var(--text-2); min-height: 1.1em; }
+
+/* Note sheet */
+.j-note-fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(118px + env(safe-area-inset-bottom));
+  z-index: 6;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: none;
+  background: #fdf3a7;
+  font-size: 1.5rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+.j-note-sheet { position: fixed; inset: 0; z-index: 10; background: rgba(0, 0, 0, 0.6); display: flex; align-items: flex-end; }
+.j-note-sheet[hidden] { display: none; }
+.j-note-card { width: 100%; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); background: var(--surface); border-radius: 18px 18px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.j-note-head { display: flex; justify-content: space-between; align-items: center; font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 0.06em; }
+.j-note-close { background: none; border: none; font-size: 1.6rem; color: var(--text-2); }
+.j-note-card textarea { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: #fdf3a7; color: #222; font: 500 1.05rem 'Inter', sans-serif; resize: none; }
+.j-seg { display: flex; gap: 6px; }
+.j-seg button { flex: 1; padding: 10px 6px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); font-size: 0.82rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.j-seg button.active { border-color: var(--amber); color: var(--amber); }
+.j-note-card .j-btn { margin-top: 4px; }

@@ -56,6 +56,27 @@
 
     <div class="j-cats" id="j-cats"></div>
 
+    <button type="button" class="j-note-fab" id="j-note-open" title="Write a note">📝</button>
+    <div class="j-note-sheet" id="j-note-sheet" hidden>
+      <div class="j-note-card">
+        <div class="j-note-head">
+          <span>Battle note</span>
+          <button type="button" class="j-note-close" id="j-note-close" aria-label="Close">&times;</button>
+        </div>
+        <textarea id="j-note-text" maxlength="280" rows="3" placeholder="What stood out? (stamped with the beat's time on the host screen)"></textarea>
+        <div class="j-seg" id="j-note-who" role="group" aria-label="About">
+          <button type="button" data-v="1" class="active" id="j-note-who-1">C1</button>
+          <button type="button" data-v="2" id="j-note-who-2">C2</button>
+          <button type="button" data-v="0">General</button>
+        </div>
+        <div class="j-seg" id="j-note-vis" role="group" aria-label="Who can see it">
+          <button type="button" data-v="private" class="active">🔒 Judges only</button>
+          <button type="button" data-v="public">📢 For the producers</button>
+        </div>
+        <button type="button" class="j-btn primary" id="j-note-send">Send Note</button>
+      </div>
+    </div>
+
     <footer class="j-footer">
       <p class="j-footer-note" id="j-footer-note"></p>
       <button id="j-submit" class="j-btn primary" type="button">Submit Round 1</button>

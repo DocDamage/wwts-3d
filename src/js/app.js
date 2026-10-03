@@ -28,6 +28,7 @@ import { CharacterControls } from './characterControls.js';
 import { PadBank } from './padBank.js';
 import { DeckControls } from './deckControls.js';
 import { JudgeLink } from './judgeLink.js';
+import { BattleNotepad } from './notepad.js';
 
 // ============================================================
 // Initialize all modules
@@ -66,6 +67,18 @@ const battleEngine = new BattleSessionEngine({
   history,
   tournament,
   leagues
+});
+
+// 3D notepad for private / public battle notes
+const notepad = new BattleNotepad({
+  battleEngine,
+  audio,
+  rounds,
+  getNames: () => [1, 2].map(n => {
+    const id = n === 1 ? selectedContestant1Id : selectedContestant2Id;
+    return (id && roster.getById(id)?.name) || `Contestant ${n}`;
+  }),
+  onChange: () => autosaveActiveSession()
 });
 
 let shortcuts = null;
@@ -444,9 +457,9 @@ function refreshBattle() {
   history.renderAchievements('achievements-list', leagueId);
   history.renderHistory('history-list', 'history-empty', leagueId);
 
-  // Notes
-  const battles = history.getForLeague(leagueId);
-  notes.renderSavedNotes('saved-notes', battles);
+  // Notes from earlier battles
+  notepad.renderArchive(history.getForLeague(leagueId));
+  notepad.render();
 }
 
 function renderStandings(leagueId) {
@@ -512,6 +525,7 @@ function updateContestantDisplay(num) {
     seriesNameEl.textContent = name.slice(0, 12);
   }
   djController.setContestantName(num, name);
+  notepad.render();
   const dockTitle = document.getElementById(`dock-title-${num}`);
   if (dockTitle) dockTitle.textContent = `${name} · Moves`;
 }
@@ -1033,6 +1047,12 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 
 document.getElementById('btn-tab-drawer-close')?.addEventListener('click', closeTabDrawer);
 
+function openNotesTab() {
+  const tab = document.querySelector('.nav-tab[data-tab="notes"]');
+  if (tab && !tab.classList.contains('active')) tab.click();
+  setTimeout(() => notepad.focusInput(), 60);
+}
+
 // ============================================================
 // Tournament integration
 // ============================================================
@@ -1298,19 +1318,7 @@ function autosaveActiveSession() {
 }
 
 function renderTimestampedNotesList() {
-  const container = document.getElementById('active-timestamp-notes-list');
-  if (!container) return;
-  const list = battleEngine.getTimestampedNotes();
-  if (list.length === 0) {
-    container.innerHTML = '';
-    return;
-  }
-  container.innerHTML = list.map(n => `
-    <div class="ts-note-item">
-      <span class="ts-badge">${n.time} (R${n.round} P${n.contestant})</span>
-      <span class="ts-text">${n.text}</span>
-    </div>
-  `).join('');
+  notepad.render();
 }
 
 // ============================================================
@@ -1448,6 +1456,15 @@ function init() {
     autosaveActiveSession();
   };
   judgeLink.onToast = showToast;
+  judgeLink.onJudgeNote = (seat, payload) => {
+    const note = notepad.add({
+      text: payload.text,
+      contestant: payload.contestant === 1 || payload.contestant === 2 ? payload.contestant : null,
+      visibility: payload.visibility,
+      author: judges.judgeNames[seat] || `Judge ${seat}`
+    });
+    if (note) showToast(`📝 ${judges.judgeNames[seat]}: “${note.text.slice(0, 40)}${note.text.length > 40 ? '…' : ''}”`);
+  };
   // Any phase change (lock, reset, finalize) reaches the phones, however it was triggered
   const prevPhaseHandler = battleEngine.onPhaseChange;
   battleEngine.onPhaseChange = (...args) => {
@@ -1552,27 +1569,14 @@ function init() {
     judgeLink.pushState();
   });
 
-  // Timestamped Notes
-  const noteInput = document.getElementById('input-timestamp-note');
-  const addNoteBtn = document.getElementById('btn-add-timestamp-note');
-
-  function addTimestampNote() {
-    const text = noteInput?.value?.trim();
-    if (!text) return;
-    const contestantNum = battleEngine.activeContestant || 1;
-    const trackSec = audio.getCurrentTrackTime ? audio.getCurrentTrackTime(contestantNum) : 0;
-    const min = Math.floor(trackSec / 60);
-    const sec = Math.floor(trackSec % 60).toString().padStart(2, '0');
-    const formatted = `${min}:${sec}`;
-    battleEngine.addTimestampedNote(text, contestantNum, formatted);
-    noteInput.value = '';
-    renderTimestampedNotesList();
-    autosaveActiveSession();
-  }
-
-  addNoteBtn?.addEventListener('click', addTimestampNote);
-  noteInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') addTimestampNote();
+  // Battle notepad (+ N opens it and focuses the pen)
+  notepad.init();
+  window.addEventListener('keydown', (e) => {
+    const tag = (e.target?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code !== 'KeyN' || !document.getElementById('screen-battle')?.classList.contains('active')) return;
+    e.preventDefault();
+    openNotesTab();
   });
 
   // Post-Battle Producer Report Button

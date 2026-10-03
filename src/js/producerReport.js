@@ -77,23 +77,26 @@ class ProducerReportModal {
       `;
     });
 
-    // Timestamped Notes
+    // Public notes only — private notes stay with the judges
     let notesHtml = '';
-    const tsNotes = finalResult.timestampedNotes || [];
+    const tsNotes = (finalResult.timestampedNotes || []).filter(n => n.visibility === 'public');
     if (tsNotes.length > 0) {
-      tsNotes.forEach(n => {
-        const cName = n.contestant === 1 ? c1.name : c2.name;
-        const color = n.contestant === 1 ? '#ff4d4d' : '#00e5ff';
-        notesHtml += `
-          <div class="report-timestamp-item">
-            <span class="ts-time">${n.time}</span>
-            <span class="ts-contestant" style="color:${color};">${cName}</span>
-            <span class="ts-text">${this.escapeHtml(n.text)}</span>
-          </div>
-        `;
+      [[1, c1.name, '#ff4d4d'], [2, c2.name, '#00e5ff'], [null, 'General', '#ffaa00']].forEach(([num, label, color]) => {
+        const group = tsNotes.filter(n => (n.contestant || null) === num);
+        if (!group.length) return;
+        notesHtml += `<div class="report-notes-group"><h4 style="color:${color};">${this.escapeHtml(label)}</h4>`;
+        group.forEach(n => {
+          const round = n.round === 4 ? 'OT' : `R${n.round || 1}`;
+          notesHtml += `
+            <div class="report-timestamp-item">
+              <span class="ts-time">${round}${num ? ` · ${this.escapeHtml(n.time || '')}` : ''}</span>
+              <span class="ts-text">${this.escapeHtml(n.text)}</span>
+            </div>`;
+        });
+        notesHtml += '</div>';
       });
     } else {
-      notesHtml = '<p class="report-empty-notes">No timestamped producer notes recorded for this battle.</p>';
+      notesHtml = '<p class="report-empty-notes">No public notes from the judges for this battle.</p>';
     }
 
     if (finalResult.notes) {
@@ -164,7 +167,7 @@ class ProducerReportModal {
 
           <!-- Timestamped Notes -->
           <div class="report-section">
-            <h4 class="report-sec-title">Timestamped Feedback &amp; Producer Notes</h4>
+            <h4 class="report-sec-title">Judges' Notes (timestamped)</h4>
             <div class="report-notes-list">
               ${notesHtml}
             </div>
@@ -193,8 +196,12 @@ class ProducerReportModal {
   copyReportText(finalResult) {
     const c1 = finalResult.contestant1?.name || 'Contestant 1';
     const c2 = finalResult.contestant2?.name || 'Contestant 2';
-    const s1 = finalResult.seriesSummary?.grandTotal1 ?? 0;
-    const s2 = finalResult.seriesSummary?.grandTotal2 ?? 0;
+    const s1 = finalResult.seriesSummary?.avgRound1 ?? finalResult.seriesSummary?.grandTotal1 ?? 0;
+    const s2 = finalResult.seriesSummary?.avgRound2 ?? finalResult.seriesSummary?.grandTotal2 ?? 0;
+    const publicNotes = (finalResult.timestampedNotes || [])
+      .filter(n => n.visibility === 'public')
+      .map(n => `- ${n.contestant === 1 ? c1 : n.contestant === 2 ? c2 : 'General'} (${n.round === 4 ? 'OT' : `R${n.round || 1}`}${n.contestant ? ` ${n.time}` : ''}): ${n.text}`)
+      .join('\n');
 
     const summary = `
 WWTS BEAT BATTLE REPORT
@@ -203,6 +210,8 @@ Winner: ${finalResult.winnerName}
 Decision: ${finalResult.decisionMethod} (${finalResult.decisionTally})
 Date: ${new Date(finalResult.timestamp).toLocaleString()}
 ${finalResult.notes ? `Notes: ${finalResult.notes}` : ''}
+${publicNotes ? `Judges' notes:
+${publicNotes}` : ''}
     `.trim();
 
     navigator.clipboard?.writeText(summary).then(() => {

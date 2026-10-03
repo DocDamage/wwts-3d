@@ -11,6 +11,7 @@
  *   host  → hub   { t:'to-judge', deviceId, msg }          message for one judge (seat, kick…)
  *   judge → hub   { t:'join', room, deviceId, name }
  *   judge → hub   { t:'scores', round, scores1, scores2, submitted }
+ *   judge → hub   { t:'note', text, contestant, visibility }      (lands in the host's notepad)
  *   hub   → host  { t:'judge-join' | 'judge-left' | 'judge-scores', deviceId, ... }
  *   hub   → judge { t:'joined' } then { t:'state', state }, or { t:'error', code }
  */
@@ -84,6 +85,21 @@ class JudgeRooms {
     return true;
   }
 
+  judgeNote(room, deviceId, payload) {
+    const r = this.rooms.get(room);
+    if (!r || !r.judges.has(deviceId)) return false;
+    const text = String(payload.text || '').trim().slice(0, 280);
+    if (!text) return false;
+    r.host?.({
+      t: 'judge-note',
+      deviceId,
+      text,
+      contestant: payload.contestant === 1 || payload.contestant === 2 ? payload.contestant : null,
+      visibility: payload.visibility === 'public' ? 'public' : 'private'
+    });
+    return true;
+  }
+
   leave(room, deviceId) {
     const r = this.rooms.get(room);
     if (!r) return;
@@ -141,6 +157,8 @@ function attachJudgeHub(httpServer) {
         rooms.toJudge(room, msg.deviceId, msg.msg);
       } else if (role === 'judge' && msg.t === 'scores') {
         rooms.judgeScores(room, deviceId, msg);
+      } else if (role === 'judge' && msg.t === 'note') {
+        rooms.judgeNote(room, deviceId, msg);
       } else if (msg.t === 'ping') {
         send({ t: 'pong' });
       }
