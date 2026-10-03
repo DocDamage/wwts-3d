@@ -27,6 +27,7 @@ import { OverlayPanelManager } from './overlayPanels.js';
 import { CharacterControls } from './characterControls.js';
 import { PadBank } from './padBank.js';
 import { DeckControls } from './deckControls.js';
+import { JudgeLink } from './judgeLink.js';
 
 // ============================================================
 // Initialize all modules
@@ -51,6 +52,7 @@ const announcer = new AnnouncerManager();
 const exporter = new BattleCardExporter();
 const rounds = new RoundManager(scoring, announcer, djController, timer);
 const judges = new JudgeManager(scoring, announcer);
+const judgeLink = new JudgeLink(judges, scoring);
 const storage = new BattleStorageManager();
 const producerReport = new ProducerReportModal();
 const battleEngine = new BattleSessionEngine({
@@ -507,6 +509,22 @@ function updatePickerPreviews() {
   });
 }
 
+/** Small transient notice in the corner (judge joins, submissions…) */
+function showToast(message) {
+  let host = document.getElementById('app-toasts');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'app-toasts';
+    document.body.appendChild(host);
+  }
+  const el = document.createElement('div');
+  el.className = 'app-toast';
+  el.textContent = message;
+  host.appendChild(el);
+  setTimeout(() => el.classList.add('leaving'), 3200);
+  setTimeout(() => el.remove(), 3700);
+}
+
 function broadcastContestants() {
   const c1 = selectedContestant1Id ? roster.getById(selectedContestant1Id) : null;
   const c2 = selectedContestant2Id ? roster.getById(selectedContestant2Id) : null;
@@ -523,6 +541,7 @@ function broadcastContestants() {
 // Set up → Soundcheck → Play A → Review A → Play B → Review B → Lock round → Reveal result → Next round or match
 // ============================================================
 function updateBattleFlowUI() {
+  judgeLink.pushState();
   const chipContestants = document.getElementById('ready-contestants');
   const chipAudio = document.getElementById('ready-audio');
   const chipJudges = document.getElementById('ready-judges');
@@ -1079,13 +1098,21 @@ function checkCrashRecovery() {
           if (sel2) sel2.value = saved.c2Id;
           updateContestantDisplay(2);
         }
-        if (saved.scores1 && saved.scores2) {
+        // Same session id → phones pick their saved cards back up
+        if (saved.sessionId) battleEngine.sessionId = saved.sessionId;
+        if (saved.rounds) rounds.importState(saved.rounds);
+        if (saved.currentRound && saved.currentRound !== rounds.currentRound) {
+          rounds.switchRound(saved.currentRound);
+        }
+        if (saved.judges) {
+          judges.importState(saved.judges);
+          judgeLink.resyncSeats();
+        }
+        if (saved.scores1 && saved.scores2 && judges.mode !== 'panel') {
           scoring.setScores(1, saved.scores1);
           scoring.setScores(2, saved.scores2);
         }
-        if (saved.currentRound) {
-          rounds.switchRound(saved.currentRound);
-        }
+        if (saved.phase && saved.phase !== 'finalized') battleEngine.setPhase(saved.phase);
         if (saved.timestampedNotes) {
           battleEngine.timestampedNotes = saved.timestampedNotes;
           renderTimestampedNotesList();
@@ -1113,6 +1140,10 @@ function autosaveActiveSession() {
     scores1: scoring.scores[1],
     scores2: scoring.scores[2],
     currentRound: rounds.currentRound,
+    rounds: rounds.exportState(),
+    judges: judges.exportState(),
+    sessionId: battleEngine.sessionId,
+    phase: battleEngine.phase,
     timestampedNotes: battleEngine.getTimestampedNotes(),
     isFinalized: false
   });
@@ -1245,26 +1276,50 @@ function init() {
   // Multi-Round Battle Series
   rounds.init();
 
-  // 3-Judge Panel Manager
+  // Judge panel (host-screen seats + phone judges over local Wi-Fi)
   judges.init();
+  rounds.scoreProvider = (round) => judges.getPanelCard(round);
+  judgeLink.stateProvider = () => {
+    const c1 = selectedContestant1Id ? roster.getById(selectedContestant1Id) : null;
+    const c2 = selectedContestant2Id ? roster.getById(selectedContestant2Id) : null;
+    const round = rounds.currentRound;
+    return {
+      battleId: battleEngine.sessionId,
+      contestants: [c1 ? c1.name : 'Contestant 1', c2 ? c2.name : 'Contestant 2'],
+      round,
+      roundLabel: round === 4 ? 'Sudden Death OT' : round === 3 ? 'Final Round' : `Round ${round}`,
+      locked: scoring.locked || ['round_locked', 'finalized'].includes(battleEngine.phase),
+      league: leagues.getActive()?.name
+    };
+  };
+  judgeLink.onScoresUpdated = () => {
+    rounds.updateSeriesTotals();
+    if (radar) radar.update(scoring.scores[1], scoring.scores[2]);
+    updateBattleFlowUI();
+    autosaveActiveSession();
+  };
+  judgeLink.onToast = showToast;
+  // Any phase change (lock, reset, finalize) reaches the phones, however it was triggered
+  const prevPhaseHandler = battleEngine.onPhaseChange;
+  battleEngine.onPhaseChange = (...args) => {
+    prevPhaseHandler?.(...args);
+    judgeLink.pushState();
+  };
+  judgeLink.init();
 
   // Demo Mode Auto-Vary Button
   const autoVaryBtn = document.getElementById('btn-auto-vary-judges');
   autoVaryBtn?.addEventListener('click', () => {
-    judges.autoVary();
+    // judges.init() wires the actual variation; here we only flag the battle as a demo
     battleEngine.setDemoMode(true);
     autoVaryBtn.innerHTML = '🎲 Auto-Vary <span style="font-size:0.68rem; color:#ffaa00;">[DEMO]</span>';
   });
 
   rounds.onRoundChange = (roundNum, isOvertime) => {
     judges.setCurrentRound(roundNum);
-    if (judges.mode === 'panel') {
-      const jData = judges.judgeScores[judges.activeJudge]?.[roundNum];
-      if (jData) {
-        scoring.setScores(1, jData.scores1);
-        scoring.setScores(2, jData.scores2);
-      }
-    }
+    if (judges.mode === 'panel') judges.loadActiveCard();
+    judges.renderUI();
+    judgeLink.pushState();
     if (radar) radar.update(scoring.scores[1], scoring.scores[2]);
     const seriesSummary = rounds.getSeriesSummary();
     postBroadcast('ROUND_UPDATE', {
@@ -1302,6 +1357,8 @@ function init() {
   const presetSelect = document.getElementById('scoring-preset-select');
   const onRulesChanged = () => {
     if (presetSelect) presetSelect.value = scoring.presetId;
+    judges.recomputeTotals();
+    judgeLink.pushState();
     if (radar) radar.update(scoring.scores[1], scoring.scores[2]);
     rounds.updateSeriesTotals();
     updateBattleFlowUI();
@@ -1339,6 +1396,7 @@ function init() {
     scoring.setStep(parseFloat(e.target.value));
     scoring.buildSliders('contestant-1-sliders', 1);
     scoring.buildSliders('contestant-2-sliders', 2);
+    judgeLink.pushState();
   });
 
   // Timestamped Notes

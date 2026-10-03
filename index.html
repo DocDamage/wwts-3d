@@ -306,23 +306,20 @@
             <button type="button" class="judge-mode-btn" data-mode="panel">👥 3-Judge Panel</button>
           </div>
 
-          <div class="judge-selector-group" id="judge-selector-group" style="display:none;">
-            <button type="button" class="judge-tab-btn active" data-judge="1">
-              <span class="judge-indicator j1"></span> Judge 1
-            </button>
-            <button type="button" class="judge-tab-btn" data-judge="2">
-              <span class="judge-indicator j2"></span> Judge 2
-            </button>
-            <button type="button" class="judge-tab-btn" data-judge="3">
-              <span class="judge-indicator j3"></span> Judge 3
-            </button>
-            <button type="button" class="judge-tab-btn consensus" data-judge="consensus" title="View 3-Judge Scorecards & Decision">
-              📊 Consensus
-            </button>
-          </div>
+          <select id="judge-count-select" class="scoring-config-select judge-count-select" title="How many judges" style="display:none;">
+            <option value="1">1 judge</option>
+            <option value="2">2 judges</option>
+            <option value="3" selected>3 judges</option>
+            <option value="4">4 judges</option>
+            <option value="5">5 judges</option>
+          </select>
+          <!-- Judge tabs are rendered by judges.js (one per seat, plus Consensus) -->
+          <div class="judge-selector-group" id="judge-selector-group" style="display:none;"></div>
+
+          <button type="button" id="btn-connect-judges" class="connect-judges-btn" data-status="offline" title="Let judges score from their own phones">📱 Phones</button>
 
           <div class="judge-actions-group">
-            <button type="button" id="btn-auto-vary-judges" class="auto-vary-btn" style="display:none;" title="Simulate realistic diverse scores for Judges 2 & 3 based on Judge 1">
+            <button type="button" id="btn-auto-vary-judges" class="auto-vary-btn" style="display:none;" title="Demo: fill the other on-screen judges with realistic variations of Judge 1">
               🎲 Auto-Vary
             </button>
             <div class="judge-consensus-badge" id="judge-consensus-badge" style="display:none;">
@@ -1165,6 +1162,54 @@
         </div>
         <div class="modal-footer">
           <button class="control-btn primary" data-close="consensus-modal">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CONNECT PHONE JUDGES MODAL ===== -->
+    <div id="judges-connect-modal" class="modal-overlay" style="display:none">
+      <div class="modal-content judges-connect-content">
+        <div class="modal-header">
+          <h2>📱 Judges On Their Phones</h2>
+          <button class="modal-close" data-close="judges-connect-modal">&times;</button>
+        </div>
+        <div class="judges-connect-body">
+          <div class="judge-qr-col">
+            <canvas id="judge-qr-canvas" width="220" height="220"></canvas>
+            <div class="judge-room">ROOM <strong id="judge-room-code">----</strong></div>
+          </div>
+          <div class="judge-info-col">
+            <p class="judge-hub-status" id="judge-hub-status" data-status="offline">● Connecting…</p>
+            <ol class="judge-steps">
+              <li>Judges join the <b>same Wi-Fi</b> as this computer.</li>
+              <li>They scan the QR code with their phone camera.</li>
+              <li>They type their name — they're seated automatically.</li>
+            </ol>
+            <div class="judge-link-row">
+              <code id="judge-link-url"></code>
+              <button type="button" id="btn-copy-judge-link" class="control-btn secondary">Copy</button>
+            </div>
+            <div class="judge-address-row">
+              <label for="judge-address-select">Network</label>
+              <select id="judge-address-select" class="scoring-config-select"></select>
+            </div>
+            <p class="judge-lan-warning" id="judge-lan-warning" hidden></p>
+            <p class="judge-firewall-note">First time only: if Windows asks to let Node.js through the firewall, allow it on <b>private networks</b>.</p>
+          </div>
+        </div>
+        <div class="judge-seats-head">
+          <h3>Judge seats</h3>
+          <select id="modal-judge-count" class="scoring-config-select">
+            <option value="1">1 judge</option>
+            <option value="2">2 judges</option>
+            <option value="3">3 judges</option>
+            <option value="4">4 judges</option>
+            <option value="5">5 judges</option>
+          </select>
+        </div>
+        <div class="judge-seat-list" id="judge-seat-list"></div>
+        <div class="modal-footer">
+          <button class="control-btn primary" data-close="judges-connect-modal">Done</button>
         </div>
       </div>
     </div>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#050507" />
+  <meta name="description" content="Who Want That Smoke — judge scorecard for your phone" />
+  <title>WWTS Judge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/judge.css" />
+</head>
+<body>
+  <header class="j-top">
+    <span class="j-brand">WHO WANT THAT SMOKE</span>
+    <span class="j-conn" id="j-conn" data-status="offline" title="Connection"></span>
+  </header>
+
+  <!-- Join -->
+  <main class="j-screen" id="screen-join">
+    <h1 class="j-title">Judge Scorecard</h1>
+    <p class="j-sub">Score the battle from your phone. Your scores go straight to the host screen.</p>
+    <label class="j-label" for="j-name">Your name</label>
+    <input id="j-name" class="j-input" maxlength="24" autocomplete="nickname" placeholder="e.g. DJ Premier" />
+    <label class="j-label" for="j-room">Room code</label>
+    <input id="j-room" class="j-input j-room-input" maxlength="8" autocapitalize="characters" placeholder="ABCD" />
+    <button id="j-join" class="j-btn primary" type="button">Join the Panel</button>
+    <p class="j-error" id="j-join-error" hidden></p>
+  </main>
+
+  <!-- Waiting -->
+  <main class="j-screen" id="screen-wait" hidden>
+    <div class="j-spinner"></div>
+    <p class="j-wait-text" id="j-wait-text">Connecting to the host…</p>
+  </main>
+
+  <!-- Scoring -->
+  <main class="j-screen j-score-screen" id="screen-score" hidden>
+    <div class="j-seat-row">
+      <span class="j-seat" id="j-seat">JUDGE</span>
+      <span class="j-round" id="j-round">ROUND 1</span>
+      <span class="j-lock" id="j-lock" hidden>🔒 Locked</span>
+    </div>
+
+    <div class="j-tabs" role="tablist">
+      <button type="button" class="j-tab p1 active" data-c="1" role="tab">
+        <span class="j-tab-name" id="j-name-1">Contestant 1</span>
+        <span class="j-tab-total" id="j-total-1">0.00</span>
+      </button>
+      <button type="button" class="j-tab p2" data-c="2" role="tab">
+        <span class="j-tab-name" id="j-name-2">Contestant 2</span>
+        <span class="j-tab-total" id="j-total-2">0.00</span>
+      </button>
+    </div>
+
+    <div class="j-cats" id="j-cats"></div>
+
+    <footer class="j-footer">
+      <p class="j-footer-note" id="j-footer-note"></p>
+      <button id="j-submit" class="j-btn primary" type="button">Submit Round 1</button>
+    </footer>
+  </main>
+
+  <script type="module" src="/src/js/judgeApp.js"></script>
+</body>
+</html>

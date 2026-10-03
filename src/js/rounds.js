@@ -23,6 +23,7 @@ class RoundManager {
     };
 
     this.onRoundChange = null;
+    this.scoreProvider = null; // (round) => { scores1, scores2, total1, total2 } | null
   }
 
   init() {
@@ -56,7 +57,9 @@ class RoundManager {
   }
 
   saveCurrentRoundState() {
-    const snap = this.scoring.getSnapshot();
+    // In panel mode the round score is the judges' average, not whichever card is on screen
+    const provided = typeof this.scoreProvider === 'function' ? this.scoreProvider(this.currentRound) : null;
+    const snap = provided || this.scoring.getSnapshot();
     this.rounds[this.currentRound] = {
       scores1: [...snap.scores1],
       scores2: [...snap.scores2],
@@ -310,6 +313,20 @@ class RoundManager {
       totalRounds: this.totalRounds,
       rounds: this.rounds
     };
+  }
+
+  exportState() {
+    this.saveCurrentRoundState();
+    return { rounds: JSON.parse(JSON.stringify(this.rounds)), totalRounds: this.totalRounds, hasOvertime: this.hasOvertime };
+  }
+
+  importState(saved) {
+    if (!saved?.rounds) return;
+    this.rounds = saved.rounds;
+    this.totalRounds = saved.totalRounds || 3;
+    this.hasOvertime = !!saved.hasOvertime;
+    this.renderTabs();
+    this.updateSeriesTotals();
   }
 
   reset() {

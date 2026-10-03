@@ -202,6 +202,30 @@ class ScoringEngine {
     }
   }
 
+  /** Weighted total (out of 100) for an arbitrary score list under the current rules */
+  totalFor(scoreArray) {
+    let weightedSum = 0;
+    let totalWeight = 0;
+    this.categories.forEach((cat, idx) => {
+      if (!cat.enabled) return;
+      const v = scoreArray?.[idx];
+      const w = cat.weight !== undefined ? cat.weight : 1.0;
+      weightedSum += (typeof v === 'number' && !isNaN(v) ? v : 0) * w;
+      totalWeight += w;
+    });
+    if (totalWeight <= 0) return 0;
+    const total = this.normalizeTo100 ? (10 * weightedSum) / totalWeight : weightedSum;
+    return parseFloat(total.toFixed(2));
+  }
+
+  /** Show another judge's card without letting the host edit it (remote judges) */
+  setReadOnly(readOnly) {
+    this.readOnly = !!readOnly;
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('.score-slider').forEach(s => { s.disabled = this.readOnly || this.locked; });
+    document.querySelectorAll('.contestant-panel').forEach(p => p.classList.toggle('read-only', this.readOnly));
+  }
+
   hasUnscoredCategories(contestantNum) {
     return this.categories.some((cat, idx) => {
       return cat.enabled && this.scores[contestantNum][idx] === null;
@@ -280,8 +304,9 @@ class ScoringEngine {
         valueDisplay.classList.add('unscored');
       }
 
+      slider.disabled = !!(this.readOnly || this.locked);
       slider.addEventListener('input', (e) => {
-        if (this.locked) {
+        if (this.locked || this.readOnly) {
           e.target.value = (this.scores[contestantNum][idx] ?? 0).toString();
           return;
         }

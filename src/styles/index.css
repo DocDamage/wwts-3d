@@ -4377,3 +4377,107 @@ body.stage-only #screen-battle .show-ui-btn {
    transform (that would make it the stage's containing block) — fade only. */
 #screen-battle.active { animation: screenFadeOpacity 0.35s ease; }
 @keyframes screenFadeOpacity { from { opacity: 0; } to { opacity: 1; } }
+
+/* =========================================================
+   PHONE JUDGES — host side
+   ========================================================= */
+.connect-judges-btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+}
+.connect-judges-btn::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.connect-judges-btn[data-status="online"]::after { background: var(--success-green); box-shadow: 0 0 6px var(--success-green); }
+.connect-judges-btn[data-status="connecting"]::after,
+.connect-judges-btn[data-status="offline"]::after { background: var(--ember-amber); }
+.judge-count-select { width: auto; }
+.judge-tab-btn.phone { border-color: rgba(34, 197, 94, 0.5); }
+.judge-tab-btn.phone-off { border-color: rgba(255, 170, 0, 0.5); opacity: 0.75; }
+.contestant-panel.read-only .sliders-container { opacity: 0.85; }
+.contestant-panel.read-only .contestant-header::after {
+  content: '📱 Phone judge — view only';
+  margin-left: auto;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--success-green);
+  white-space: nowrap;
+}
+
+.judges-connect-content { max-width: 720px; width: 100%; }
+.judges-connect-body { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+.judge-info-col { min-width: 0; }
+.judge-qr-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+#judge-qr-canvas { border-radius: 12px; background: #fff; padding: 8px; width: 236px; height: 236px; }
+.judge-room { font-family: 'Orbitron', monospace; font-size: 0.8rem; color: var(--text-secondary); letter-spacing: 0.1em; }
+.judge-room strong { color: var(--ember-amber); font-size: 1.2rem; }
+.judge-hub-status { font-size: 0.8rem; font-weight: 700; color: var(--ember-amber); margin-bottom: 8px; }
+.judge-hub-status[data-status="online"] { color: var(--success-green); }
+.judge-hub-status[data-status="unavailable"] { color: var(--danger-red); }
+.judge-steps { margin: 0 0 12px 18px; font-size: 0.82rem; color: var(--text-secondary); line-height: 1.7; }
+.judge-link-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.judge-link-row code {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+  color: var(--neon-cyan);
+}
+.judge-link-row .control-btn { width: auto; }
+.judge-address-row { display: flex; gap: 8px; align-items: center; font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px; }
+.judge-address-row select { flex: 1; }
+.judge-lan-warning { font-size: 0.76rem; color: var(--danger-red); margin: 6px 0; }
+.judge-firewall-note { font-size: 0.7rem; color: var(--text-muted); }
+.judge-seats-head { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 8px; }
+.judge-seats-head h3 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.1em; font-size: 1.1rem; }
+.judge-seats-head select { width: auto; }
+.judge-seat-list { display: flex; flex-direction: column; gap: 6px; }
+.judge-seat-row { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 8px; align-items: center; }
+.judge-seat-row .seat-num { font-family: 'Orbitron', monospace; font-weight: 900; color: var(--ember-amber); }
+.judge-seat-row .seat-name { padding: 5px 8px; }
+.judge-seat-row .seat-kind { font-size: 0.72rem; white-space: nowrap; color: var(--text-secondary); }
+.judge-seat-row .seat-kind.on { color: var(--success-green); }
+.judge-seat-row .seat-kind.off { color: var(--ember-amber); }
+.judge-seat-row .control-btn { width: auto; padding: 5px 10px; }
+@media (max-width: 720px) { .judges-connect-body { grid-template-columns: 1fr; } }
+
+#app-toasts { position: fixed; right: 16px; bottom: 70px; z-index: 80; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; pointer-events: none; }
+.app-toast {
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(10, 10, 14, 0.94);
+  border: 1px solid var(--border-ember);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  animation: toastIn 0.2s ease-out;
+  transition: opacity 0.5s, transform 0.5s;
+}
+.app-toast.leaving { opacity: 0; transform: translateY(6px); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(8px); } }
+
+/* Meta row: rounds on one line, the (now larger) judge bar wraps beside or below it */
+.battle-meta-row { flex-wrap: wrap; row-gap: 4px; }
+.battle-meta-row .round-series-bar { flex: 1 1 540px; min-width: 540px; flex-wrap: nowrap; }
+.battle-meta-row .round-series-bar .round-tabs-center { flex-wrap: nowrap; white-space: nowrap; }
+.battle-meta-row .judge-panel-bar { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.battle-meta-row .judge-panel-bar .judge-selector-group { flex-wrap: wrap; gap: 4px; }
+.battle-meta-row .judge-actions-group { display: flex; align-items: center; gap: 6px; }

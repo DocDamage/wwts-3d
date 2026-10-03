@@ -28,10 +28,15 @@ class BattleSessionEngine {
     this.activeContestant = 1; // 1 or 2
     this.isDemoMode = false;
     this.timestampedNotes = [];
+    this.sessionId = BattleSessionEngine.newSessionId(); // changes on every reset
 
     this.onPhaseChange = null;
     this.onFinalize = null;
     this.onReset = null;
+  }
+
+  static newSessionId() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   }
 
   setDependencies(deps) {
@@ -389,6 +394,7 @@ class BattleSessionEngine {
    * Ensures no previous match state carries forward.
    */
   resetBattleSession() {
+    this.sessionId = BattleSessionEngine.newSessionId();
     this.isFinalized = false;
     this.finalizedResult = null;
     this.timestampedNotes = [];
