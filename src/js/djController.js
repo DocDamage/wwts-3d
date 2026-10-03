@@ -2122,6 +2122,7 @@ class DJControllerRenderer {
     const input = cState.fighting ? null : this.getDriveInput(p);
     const rig = this.rigs[p];
     const turning = elapsed < (cState.turnUntil || 0);
+    if (cState.state !== 'WALKING' || input) cState.backpedal = false;
     let moveSpeed = 0;
     let runAmount = 0;
     if (cState.fighting) {
@@ -2168,7 +2169,7 @@ class DJControllerRenderer {
       const dz = cState.targetPos.z - char.position.z;
       const dist = Math.hypot(dx, dz);
       if (dist > 0.06) {
-        const speed = cState.run ? RUN_SPEED : WALK_SPEED;
+        const speed = cState.backpedal ? 1.1 : (cState.run ? RUN_SPEED : WALK_SPEED);
         const step = Math.min(dist, speed * delta);
         const next = { x: char.position.x + (dx / dist) * step, z: char.position.z + (dz / dist) * step };
         this.applyCharacterSeparation(p, next);
@@ -2176,10 +2177,14 @@ class DJControllerRenderer {
         char.position.z = next.z;
         const want = Math.atan2(dx, dz);
         const diff = wrapAngle(want - cState.facing);
-        if (!turning && !(Math.abs(diff) > 2.3 && this.startTurn(p, diff, true, cState.run ? 1 : 0))) {
+        // A short step back: back-pedal, keep facing forward
+        cState.backpedal = Math.abs(diff) > 2.4 && dist < 1.3 && !(cState.path && cState.path.length) && !!rig && rig.ready('mx_walk_back');
+        if (cState.backpedal) {
+          moveSpeed = Math.min(speed, 1.1);
+        } else if (!turning && !(Math.abs(diff) > 2.3 && this.startTurn(p, diff, true, cState.run ? 1 : 0))) {
           cState.facing = turnToward(cState.facing, want, delta * 8);
         }
-        moveSpeed = speed;
+        if (!cState.backpedal) moveSpeed = speed;
         runAmount = cState.run ? 1 : 0;
       } else if (cState.path && cState.path.length) {
         const next = cState.path.shift();
@@ -2206,7 +2211,22 @@ class DJControllerRenderer {
     if (moveSpeed > 0) cState.walkPhase += delta * moveSpeed * 4.6;
     const mocapWalk = rig && rig.ready('mx_walk');
     if (cState.moveW > 0.01 && !mocapWalk) walkCycle(anim, cState.walkPhase, cState.runW, cState.moveW);
-    if (rig) rig.setLocomotion(moveSpeed * cState.moveW, cState.runW);
+    if (rig) {
+      rig.setLocomotion(moveSpeed * cState.moveW, cState.runW, { back: cState.backpedal && moveSpeed > 0 ? 1 : 0 });
+      const moving = moveSpeed > 0;
+      if (!cState.fighting && mocapWalk && !cState.emote && !turning && !cState.backpedal) {
+        if (moving && !cState.wasMoving && cState.runW < 0.5 && rig.ready('mx_walk_start')) {
+          // First steps: lean in and push off, then the walk cycle takes over
+          rig.play('mx_walk_start', { from: 0.15, to: 0.95, rootMotion: false, fadeIn: 0.1, fadeOut: 0.3, timeScale: 1.25 });
+        } else if (!moving && cState.wasMoving && cState.lastMoveSpeed > 0.5) {
+          const fromRun = cState.lastRunW > 0.5;
+          const id = fromRun ? 'mx_run_stop' : 'mx_walk_stop';
+          if (rig.ready(id)) rig.play(id, fromRun ? { from: 0.25, rootMotion: false, fadeIn: 0.1, fadeOut: 0.35 } : { from: 1.75, rootMotion: false, fadeIn: 0.12, fadeOut: 0.4 });
+        }
+      }
+      cState.wasMoving = moving;
+      if (moving) { cState.lastMoveSpeed = moveSpeed; cState.lastRunW = cState.runW; }
+    }
 
     const stationW = cState.state === 'DJ_SCRATCHING' ? 1 : 0;
     cState.stationW = (cState.stationW || 0) + (stationW - (cState.stationW || 0)) * Math.min(1, delta * 5);
