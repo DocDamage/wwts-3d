@@ -199,7 +199,7 @@
               <span class="stat-label">Losses</span>
             </div>
             <div class="stat-card">
-              <span class="stat-val" id="profile-avg">0.0</span>
+              <span class="stat-val" id="profile-avg">0.00</span>
               <span class="stat-label">Avg Score</span>
             </div>
             <div class="stat-card">
@@ -220,11 +220,7 @@
     <!-- ============================================================
          SCREEN: BATTLE ARENA
          ============================================================ -->
-    <section id="screen-battle" class="app-screen">
-      <div class="screen-header">
-        <h2 id="battle-league-title">Battle Arena</h2>
-      </div>
-
+    <section id="screen-battle" class="app-screen battle-sketch">
       <!-- Crash Recovery Banner -->
       <div id="session-recovery-banner" class="session-recovery-banner" style="display:none;">
         <div class="recovery-info">
@@ -240,40 +236,142 @@
         </div>
       </div>
 
-      <!-- Host Battle Flow & Readiness Desk -->
-      <div class="host-battle-flow-bar" id="host-battle-flow-bar">
-        <div class="flow-readiness-checklist">
-          <div class="readiness-chip" id="ready-contestants">
-            <span class="chip-dot"></span> <span>Contestants</span>
+      <!-- Title row (sketch: big red "Who Want That Smoke") + host flow desk -->
+      <div class="wwts-topbar">
+        <h2 class="wwts-title" id="battle-league-title">Who Want That Smoke</h2>
+        <!-- Host Battle Flow & Readiness Desk -->
+        <div class="host-battle-flow-bar" id="host-battle-flow-bar">
+          <div class="flow-readiness-checklist">
+            <div class="readiness-chip" id="ready-contestants">
+              <span class="chip-dot"></span> <span>Contestants</span>
+            </div>
+            <div class="readiness-chip" id="ready-audio">
+              <span class="chip-dot"></span> <span>Beats Loaded</span>
+            </div>
+            <div class="readiness-chip" id="ready-judges">
+              <span class="chip-dot"></span> <span>Judges Ready</span>
+            </div>
+            <div class="readiness-chip" id="ready-preset">
+              <span class="chip-dot"></span> <span id="ready-preset-name">Classic 10</span>
+            </div>
           </div>
-          <div class="readiness-chip" id="ready-audio">
-            <span class="chip-dot"></span> <span>Beats Loaded</span>
+          <div class="flow-primary-action-wrap">
+            <button type="button" id="btn-primary-flow" class="flow-primary-btn">
+              <span class="flow-step-icon">▶</span>
+              <span id="flow-primary-label">Start Soundcheck</span>
+            </button>
           </div>
-          <div class="readiness-chip" id="ready-judges">
-            <span class="chip-dot"></span> <span>Judges Ready</span>
+          <div class="flow-quick-controls">
+            <button type="button" id="btn-flow-pause-all" class="flow-action-btn" title="Pause all contestant decks and audio immediately">⏸ Pause All</button>
+            <button type="button" id="btn-flow-stop-all" class="flow-action-btn" title="Stop listening period and reset cue">⏹ Stop Beat</button>
+            <button type="button" id="btn-flow-lock-round" class="flow-action-btn primary" title="Lock scorecards for current round">🔒 Lock Round</button>
           </div>
-          <div class="readiness-chip" id="ready-preset">
-            <span class="chip-dot"></span> <span id="ready-preset-name">Classic 10</span>
-          </div>
-        </div>
-        <div class="flow-primary-action-wrap">
-          <button type="button" id="btn-primary-flow" class="flow-primary-btn">
-            <span class="flow-step-icon">▶</span>
-            <span id="flow-primary-label">Start Soundcheck</span>
-          </button>
-        </div>
-        <div class="flow-quick-controls">
-          <button type="button" id="btn-flow-pause-all" class="flow-action-btn" title="Pause all contestant decks and audio immediately">⏸ Pause All</button>
-          <button type="button" id="btn-flow-stop-all" class="flow-action-btn" title="Stop listening period and reset cue">⏹ Stop Beat</button>
-          <button type="button" id="btn-flow-lock-round" class="flow-action-btn primary" title="Lock scorecards for current round">🔒 Lock Round</button>
         </div>
       </div>
 
-      <!-- Contestant Pickers -->
-      <div class="battle-pickers">
-        <div class="picker-group">
-          <div class="picker-label-row">
-            <label for="pick-contestant-1">Contestant 1</label>
+      <!-- Series rounds + judges, compact -->
+      <div class="battle-meta-row">
+        <!-- Round Navigation Bar (Best of 3 Battle Series) -->
+        <div class="round-series-bar">
+          <div class="series-tally-box p1">
+            <span class="series-name" id="series-name-1">C1</span>
+            <span class="series-rounds-badge" id="series-rounds-1">0 W</span>
+            <span class="series-score" id="series-total-1">0.00</span>
+          </div>
+
+          <div class="round-tabs-center">
+            <span class="round-bar-label">SERIES:</span>
+            <button type="button" class="round-tab-btn active" data-round="1">🥊 Round 1</button>
+            <button type="button" class="round-tab-btn" data-round="2">🥊 Round 2</button>
+            <button type="button" class="round-tab-btn" data-round="3">🏆 Final Round</button>
+            <button type="button" class="round-tab-btn ot-round-btn" id="btn-ot-round" data-round="4" style="display:none;">⚡ Sudden Death OT</button>
+            <button type="button" id="btn-next-round" class="round-next-btn" title="Save current round and advance to next round">Next ⏩</button>
+            <button type="button" id="btn-trigger-ot" class="trigger-ot-btn" title="Trigger 60s Overtime Sudden Death Round">⚡ OT</button>
+          </div>
+
+          <div class="series-tally-box p2">
+            <span class="series-score" id="series-total-2">0.00</span>
+            <span class="series-rounds-badge" id="series-rounds-2">0 W</span>
+            <span class="series-name" id="series-name-2">C2</span>
+          </div>
+        </div>
+
+        <!-- 3-Judge Panel Bar -->
+        <div class="judge-panel-bar" id="judge-panel-bar">
+          <div class="judge-mode-toggle">
+            <button type="button" class="judge-mode-btn active" data-mode="solo">👤 Solo Judge</button>
+            <button type="button" class="judge-mode-btn" data-mode="panel">👥 3-Judge Panel</button>
+          </div>
+
+          <div class="judge-selector-group" id="judge-selector-group" style="display:none;">
+            <button type="button" class="judge-tab-btn active" data-judge="1">
+              <span class="judge-indicator j1"></span> Judge 1
+            </button>
+            <button type="button" class="judge-tab-btn" data-judge="2">
+              <span class="judge-indicator j2"></span> Judge 2
+            </button>
+            <button type="button" class="judge-tab-btn" data-judge="3">
+              <span class="judge-indicator j3"></span> Judge 3
+            </button>
+            <button type="button" class="judge-tab-btn consensus" data-judge="consensus" title="View 3-Judge Scorecards & Decision">
+              📊 Consensus
+            </button>
+          </div>
+
+          <div class="judge-actions-group">
+            <button type="button" id="btn-auto-vary-judges" class="auto-vary-btn" style="display:none;" title="Simulate realistic diverse scores for Judges 2 & 3 based on Judge 1">
+              🎲 Auto-Vary
+            </button>
+            <div class="judge-consensus-badge" id="judge-consensus-badge" style="display:none;">
+              <span class="consensus-type">UNANIMOUS</span>
+              <span class="consensus-tally">0 - 0</span>
+            </div>
+          </div>
+        </div>
+        <!-- Scoring Engine Config Pills -->
+        <div class="scoring-config-pill-bar">
+          <div class="sc-group">
+            <label for="scoring-preset-select">Preset:</label>
+            <select id="scoring-preset-select" class="scoring-config-select">
+              <option value="classic10">Classic 10</option>
+              <option value="core5">Core 5 (Quick)</option>
+              <option value="boombap">Boom-Bap Focus</option>
+              <option value="trap808">Trap / 808 Focus</option>
+              <option value="custom" disabled>Custom</option>
+            </select>
+          </div>
+          <div class="sc-group">
+            <label for="scoring-step-select">Step:</label>
+            <select id="scoring-step-select" class="scoring-config-select">
+              <option value="0.1">0.1</option>
+              <option value="0.25">0.25</option>
+              <option value="0.5">0.5</option>
+            </select>
+          </div>
+          <button type="button" id="btn-edit-weights" class="scoring-config-select weights-btn" title="Turn categories on/off and adjust their weights">⚖️ Weights</button>
+          <div id="weights-popover" class="weights-popover" hidden>
+            <div class="weights-popover-head">
+              <span>Category Weights</span>
+              <button type="button" id="btn-weights-reset" class="weights-reset-btn">Reset to Classic 10</button>
+            </div>
+            <div id="weights-editor-list" class="weights-editor-list"></div>
+            <p class="weights-hint">Totals stay out of 100: each score is weighted, then normalized across enabled categories.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Scoring Grid (sketch: C1 | center | C2) -->
+      <div id="scoring-area">
+        <section id="contestant-1-panel" class="contestant-panel p1">
+          <div class="contestant-header">
+            <div class="contestant-badge">1</div>
+            <span class="contestant-display-name" id="contestant-1-display">Contestant 1</span>
+            <div class="picker-preview" id="picker-preview-1"></div>
+          </div>
+          <div class="contestant-pick-row">
+            <select id="pick-contestant-1" class="picker-select">
+              <option value="">— Select —</option>
+            </select>
             <div class="avatar-toggle-pills" data-player="1">
               <button type="button" class="avatar-btn active" data-player="1" data-avatar="black_male" title="Black Male Avatar">
                 <span>🏾👨</span> B-Male
@@ -289,15 +387,62 @@
               </button>
             </div>
           </div>
-          <select id="pick-contestant-1" class="picker-select">
-            <option value="">— Select —</option>
-          </select>
-          <div class="picker-preview" id="picker-preview-1"></div>
-        </div>
-        <div class="picker-vs">VS</div>
-        <div class="picker-group">
-          <div class="picker-label-row">
-            <label for="pick-contestant-2">Contestant 2</label>
+          <div class="sliders-container" id="contestant-1-sliders"></div>
+        </section>
+
+        <!-- Center Controls (sketch: Submit, Reset, record, 3:00 timer, Tournament) -->
+        <section id="center-controls">
+          <button id="btn-submit" class="control-btn primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Submit
+          </button>
+          <button id="btn-reset" class="control-btn secondary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+            Reset
+          </button>
+          <!-- Spinning record: spins while a beat plays, tinted by the active deck -->
+          <div id="speaker-icon" class="center-record" title="Now playing">
+            <div class="record-disc"><div class="record-label"><span class="record-spindle"></span></div></div>
+          </div>
+          <!-- Timer: one timer per round; follows the deck, single reset button -->
+          <div id="timer-display" class="timer-container">
+            <div class="timer-value" id="timer-value">3:00</div>
+            <div class="timer-controls">
+              <button id="btn-timer-play" class="timer-btn" title="Play/Pause (follows the deck)" hidden>
+                <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <svg id="icon-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+              </button>
+              <button id="btn-timer-stop" class="timer-btn timer-reset-btn" title="Reset timer to full round time">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                Reset
+              </button>
+            </div>
+          </div>
+          <button id="btn-tournament" class="control-btn tournament">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            Tournament
+          </button>
+          <div class="center-mini-row">
+            <button id="btn-export-card" class="control-btn export-card-btn" type="button" title="Export official 1080x1080 Battle Card PNG for Social Media">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export Card
+            </button>
+            <button id="btn-view-report" class="control-btn secondary" type="button" style="display:none;" title="Open Certified Post-Battle Producer Report">
+              📊 Producer Report
+            </button>
+          </div>
+        </section>
+
+        <section id="contestant-2-panel" class="contestant-panel p2">
+          <div class="contestant-header">
+            <div class="contestant-badge">2</div>
+            <span class="contestant-display-name" id="contestant-2-display">Contestant 2</span>
+            <div class="picker-preview" id="picker-preview-2"></div>
+          </div>
+          <div class="contestant-pick-row">
+            <select id="pick-contestant-2" class="picker-select">
+              <option value="">— Select —</option>
+            </select>
             <div class="avatar-toggle-pills" data-player="2">
               <button type="button" class="avatar-btn" data-player="2" data-avatar="black_male" title="Black Male Avatar">
                 <span>🏾👨</span> B-Male
@@ -313,10 +458,33 @@
               </button>
             </div>
           </div>
-          <select id="pick-contestant-2" class="picker-select">
-            <option value="">— Select —</option>
-          </select>
-          <div class="picker-preview" id="picker-preview-2"></div>
+          <div class="sliders-container" id="contestant-2-sliders"></div>
+        </section>
+      </div>
+
+      <!-- Totals + tabs row (sketch: 50.00 | Achievements & History | Battle Notes | 50.00) -->
+      <div class="sketch-totals-row">
+        <div class="total-score-container p1">
+          <span class="total-label">C1 TOTAL</span>
+          <span class="total-value" id="contestant-1-total">0.00</span>
+        </div>
+        <nav id="bottom-nav">
+          <button class="nav-tab" data-tab="history">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+            <span>Achievements &amp; History</span>
+          </button>
+          <button class="nav-tab" data-tab="notes">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Battle Notes</span>
+          </button>
+          <button class="nav-tab" data-tab="h2h">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 9 18 21 6 21 2 9"/></svg>
+            <span>Head-to-Head</span>
+          </button>
+        </nav>
+        <div class="total-score-container p2">
+          <span class="total-label">C2 TOTAL</span>
+          <span class="total-value" id="contestant-2-total">0.00</span>
         </div>
       </div>
 
@@ -368,293 +536,104 @@
 
         <div id="dj-canvas-container">
           <canvas id="dj-canvas"></canvas>
-        </div>
+          <div class="stage-bottom-bar">
+            <div class="stage-char-controls left" id="controls-p1">
+              <span class="char-ctrl-label" id="ctrl-label-1">C1:</span>
+              <button type="button" class="stage-action-btn" data-player="1" data-action="deck" title="Send Contestant 1 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
+              <button type="button" class="stage-action-btn active" data-player="1" data-action="hype" title="Walk Contestant 1 to Side Stage">🚶 Side Stage</button>
+              <button type="button" class="stage-action-btn" data-player="1" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
+            </div>
 
-        <div class="stage-bottom-bar">
-          <div class="stage-char-controls left" id="controls-p1">
-            <span class="char-ctrl-label" id="ctrl-label-1">C1:</span>
-            <button type="button" class="stage-action-btn" data-player="1" data-action="deck" title="Send Contestant 1 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
-            <button type="button" class="stage-action-btn active" data-player="1" data-action="hype" title="Walk Contestant 1 to Side Stage">🚶 Side Stage</button>
-            <button type="button" class="stage-action-btn" data-player="1" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
-          </div>
+            <div class="stage-tip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              Click stage floor to walk • Playing beats sends DJ to console to scratch &amp; mix
+            </div>
 
-          <div class="stage-tip">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-            Click stage floor to walk • Playing beats sends DJ to console to scratch &amp; mix
-          </div>
-
-          <div class="stage-char-controls right" id="controls-p2">
-            <span class="char-ctrl-label" id="ctrl-label-2">C2:</span>
-            <button type="button" class="stage-action-btn" data-player="2" data-action="deck" title="Send Contestant 2 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
-            <button type="button" class="stage-action-btn active" data-player="2" data-action="hype" title="Walk Contestant 2 to Side Stage">🚶 Side Stage</button>
-            <button type="button" class="stage-action-btn" data-player="2" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
-          </div>
-        </div>
-
-        <div id="dj-loading" class="dj-loading-overlay">
-          <div class="loading-spinner"></div>
-          <span id="dj-loading-text">Loading 3D Soundstage &amp; Contestants...</span>
-        </div>
-      </section>
-
-      <!-- Round Navigation Bar (Best of 3 Battle Series) -->
-      <div class="round-series-bar">
-        <div class="series-tally-box p1">
-          <span class="series-name" id="series-name-1">C1</span>
-          <span class="series-rounds-badge" id="series-rounds-1">0 W</span>
-          <span class="series-score" id="series-total-1">0.0</span>
-        </div>
-
-        <div class="round-tabs-center">
-          <span class="round-bar-label">SERIES:</span>
-          <button type="button" class="round-tab-btn active" data-round="1">🥊 Round 1</button>
-          <button type="button" class="round-tab-btn" data-round="2">🥊 Round 2</button>
-          <button type="button" class="round-tab-btn" data-round="3">🏆 Final Round</button>
-          <button type="button" class="round-tab-btn ot-round-btn" id="btn-ot-round" data-round="4" style="display:none;">⚡ Sudden Death OT</button>
-          <button type="button" id="btn-next-round" class="round-next-btn" title="Save current round and advance to next round">Next ⏩</button>
-          <button type="button" id="btn-trigger-ot" class="trigger-ot-btn" title="Trigger 60s Overtime Sudden Death Round">⚡ OT</button>
-        </div>
-
-        <div class="series-tally-box p2">
-          <span class="series-score" id="series-total-2">0.0</span>
-          <span class="series-rounds-badge" id="series-rounds-2">0 W</span>
-          <span class="series-name" id="series-name-2">C2</span>
-        </div>
-      </div>
-
-      <!-- 3-Judge Panel Bar -->
-      <div class="judge-panel-bar" id="judge-panel-bar">
-        <div class="judge-mode-toggle">
-          <button type="button" class="judge-mode-btn active" data-mode="solo">👤 Solo Judge</button>
-          <button type="button" class="judge-mode-btn" data-mode="panel">👥 3-Judge Panel</button>
-        </div>
-
-        <div class="judge-selector-group" id="judge-selector-group" style="display:none;">
-          <button type="button" class="judge-tab-btn active" data-judge="1">
-            <span class="judge-indicator j1"></span> Judge 1
-          </button>
-          <button type="button" class="judge-tab-btn" data-judge="2">
-            <span class="judge-indicator j2"></span> Judge 2
-          </button>
-          <button type="button" class="judge-tab-btn" data-judge="3">
-            <span class="judge-indicator j3"></span> Judge 3
-          </button>
-          <button type="button" class="judge-tab-btn consensus" data-judge="consensus" title="View 3-Judge Scorecards & Decision">
-            📊 Consensus
-          </button>
-        </div>
-
-        <div class="judge-actions-group">
-          <button type="button" id="btn-auto-vary-judges" class="auto-vary-btn" style="display:none;" title="Simulate realistic diverse scores for Judges 2 & 3 based on Judge 1">
-            🎲 Auto-Vary
-          </button>
-          <div class="judge-consensus-badge" id="judge-consensus-badge" style="display:none;">
-            <span class="consensus-type">UNANIMOUS</span>
-            <span class="consensus-tally">0 - 0</span>
+            <div class="stage-char-controls right" id="controls-p2">
+              <span class="char-ctrl-label" id="ctrl-label-2">C2:</span>
+              <button type="button" class="stage-action-btn" data-player="2" data-action="deck" title="Send Contestant 2 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
+              <button type="button" class="stage-action-btn active" data-player="2" data-action="hype" title="Walk Contestant 2 to Side Stage">🚶 Side Stage</button>
+              <button type="button" class="stage-action-btn" data-player="2" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Main Scoring Grid -->
-      <div id="scoring-area">
-        <!-- Contestant 1 Panel -->
-        <section id="contestant-1-panel" class="contestant-panel">
-          <div class="contestant-header">
-            <span class="contestant-display-name" id="contestant-1-display">Contestant 1</span>
-            <div class="contestant-badge">1</div>
-          </div>
-          <div class="sliders-container" id="contestant-1-sliders"></div>
-          <div class="total-score-container">
-            <span class="total-label">TOTAL</span>
-            <span class="total-value" id="contestant-1-total">0.0</span>
-          </div>
-        </section>
-
-        <!-- Center Controls -->
-        <section id="center-controls">
-          <button id="btn-submit" class="control-btn primary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Finalize Match
-          </button>
-          <button id="btn-reset" class="control-btn secondary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-            Reset
-          </button>
-          <button id="btn-export-card" class="control-btn export-card-btn" type="button" title="Export official 1080x1080 Battle Card PNG for Social Media">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export Card
-          </button>
-          <button id="btn-view-report" class="control-btn secondary" type="button" style="display:none;" title="Open Certified Post-Battle Producer Report">
-            📊 Producer Report
-          </button>
-
-          <!-- Scoring Engine Config Pills -->
-          <div class="scoring-config-pill-bar">
-            <div class="sc-group">
-              <label for="scoring-preset-select">Preset:</label>
-              <select id="scoring-preset-select" class="scoring-config-select">
-                <option value="classic10">Classic 10</option>
-                <option value="core5">Core 5 (Quick)</option>
-                <option value="boombap">Boom-Bap Focus</option>
-                <option value="trap808">Trap / 808 Focus</option>
+        <!-- Deck strip: load each contestant's beat, soundboard pads, crossfader -->
+        <div class="stage-deck-strip">
+          <div class="audio-player-slot" id="audio-slot-1">
+            <div class="audio-slot-label">🎵 P1 Audio</div>
+            <div class="audio-input-row">
+              <label class="audio-file-btn" title="Upload audio file">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <input type="file" class="audio-file-input" data-player="1" accept="audio/*" hidden />
+              </label>
+              <select class="preset-beat-select" data-player="1" title="Select battle beat preset">
+                <option value="">⚡ Presets...</option>
+                <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
+                <option value="trap808">💣 Trap 808 (140 BPM)</option>
+                <option value="gfunk">🌴 West Coast (98 BPM)</option>
+                <option value="drill">⚔️ Drill (142 BPM)</option>
               </select>
+              <input type="text" class="audio-url-input" data-player="1" placeholder="Or paste URL..." />
+              <button class="audio-load-btn" data-player="1" title="Load URL">↵</button>
+              <button type="button" class="audio-scratch-btn" data-player="1" title="Trigger vinyl scratch">🎛️</button>
             </div>
-            <div class="sc-group">
-              <label for="scoring-step-select">Step:</label>
-              <select id="scoring-step-select" class="scoring-config-select">
-                <option value="0.1">0.1</option>
-                <option value="0.25">0.25</option>
-                <option value="0.5">0.5</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Timestamped Feedback Notes -->
-          <div class="timestamp-notes-panel">
-            <div class="ts-input-wrap">
-              <input type="text" id="input-timestamp-note" placeholder="0:42 — strong switch-up..." class="ts-note-input" />
-              <button type="button" id="btn-add-timestamp-note" class="ts-add-btn" title="Add timestamped note">⏱️ Note</button>
-            </div>
-            <div id="active-timestamp-notes-list" class="ts-notes-mini-list"></div>
-          </div>
-
-          <!-- DJ Battle Soundboard -->
-          <div class="dj-soundboard" id="dj-soundboard">
-            <div class="soundboard-header">
-              <span class="soundboard-title">⚡ DJ SOUNDBOARD</span>
-              <div class="soundboard-vol-wrap">
-                <span class="soundboard-vol-label">VOL</span>
-                <input type="range" id="soundboard-volume" min="0" max="1" step="0.05" value="0.85" title="Soundboard Volume" />
-              </div>
-            </div>
-            <div class="soundboard-grid">
-              <button type="button" class="soundboard-pad pad-airhorn" data-sound="airhorn" title="Air Horn (HotKey: 1)">
-                <span class="pad-icon">📢</span>
-                <span class="pad-label">HORN</span>
-                <span class="pad-key">1</span>
+            <div class="audio-controls" data-player="1">
+              <button class="audio-play-btn" data-player="1" title="Play" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               </button>
-              <button type="button" class="soundboard-pad pad-bell" data-sound="bell" title="Round Bell (HotKey: 2)">
-                <span class="pad-icon">🔔</span>
-                <span class="pad-label">BELL</span>
-                <span class="pad-key">2</span>
-              </button>
-              <button type="button" class="soundboard-pad pad-react" data-sound="crowd_react" title="Crowd Oohs &amp; Aahhs (HotKey: 3)">
-                <span class="pad-icon">😲</span>
-                <span class="pad-label">REACT</span>
-                <span class="pad-key">3</span>
-              </button>
-              <button type="button" class="soundboard-pad pad-cheer" data-sound="crowd_cheer" title="Crowd Cheer &amp; Hype (HotKey: 4)">
-                <span class="pad-icon">👏</span>
-                <span class="pad-label">CHEER</span>
-                <span class="pad-key">4</span>
-              </button>
-              <button type="button" class="soundboard-pad pad-drop" data-sound="needle_drop" title="Vinyl Needle Drop (HotKey: 5)">
-                <span class="pad-icon">🎚️</span>
-                <span class="pad-label">DROP</span>
-                <span class="pad-key">5</span>
-              </button>
-              <button type="button" class="soundboard-pad pad-stop" data-sound="needle_stop" title="Vinyl Stop Scratch (HotKey: 6)">
-                <span class="pad-icon">🛑</span>
-                <span class="pad-label">STOP</span>
-                <span class="pad-key">6</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Live Head-to-Head Score Radar Chart -->
-          <div class="score-radar-card" id="score-radar-container">
-            <div class="radar-header">
-              <span class="radar-title">📊 HEAD-TO-HEAD RADAR</span>
-              <div class="radar-legend">
-                <span class="legend-item"><span class="legend-dot p1"></span> C1</span>
-                <span class="legend-item"><span class="legend-dot p2"></span> C2</span>
-              </div>
-            </div>
-            <div class="radar-canvas-wrap">
-              <canvas id="score-radar-canvas" width="280" height="240"></canvas>
-            </div>
-          </div>
-          <div id="speaker-icon" style="display:none"></div>
-
-          <!-- Timer -->
-          <div id="timer-display" class="timer-container">
-            <div class="timer-value" id="timer-value">3:00</div>
-            <div class="timer-controls">
-              <button id="btn-timer-play" class="timer-btn" title="Play/Pause">
-                <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                <svg id="icon-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-              </button>
-              <button id="btn-timer-stop" class="timer-btn" title="Stop">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Audio Players -->
-          <div class="audio-section">
-            <div class="audio-player-slot" id="audio-slot-1">
-              <div class="audio-slot-label">🎵 P1 Audio</div>
-              <div class="audio-input-row">
-                <label class="audio-file-btn" title="Upload audio file">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  <input type="file" class="audio-file-input" data-player="1" accept="audio/*" hidden />
-                </label>
-                <select class="preset-beat-select" data-player="1" title="Select battle beat preset">
-                  <option value="">⚡ Presets...</option>
-                  <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
-                  <option value="trap808">💣 Trap 808 (140 BPM)</option>
-                  <option value="gfunk">🌴 West Coast (98 BPM)</option>
-                  <option value="drill">⚔️ Drill (142 BPM)</option>
-                </select>
-                <input type="text" class="audio-url-input" data-player="1" placeholder="Or paste URL..." />
-                <button class="audio-load-btn" data-player="1" title="Load URL">↵</button>
-                <button type="button" class="audio-scratch-btn" data-player="1" title="Trigger vinyl scratch">🎛️</button>
-              </div>
-              <div class="audio-controls" data-player="1">
-                <button class="audio-play-btn" data-player="1" title="Play" disabled>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                </button>
-                <div class="audio-progress-wrap">
-                  <div class="audio-progress-bar" data-player="1">
-                    <div class="audio-progress-fill" data-player="1"></div>
-                  </div>
-                  <span class="audio-time" data-player="1">0:00 / 0:00</span>
+              <div class="audio-progress-wrap">
+                <div class="audio-progress-bar" data-player="1">
+                  <div class="audio-progress-fill" data-player="1"></div>
                 </div>
-                <input type="range" class="audio-volume" data-player="1" min="0" max="1" step="0.05" value="0.8" title="Volume" />
+                <span class="audio-time" data-player="1">0:00 / 0:00</span>
               </div>
+              <input type="range" class="audio-volume" data-player="1" min="0" max="1" step="0.05" value="0.8" title="Volume" />
             </div>
-            <div class="audio-player-slot" id="audio-slot-2">
-              <div class="audio-slot-label">🎵 P2 Audio</div>
-              <div class="audio-input-row">
-                <label class="audio-file-btn" title="Upload audio file">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  <input type="file" class="audio-file-input" data-player="2" accept="audio/*" hidden />
-                </label>
-                <select class="preset-beat-select" data-player="2" title="Select battle beat preset">
-                  <option value="">⚡ Presets...</option>
-                  <option value="trap808">💣 Trap 808 (140 BPM)</option>
-                  <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
-                  <option value="drill">⚔️ Drill (142 BPM)</option>
-                  <option value="gfunk">🌴 West Coast (98 BPM)</option>
-                </select>
-                <input type="text" class="audio-url-input" data-player="2" placeholder="Or paste URL..." />
-                <button class="audio-load-btn" data-player="2" title="Load URL">↵</button>
-                <button type="button" class="audio-scratch-btn" data-player="2" title="Trigger vinyl scratch">🎛️</button>
-              </div>
-              <div class="audio-controls" data-player="2">
-                <button class="audio-play-btn" data-player="2" title="Play" disabled>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                </button>
-                <div class="audio-progress-wrap">
-                  <div class="audio-progress-bar" data-player="2">
-                    <div class="audio-progress-fill" data-player="2"></div>
-                  </div>
-                  <span class="audio-time" data-player="2">0:00 / 0:00</span>
+          </div>
+          <div class="deck-strip-center">
+            <!-- DJ Battle Soundboard -->
+            <div class="dj-soundboard" id="dj-soundboard">
+              <div class="soundboard-header">
+                <span class="soundboard-title">⚡ DJ SOUNDBOARD</span>
+                <div class="soundboard-vol-wrap">
+                  <span class="soundboard-vol-label">VOL</span>
+                  <input type="range" id="soundboard-volume" min="0" max="1" step="0.05" value="0.85" title="Soundboard Volume" />
                 </div>
-                <input type="range" class="audio-volume" data-player="2" min="0" max="1" step="0.05" value="0.8" title="Volume" />
+              </div>
+              <div class="soundboard-grid">
+                <button type="button" class="soundboard-pad pad-airhorn" data-sound="airhorn" title="Air Horn (HotKey: 1)">
+                  <span class="pad-icon">📢</span>
+                  <span class="pad-label">HORN</span>
+                  <span class="pad-key">1</span>
+                </button>
+                <button type="button" class="soundboard-pad pad-bell" data-sound="bell" title="Round Bell (HotKey: 2)">
+                  <span class="pad-icon">🔔</span>
+                  <span class="pad-label">BELL</span>
+                  <span class="pad-key">2</span>
+                </button>
+                <button type="button" class="soundboard-pad pad-react" data-sound="crowd_react" title="Crowd Oohs &amp; Aahhs (HotKey: 3)">
+                  <span class="pad-icon">😲</span>
+                  <span class="pad-label">REACT</span>
+                  <span class="pad-key">3</span>
+                </button>
+                <button type="button" class="soundboard-pad pad-cheer" data-sound="crowd_cheer" title="Crowd Cheer &amp; Hype (HotKey: 4)">
+                  <span class="pad-icon">👏</span>
+                  <span class="pad-label">CHEER</span>
+                  <span class="pad-key">4</span>
+                </button>
+                <button type="button" class="soundboard-pad pad-drop" data-sound="needle_drop" title="Vinyl Needle Drop (HotKey: 5)">
+                  <span class="pad-icon">🎚️</span>
+                  <span class="pad-label">DROP</span>
+                  <span class="pad-key">5</span>
+                </button>
+                <button type="button" class="soundboard-pad pad-stop" data-sound="needle_stop" title="Vinyl Stop Scratch (HotKey: 6)">
+                  <span class="pad-icon">🛑</span>
+                  <span class="pad-label">STOP</span>
+                  <span class="pad-key">6</span>
+                </button>
               </div>
             </div>
-
             <!-- DJ Equal-Power Crossfader -->
             <div class="dj-crossfader-container">
               <div class="crossfader-top">
@@ -673,40 +652,42 @@
               <button type="button" class="crossfader-cut-btn center-btn" data-val="0.5" title="Reset Crossfader to Center (50/50 Mix)">CENTER (50/50)</button>
             </div>
           </div>
-
-          <button id="btn-tournament" class="control-btn tournament">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-            Tournament
-          </button>
-        </section>
-
-        <!-- Contestant 2 Panel -->
-        <section id="contestant-2-panel" class="contestant-panel">
-          <div class="contestant-header">
-            <span class="contestant-display-name" id="contestant-2-display">Contestant 2</span>
-            <div class="contestant-badge">2</div>
+          <div class="audio-player-slot" id="audio-slot-2">
+            <div class="audio-slot-label">🎵 P2 Audio</div>
+            <div class="audio-input-row">
+              <label class="audio-file-btn" title="Upload audio file">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <input type="file" class="audio-file-input" data-player="2" accept="audio/*" hidden />
+              </label>
+              <select class="preset-beat-select" data-player="2" title="Select battle beat preset">
+                <option value="">⚡ Presets...</option>
+                <option value="trap808">💣 Trap 808 (140 BPM)</option>
+                <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
+                <option value="drill">⚔️ Drill (142 BPM)</option>
+                <option value="gfunk">🌴 West Coast (98 BPM)</option>
+              </select>
+              <input type="text" class="audio-url-input" data-player="2" placeholder="Or paste URL..." />
+              <button class="audio-load-btn" data-player="2" title="Load URL">↵</button>
+              <button type="button" class="audio-scratch-btn" data-player="2" title="Trigger vinyl scratch">🎛️</button>
+            </div>
+            <div class="audio-controls" data-player="2">
+              <button class="audio-play-btn" data-player="2" title="Play" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </button>
+              <div class="audio-progress-wrap">
+                <div class="audio-progress-bar" data-player="2">
+                  <div class="audio-progress-fill" data-player="2"></div>
+                </div>
+                <span class="audio-time" data-player="2">0:00 / 0:00</span>
+              </div>
+              <input type="range" class="audio-volume" data-player="2" min="0" max="1" step="0.05" value="0.8" title="Volume" />
+            </div>
           </div>
-          <div class="sliders-container" id="contestant-2-sliders"></div>
-          <div class="total-score-container">
-            <span class="total-label">TOTAL</span>
-            <span class="total-value" id="contestant-2-total">0.0</span>
-          </div>
-        </section>
-      </div>
+        </div>
 
-      <!-- Bottom Tabs (History & Notes) -->
-      <nav id="bottom-nav">
-        <button class="nav-tab active" data-tab="history">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
-          <span>Achievements<br/>&amp; History</span>
-        </button>
-        <button class="nav-tab" data-tab="notes">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          <span>Battle<br/>Notes</span>
-        </button>
-      </nav>
-
-      <div id="tab-content">
+        <!-- Tab drawer slides up over the stage so the page never scrolls -->
+        <div id="tab-content" class="tab-drawer">
+          <button type="button" class="tab-drawer-close" id="btn-tab-drawer-close" title="Close">&times;</button>
         <div id="tab-history" class="tab-panel active">
           <div class="tab-panel-inner">
             <h2>Achievements & History</h2>
@@ -716,14 +697,46 @@
             <p class="empty-state" id="history-empty">No battles recorded yet. Submit scores to start tracking!</p>
           </div>
         </div>
-        <div id="tab-notes" class="tab-panel">
-          <div class="tab-panel-inner">
-            <h2>Battle Notes</h2>
-            <textarea id="notes-textarea" class="notes-input" placeholder="Jot down your observations during the battle..." rows="8"></textarea>
-            <div id="saved-notes" class="saved-notes-list"></div>
+          <div id="tab-notes" class="tab-panel">
+            <div class="tab-panel-inner">
+              <h2>Battle Notes</h2>
+              <!-- Timestamped Feedback Notes -->
+              <div class="timestamp-notes-panel">
+                <div class="ts-input-wrap">
+                  <input type="text" id="input-timestamp-note" placeholder="0:42 — strong switch-up..." class="ts-note-input" />
+                  <button type="button" id="btn-add-timestamp-note" class="ts-add-btn" title="Add timestamped note">⏱️ Note</button>
+                </div>
+                <div id="active-timestamp-notes-list" class="ts-notes-mini-list"></div>
+              </div>
+              <textarea id="notes-textarea" class="notes-input" placeholder="Jot down your observations during the battle..." rows="5"></textarea>
+              <div id="saved-notes" class="saved-notes-list"></div>
+            </div>
+          </div>
+          <div id="tab-h2h" class="tab-panel">
+            <div class="tab-panel-inner">
+              <h2>Head-to-Head</h2>
+              <!-- Live Head-to-Head Score Radar Chart -->
+              <div class="score-radar-card" id="score-radar-container">
+                <div class="radar-header">
+                  <span class="radar-title">📊 HEAD-TO-HEAD RADAR</span>
+                  <div class="radar-legend">
+                    <span class="legend-item"><span class="legend-dot p1"></span> C1</span>
+                    <span class="legend-item"><span class="legend-dot p2"></span> C2</span>
+                  </div>
+                </div>
+                <div class="radar-canvas-wrap">
+                  <canvas id="score-radar-canvas" width="280" height="240"></canvas>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+
+        <div id="dj-loading" class="dj-loading-overlay">
+          <div class="loading-spinner"></div>
+          <span id="dj-loading-text">Loading 3D Soundstage &amp; Contestants...</span>
+        </div>
+      </section>
     </section>
 
     <!-- ===== TOURNAMENT MODAL ===== -->

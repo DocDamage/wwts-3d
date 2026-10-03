@@ -280,8 +280,8 @@ class RoundManager {
       const seriesRounds1El = document.getElementById('series-rounds-1');
       const seriesRounds2El = document.getElementById('series-rounds-2');
 
-      if (series1El) series1El.textContent = grandTotal1.toFixed(1);
-      if (series2El) series2El.textContent = grandTotal2.toFixed(1);
+      if (series1El) series1El.textContent = grandTotal1.toFixed(2);
+      if (series2El) series2El.textContent = grandTotal2.toFixed(2);
       if (seriesRounds1El) seriesRounds1El.textContent = `${roundsWon1} W`;
       if (seriesRounds2El) seriesRounds2El.textContent = `${roundsWon2} W`;
     }

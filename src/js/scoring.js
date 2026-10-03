@@ -83,6 +83,16 @@ const DEFAULT_CATEGORY_DEFS = [
 ];
 
 const CATEGORIES = DEFAULT_CATEGORY_DEFS.map(c => c.name);
+
+// Presets reshape the same 10 categories (order never changes, so scores stay aligned).
+// `only` limits which categories are enabled; `weights` overrides the default 1.0 weight.
+const SCORING_PRESETS = {
+  classic10: { name: 'Classic 10' },
+  core5: { name: 'Core 5 (Quick)', only: ['creativity', 'mix', 'drums', 'melody', 'energy'] },
+  boombap: { name: 'Boom-Bap Focus', weights: { drums: 1.5, sound_selection: 1.5, creativity: 1.25, arrangement: 1.25 } },
+  trap808: { name: 'Trap / 808 Focus', weights: { bassline: 1.5, drums: 1.5, energy: 1.25, mix: 1.25 } },
+  custom: { name: 'Custom' }
+};
 const MAX_SCORE_PER_CATEGORY = 10;
 
 class ScoringEngine {
@@ -119,9 +129,29 @@ class ScoringEngine {
     }
   }
 
+  setPreset(presetId) {
+    const preset = SCORING_PRESETS[presetId];
+    if (!preset || presetId === 'custom') return;
+    this.presetId = presetId;
+    this.categories = DEFAULT_CATEGORY_DEFS.map(def => ({
+      ...def,
+      weight: preset.weights?.[def.key] ?? 1.0,
+      enabled: preset.only ? preset.only.includes(def.key) : true
+    }));
+    this.rebuildAllSliders();
+    this.updateTotal(1);
+    this.updateTotal(2);
+  }
+
+  getPresetName() {
+    return SCORING_PRESETS[this.presetId]?.name || 'Custom';
+  }
+
   setCategoryWeight(index, weight) {
     if (this.categories[index]) {
-      this.categories[index].weight = Math.max(0, parseFloat(weight) || 0);
+      this.categories[index].weight = Math.min(5, Math.max(0, parseFloat(weight) || 0));
+      this.presetId = 'custom';
+      this.rebuildAllSliders();
       this.updateTotal(1);
       this.updateTotal(2);
     }
@@ -130,6 +160,7 @@ class ScoringEngine {
   setCategoryEnabled(index, enabled) {
     if (this.categories[index]) {
       this.categories[index].enabled = !!enabled;
+      this.presetId = 'custom';
       this.rebuildAllSliders();
       this.updateTotal(1);
       this.updateTotal(2);
@@ -165,9 +196,9 @@ class ScoringEngine {
 
     if (this.normalizeTo100) {
       const normalized = (10 * weightedSum) / totalWeight;
-      return parseFloat(normalized.toFixed(1));
+      return parseFloat(normalized.toFixed(2));
     } else {
-      return parseFloat(weightedSum.toFixed(1));
+      return parseFloat(weightedSum.toFixed(2));
     }
   }
 
@@ -242,7 +273,7 @@ class ScoringEngine {
       valueDisplay.id = `value-${contestantNum}-${idx}`;
 
       if (currentVal !== null) {
-        valueDisplay.textContent = currentVal.toFixed(1);
+        valueDisplay.textContent = currentVal.toFixed(2);
         if (currentVal >= 8) valueDisplay.classList.add('hot');
       } else {
         valueDisplay.textContent = '—';
@@ -257,7 +288,7 @@ class ScoringEngine {
 
         const val = parseFloat(e.target.value);
         this.scores[contestantNum][idx] = val;
-        valueDisplay.textContent = val.toFixed(1);
+        valueDisplay.textContent = val.toFixed(2);
         valueDisplay.classList.remove('unscored');
 
         if (val >= 8) {
@@ -284,6 +315,58 @@ class ScoringEngine {
     });
   }
 
+  /**
+   * Weight editor: enable/disable each category and set its weight.
+   * `onChange` fires after every edit so the host UI can resync.
+   */
+  buildWeightsEditor(containerId, onChange) {
+    const container = typeof document !== 'undefined' ? document.getElementById(containerId) : null;
+    if (!container) return;
+    container.innerHTML = '';
+
+    this.categories.forEach((cat, idx) => {
+      const row = document.createElement('label');
+      row.className = 'weight-row' + (cat.enabled ? '' : ' disabled');
+
+      const toggle = document.createElement('input');
+      toggle.type = 'checkbox';
+      toggle.checked = cat.enabled;
+      toggle.setAttribute('aria-label', `Score ${cat.name}`);
+
+      const name = document.createElement('span');
+      name.className = 'weight-name';
+      name.textContent = cat.name;
+
+      const weight = document.createElement('input');
+      weight.type = 'number';
+      weight.min = '0';
+      weight.max = '5';
+      weight.step = '0.25';
+      weight.value = cat.weight;
+      weight.disabled = !cat.enabled;
+      weight.setAttribute('aria-label', `${cat.name} weight`);
+
+      toggle.addEventListener('change', () => {
+        this.setCategoryEnabled(idx, toggle.checked);
+        row.classList.toggle('disabled', !toggle.checked);
+        weight.disabled = !toggle.checked;
+        onChange?.();
+      });
+      weight.addEventListener('change', () => {
+        this.setCategoryWeight(idx, weight.value);
+        weight.value = this.categories[idx].weight;
+        onChange?.();
+      });
+
+      row.append(toggle, name, weight);
+      const unit = document.createElement('span');
+      unit.className = 'weight-unit';
+      unit.textContent = 'x';
+      row.appendChild(unit);
+      container.appendChild(row);
+    });
+  }
+
   updateSliderTrack(slider, value) {
     const pct = (value / MAX_SCORE_PER_CATEGORY) * 100;
     let color;
@@ -301,7 +384,7 @@ class ScoringEngine {
     const total = this.calculateNormalizedTotal(contestantNum);
     const el = typeof document !== 'undefined' ? document.getElementById(`contestant-${contestantNum}-total`) : null;
     if (el) {
-      el.textContent = total.toFixed(1);
+      el.textContent = total.toFixed(2);
     }
     return total;
   }
@@ -335,7 +418,7 @@ class ScoringEngine {
       }
       if (valueEl) {
         if (cleanVal !== null) {
-          valueEl.textContent = cleanVal.toFixed(1);
+          valueEl.textContent = cleanVal.toFixed(2);
           valueEl.classList.remove('unscored');
           if (cleanVal >= 8) valueEl.classList.add('hot');
           else valueEl.classList.remove('hot');
@@ -402,4 +485,4 @@ class ScoringEngine {
   }
 }
 
-export { ScoringEngine, CATEGORIES, DEFAULT_CATEGORY_DEFS, MAX_SCORE_PER_CATEGORY };
+export { ScoringEngine, CATEGORIES, DEFAULT_CATEGORY_DEFS, SCORING_PRESETS, MAX_SCORE_PER_CATEGORY };

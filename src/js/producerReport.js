@@ -46,8 +46,8 @@ class ProducerReportModal {
       roundRows += `
         <tr>
           <td><strong>${rTitle}</strong></td>
-          <td style="color:#ff4d4d;">${r.total1.toFixed(1)}</td>
-          <td style="color:#00e5ff;">${r.total2.toFixed(1)}</td>
+          <td style="color:#ff4d4d;">${r.total1.toFixed(2)}</td>
+          <td style="color:#00e5ff;">${r.total2.toFixed(2)}</td>
           <td class="verdict-col ${winClass}">➔ ${winnerName}</td>
         </tr>
       `;
@@ -67,7 +67,7 @@ class ProducerReportModal {
         <div class="report-cat-row">
           <div class="report-cat-label">
             <span>${cat.name}</span>
-            <span class="report-cat-scores">${s1.toFixed(1)} vs ${s2.toFixed(1)}</span>
+            <span class="report-cat-scores">${s1.toFixed(2)} vs ${s2.toFixed(2)}</span>
           </div>
           <div class="report-split-bar">
             <div class="split-left" style="width: ${w1}%;"></div>
@@ -126,12 +126,12 @@ class ProducerReportModal {
             <div class="rv-scores">
               <div class="rv-score-box p1">
                 <span>${c1.name}</span>
-                <strong>${p1Score.toFixed(1)}</strong>
+                <strong>${p1Score.toFixed(2)}</strong>
               </div>
               <div class="rv-vs">VS</div>
               <div class="rv-score-box p2">
                 <span>${c2.name}</span>
-                <strong>${p2Score.toFixed(1)}</strong>
+                <strong>${p2Score.toFixed(2)}</strong>
               </div>
             </div>
           </div>
@@ -198,7 +198,7 @@ class ProducerReportModal {
 
     const summary = `
 WWTS BEAT BATTLE REPORT
-Match: ${c1} (${s1.toFixed(1)}) vs ${c2} (${s2.toFixed(1)})
+Match: ${c1} (${s1.toFixed(2)}) vs ${c2} (${s2.toFixed(2)})
 Winner: ${finalResult.winnerName}
 Decision: ${finalResult.decisionMethod} (${finalResult.decisionTally})
 Date: ${new Date(finalResult.timestamp).toLocaleString()}

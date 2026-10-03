@@ -257,8 +257,8 @@ class JudgeManager {
     const scoredJudges = results.filter(j => j.total1 > 0 || j.total2 > 0);
     const isComplete = scoredJudges.length === this.totalJudges;
 
-    const avgTotal1 = isComplete ? Number((sumTotal1 / this.totalJudges).toFixed(1)) : 0;
-    const avgTotal2 = isComplete ? Number((sumTotal2 / this.totalJudges).toFixed(1)) : 0;
+    const avgTotal1 = isComplete ? Number((sumTotal1 / this.totalJudges).toFixed(2)) : 0;
+    const avgTotal2 = isComplete ? Number((sumTotal2 / this.totalJudges).toFixed(2)) : 0;
 
     let consensusWinner = null;
     let decisionType = 'PENDING';
@@ -369,8 +369,8 @@ class JudgeManager {
               <span class="j-verdict" style="color: ${winColor}">➔ ${jWinnerName}</span>
             </div>
             <div class="judge-card-scores">
-              <span class="j-score p1">${p1Name}: <strong>${j.total1.toFixed(1)}</strong></span>
-              <span class="j-score p2">${p2Name}: <strong>${j.total2.toFixed(1)}</strong></span>
+              <span class="j-score p1">${p1Name}: <strong>${j.total1.toFixed(2)}</strong></span>
+              <span class="j-score p2">${p2Name}: <strong>${j.total2.toFixed(2)}</strong></span>
             </div>
           </div>
         `;

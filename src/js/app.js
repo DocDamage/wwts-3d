@@ -332,7 +332,7 @@ function openProfileModal(contestantId) {
   // Stats
   document.getElementById('profile-wins').textContent = c.stats.wins;
   document.getElementById('profile-losses').textContent = c.stats.losses;
-  document.getElementById('profile-avg').textContent = c.stats.avgScore.toFixed(1);
+  document.getElementById('profile-avg').textContent = c.stats.avgScore.toFixed(2);
   document.getElementById('profile-best').textContent = c.stats.bestCategory;
 
   // Battle history
@@ -355,12 +355,12 @@ function openProfileModal(contestantId) {
         entry.innerHTML = `
           <div>
             <div class="he-name ${won ? 'winner' : ''}">${c.name}</div>
-            <div class="he-score">${myScore.toFixed(1)}</div>
+            <div class="he-score">${myScore.toFixed(2)}</div>
           </div>
           <div class="he-vs">VS</div>
           <div class="he-right">
             <div class="he-name ${!won && b.winnerId ? 'winner' : ''}">${opponentName}</div>
-            <div class="he-score">${theirScore.toFixed(1)}</div>
+            <div class="he-score">${theirScore.toFixed(2)}</div>
           </div>
         `;
         histList.appendChild(entry);
@@ -406,7 +406,7 @@ function refreshBattle() {
   const league = leagues.getActive();
 
   const title = document.getElementById('battle-league-title');
-  if (title) title.textContent = league ? `Battle Arena — ${league.name}` : 'Battle Arena';
+  if (title) title.textContent = league ? league.name : 'Who Want That Smoke';
 
   // Populate contestant pickers
   roster.populateSelect('pick-contestant-1', leagueId, selectedContestant2Id);
@@ -524,9 +524,7 @@ function updateBattleFlowUI() {
   if (chipAudio) chipAudio.classList.toggle('ready', hasAudio);
   if (chipJudges) chipJudges.classList.toggle('ready', judgesReady);
   if (chipPreset) chipPreset.classList.add('ready');
-  if (presetNameEl && scoring.getActivePreset) {
-    presetNameEl.textContent = scoring.getActivePreset().name;
-  }
+  if (presetNameEl) presetNameEl.textContent = scoring.getPresetName();
 
   if (!flowBtn || !flowLabel) return;
 
@@ -800,7 +798,7 @@ function showWinner(name, score, finalResult = null) {
   if (nameEl) nameEl.textContent = name;
   if (scoreEl) {
     const decisionText = finalResult?.decisionMethod ? ` (${finalResult.decisionMethod})` : '';
-    scoreEl.textContent = `${score.toFixed(1)} pts${decisionText}`;
+    scoreEl.textContent = `${score.toFixed(2)} pts${decisionText}`;
   }
   overlay.style.display = 'flex';
 }
@@ -835,16 +833,30 @@ document.getElementById('btn-winner-report')?.addEventListener('click', () => {
 // ============================================================
 // Bottom Tabs
 // ============================================================
+// Tabs open a drawer over the 3D stage; clicking the active tab again closes it
+const tabDrawer = document.getElementById('tab-content');
+
+function closeTabDrawer() {
+  tabDrawer?.classList.remove('open');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+}
+
 document.querySelectorAll('.nav-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    const wasActive = tab.classList.contains('active');
+    closeTabDrawer();
+    if (wasActive) return;
 
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     const panel = document.getElementById(`tab-${tab.dataset.tab}`);
     if (panel) panel.classList.add('active');
+    tabDrawer?.classList.add('open');
+    if (tab.dataset.tab === 'h2h') radar?.update(scoring.scores[1], scoring.scores[2]);
   });
 });
+
+document.getElementById('btn-tab-drawer-close')?.addEventListener('click', closeTabDrawer);
 
 // ============================================================
 // Tournament integration
@@ -1143,6 +1155,16 @@ function init() {
   // Connect Audio Player state changes to 3D DJ Stage
   audio.onStateChange((playerNum, isPlaying) => {
     djController.setAudioPlaying(playerNum, isPlaying);
+    // Center record spins while either deck plays, tinted to the deck that's live
+    const record = document.getElementById('speaker-icon');
+    if (record) {
+      const anyPlaying = audio.isPlaying(1) || audio.isPlaying(2);
+      record.classList.toggle('active', anyPlaying);
+      if (isPlaying) {
+        record.classList.remove('deck-1', 'deck-2');
+        record.classList.add(`deck-${playerNum}`);
+      }
+    }
     postBroadcast('AUDIO_UPDATE', { playerNum, isPlaying });
     updateBattleFlowUI();
   });
@@ -1238,20 +1260,46 @@ function init() {
       judges.saveCurrentJudgeScores();
     }
     postBroadcast('SCORES_UPDATE', {
-      total1: scoring.calculateTotal(1),
-      total2: scoring.calculateTotal(2)
+      total1: scoring.getTotal(1),
+      total2: scoring.getTotal(2)
     });
     autosaveActiveSession();
   };
 
   // Scoring Engine Preset and Step Selectors
   const presetSelect = document.getElementById('scoring-preset-select');
-  presetSelect?.addEventListener('change', (e) => {
-    scoring.setPreset(e.target.value);
-    scoring.buildSliders('contestant-1-sliders', 1);
-    scoring.buildSliders('contestant-2-sliders', 2);
+  const onRulesChanged = () => {
+    if (presetSelect) presetSelect.value = scoring.presetId;
     if (radar) radar.update(scoring.scores[1], scoring.scores[2]);
+    rounds.updateSeriesTotals();
     updateBattleFlowUI();
+    autosaveActiveSession();
+  };
+  presetSelect?.addEventListener('change', (e) => {
+    if (e.target.value === 'custom') return;
+    scoring.setPreset(e.target.value);
+    scoring.buildWeightsEditor('weights-editor-list', onRulesChanged);
+    onRulesChanged();
+  });
+
+  // Weights popover: toggle categories and adjust weights live
+  const weightsBtn = document.getElementById('btn-edit-weights');
+  const weightsPopover = document.getElementById('weights-popover');
+  weightsBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const opening = weightsPopover.hidden;
+    if (opening) scoring.buildWeightsEditor('weights-editor-list', onRulesChanged);
+    weightsPopover.hidden = !opening;
+  });
+  document.getElementById('btn-weights-reset')?.addEventListener('click', () => {
+    scoring.setPreset('classic10');
+    scoring.buildWeightsEditor('weights-editor-list', onRulesChanged);
+    onRulesChanged();
+  });
+  document.addEventListener('click', (e) => {
+    if (weightsPopover && !weightsPopover.hidden && !weightsPopover.contains(e.target) && e.target !== weightsBtn) {
+      weightsPopover.hidden = true;
+    }
   });
 
   const stepSelect = document.getElementById('scoring-step-select');

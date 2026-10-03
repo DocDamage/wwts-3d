@@ -180,7 +180,7 @@ class HistoryManager {
       entry.innerHTML = `
         <div>
           <div class="he-name ${c1IsWinner ? 'winner' : ''}">${this.escapeHtml(battle.contestant1Name)}</div>
-          <div class="he-score">${battle.total1.toFixed(1)}</div>
+          <div class="he-score">${battle.total1.toFixed(2)}</div>
         </div>
         <div class="he-center">
           <div class="he-vs">VS</div>
@@ -189,7 +189,7 @@ class HistoryManager {
         </div>
         <div class="he-right">
           <div class="he-name ${c2IsWinner ? 'winner' : ''}">${this.escapeHtml(battle.contestant2Name)}</div>
-          <div class="he-score">${battle.total2.toFixed(1)}</div>
+          <div class="he-score">${battle.total2.toFixed(2)}</div>
         </div>
       `;
 

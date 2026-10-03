@@ -312,8 +312,8 @@ class TournamentManager {
         const p1Name = p1 ? p1.name : (match.player1Id ? 'Contestant' : 'TBD');
         const p2Name = match.isBye ? 'BYE (Advances)' : (p2 ? p2.name : (match.player2Id ? 'Contestant' : 'TBD'));
 
-        let p1Score = match.player1Score !== null ? Number(match.player1Score).toFixed(1) : '';
-        let p2Score = match.player2Score !== null ? Number(match.player2Score).toFixed(1) : '';
+        let p1Score = match.player1Score !== null ? Number(match.player1Score).toFixed(2) : '';
+        let p2Score = match.player2Score !== null ? Number(match.player2Score).toFixed(2) : '';
 
         if (match.seriesDetails) {
           p1Score = `${match.seriesDetails.roundsWon1}W (${p1Score})`;

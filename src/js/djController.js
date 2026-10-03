@@ -453,8 +453,8 @@ class DJControllerRenderer {
     // Contestant Data
     const c1Name = document.querySelector('#contestant-1-panel .contestant-name')?.textContent || 'CONTESTANT 1';
     const c2Name = document.querySelector('#contestant-2-panel .contestant-name')?.textContent || 'CONTESTANT 2';
-    const c1Score = document.getElementById('contestant-1-total')?.textContent || '0.0';
-    const c2Score = document.getElementById('contestant-2-total')?.textContent || '0.0';
+    const c1Score = document.getElementById('contestant-1-total')?.textContent || '0.00';
+    const c2Score = document.getElementById('contestant-2-total')?.textContent || '0.00';
     const timerDisplay = document.getElementById('timer-display')?.textContent || '00:00';
 
     // Left Box (Contestant 1 - Red)
@@ -1663,6 +1663,12 @@ class DJControllerRenderer {
     // Window resize
     this.resizeHandler = () => this.onResize();
     window.addEventListener('resize', this.resizeHandler);
+    // The stage flexes to fill the screen, so watch the container itself too
+    const resizeTarget = document.getElementById('dj-canvas-container');
+    if (resizeTarget && typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.onResize());
+      this.resizeObserver.observe(resizeTarget);
+    }
 
     // Wire Stage Action Buttons (Deck & Mix, Side Stage, Face-off)
     document.querySelectorAll('.stage-action-btn').forEach(btn => {
@@ -2181,6 +2187,7 @@ class DJControllerRenderer {
   destroy() {
     if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
     window.removeEventListener('resize', this.resizeHandler);
+    this.resizeObserver?.disconnect();
     if (this.renderer) this.renderer.dispose();
   }
 }

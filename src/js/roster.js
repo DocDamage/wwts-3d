@@ -194,7 +194,7 @@ class RosterManager {
     else c.stats.losses++;
 
     c.stats.totalScoreSum += score;
-    c.stats.avgScore = parseFloat((c.stats.totalScoreSum / c.stats.totalBattles).toFixed(1));
+    c.stats.avgScore = parseFloat((c.stats.totalScoreSum / c.stats.totalBattles).toFixed(2));
 
     // Find best category
     if (categoryScores && categories) {

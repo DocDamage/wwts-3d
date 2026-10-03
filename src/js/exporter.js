@@ -123,7 +123,7 @@ class BattleCardExporter {
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#ff2d2d';
     ctx.shadowBlur = 20;
-    ctx.fillText(Number(c1Score || 0).toFixed(1), 270, 360);
+    ctx.fillText(Number(c1Score || 0).toFixed(2), 270, 360);
 
     ctx.font = 'bold 16px "Orbitron", monospace';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
@@ -164,7 +164,7 @@ class BattleCardExporter {
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#00e5ff';
     ctx.shadowBlur = 20;
-    ctx.fillText(Number(c2Score || 0).toFixed(1), w - 270, 360);
+    ctx.fillText(Number(c2Score || 0).toFixed(2), w - 270, 360);
 
     ctx.font = 'bold 16px "Orbitron", monospace';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
@@ -237,7 +237,7 @@ class BattleCardExporter {
       ctx.font = 'bold 20px "Orbitron", monospace';
       ctx.fillStyle = '#ff4d4d';
       ctx.textAlign = 'right';
-      ctx.fillText(s1.toFixed(1), w / 2 - 130, y + 8);
+      ctx.fillText(s1.toFixed(2), w / 2 - 130, y + 8);
 
       // Contestant 1 Bar (Extends left from center)
       const w1 = (s1 / 10) * barMaxW;
@@ -250,7 +250,7 @@ class BattleCardExporter {
       ctx.font = 'bold 20px "Orbitron", monospace';
       ctx.fillStyle = '#00e5ff';
       ctx.textAlign = 'left';
-      ctx.fillText(s2.toFixed(1), w / 2 + 130, y + 8);
+      ctx.fillText(s2.toFixed(2), w / 2 + 130, y + 8);
 
       // Contestant 2 Bar (Extends right from center)
       const w2 = (s2 / 10) * barMaxW;

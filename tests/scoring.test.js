@@ -45,9 +45,9 @@ describe('ScoringEngine & 100-Point Weighted Normalization', () => {
     // Drums = 10, Bassline = 5
     // Sum = (10*2) + (5*1) = 25
     // Total weight = 3
-    // Normalized = 10 * 25 / 3 = 83.3
+    // Normalized = 10 * 25 / 3 = 83.33
     scoring.setScores(1, [10, 5]);
-    expect(scoring.calculateNormalizedTotal(1)).toBe(83.3);
+    expect(scoring.calculateNormalizedTotal(1)).toBe(83.33);
   });
 
   it('distinguishes unscored from deliberate 0.0', () => {
@@ -66,6 +66,37 @@ describe('ScoringEngine & 100-Point Weighted Normalization', () => {
     scoring.setScores(1, partial);
     expect(scoring.hasUnscoredCategories(1)).toBe(false);
     expect(scoring.getUnscoredCount(1)).toBe(0);
+  });
+
+  it('totals use two decimal places', () => {
+    const scoring = new ScoringEngine();
+    scoring.setScores(1, [7.25, 8.5, 9, 6.75, 8, 7.5, 9.25, 8, 7, 6.5]);
+    // Sum = 77.75 → 10 * 77.75 / 10 = 77.75
+    expect(scoring.getTotal(1)).toBe(77.75);
+  });
+
+  it('applies presets without losing entered scores', () => {
+    const scoring = new ScoringEngine();
+    scoring.setScores(1, new Array(10).fill(8));
+
+    scoring.setPreset('core5');
+    expect(scoring.categories.filter(c => c.enabled).length).toBe(5);
+    expect(scoring.getTotal(1)).toBe(80);
+
+    scoring.setPreset('trap808');
+    const bass = scoring.categories.find(c => c.key === 'bassline');
+    expect(bass.weight).toBe(1.5);
+    expect(scoring.categories.every(c => c.enabled)).toBe(true);
+    expect(scoring.getPresetName()).toBe('Trap / 808 Focus');
+  });
+
+  it('switches to Custom when a weight is edited by hand', () => {
+    const scoring = new ScoringEngine();
+    scoring.setCategoryWeight(0, 2);
+    expect(scoring.presetId).toBe('custom');
+    expect(scoring.categories[0].weight).toBe(2);
+    scoring.setCategoryWeight(1, 99);
+    expect(scoring.categories[1].weight).toBe(5);
   });
 
   it('generates immutable frozen rules snapshot', () => {

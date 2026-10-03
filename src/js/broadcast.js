@@ -71,11 +71,11 @@ class BroadcastController {
     // Scores
     if (payload.score1 !== undefined) {
       const el = document.getElementById('b-p1-score');
-      if (el) el.textContent = Number(payload.score1).toFixed(1);
+      if (el) el.textContent = Number(payload.score1).toFixed(2);
     }
     if (payload.score2 !== undefined) {
       const el = document.getElementById('b-p2-score');
-      if (el) el.textContent = Number(payload.score2).toFixed(1);
+      if (el) el.textContent = Number(payload.score2).toFixed(2);
     }
 
     // Series Tallies
@@ -137,8 +137,8 @@ class BroadcastController {
 
     const s1 = document.getElementById('b-p1-score');
     const s2 = document.getElementById('b-p2-score');
-    if (s1) s1.textContent = '0.0';
-    if (s2) s2.textContent = '0.0';
+    if (s1) s1.textContent = '0.00';
+    if (s2) s2.textContent = '0.00';
   }
 }
 

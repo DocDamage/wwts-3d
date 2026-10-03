@@ -187,19 +187,19 @@ class BattleSessionEngine {
           winnerName = contestant1.name;
           winnerScore = grandTotal1;
           decisionMethod = 'TOTAL_POINTS';
-          decisionTally = `${grandTotal1.toFixed(1)} - ${grandTotal2.toFixed(1)}`;
+          decisionTally = `${grandTotal1.toFixed(2)} - ${grandTotal2.toFixed(2)}`;
         } else if (grandTotal2 > grandTotal1) {
           winnerId = contestant2.id;
           winnerName = contestant2.name;
           winnerScore = grandTotal2;
           decisionMethod = 'TOTAL_POINTS';
-          decisionTally = `${grandTotal2.toFixed(1)} - ${grandTotal1.toFixed(1)}`;
+          decisionTally = `${grandTotal2.toFixed(2)} - ${grandTotal1.toFixed(2)}`;
         } else {
           winnerId = null;
           winnerName = 'DRAW';
           winnerScore = grandTotal1;
           decisionMethod = 'DRAW';
-          decisionTally = `${grandTotal1.toFixed(1)} - ${grandTotal2.toFixed(1)}`;
+          decisionTally = `${grandTotal1.toFixed(2)} - ${grandTotal2.toFixed(2)}`;
         }
       }
     }
@@ -211,19 +211,19 @@ class BattleSessionEngine {
         winnerName = contestant1.name;
         winnerScore = scoringSnapshot.total1;
         decisionMethod = 'TOTAL_POINTS';
-        decisionTally = `${scoringSnapshot.total1.toFixed(1)} - ${scoringSnapshot.total2.toFixed(1)}`;
+        decisionTally = `${scoringSnapshot.total1.toFixed(2)} - ${scoringSnapshot.total2.toFixed(2)}`;
       } else if (scoringSnapshot.total2 > scoringSnapshot.total1) {
         winnerId = contestant2.id;
         winnerName = contestant2.name;
         winnerScore = scoringSnapshot.total2;
         decisionMethod = 'TOTAL_POINTS';
-        decisionTally = `${scoringSnapshot.total2.toFixed(1)} - ${scoringSnapshot.total1.toFixed(1)}`;
+        decisionTally = `${scoringSnapshot.total2.toFixed(2)} - ${scoringSnapshot.total1.toFixed(2)}`;
       } else {
         winnerId = null;
         winnerName = 'DRAW';
         winnerScore = scoringSnapshot.total1;
         decisionMethod = 'DRAW';
-        decisionTally = `${scoringSnapshot.total1.toFixed(1)} - ${scoringSnapshot.total2.toFixed(1)}`;
+        decisionTally = `${scoringSnapshot.total1.toFixed(2)} - ${scoringSnapshot.total2.toFixed(2)}`;
       }
     }
 
@@ -269,7 +269,7 @@ class BattleSessionEngine {
       contestant2,
       winnerId,
       winnerName,
-      winnerScore: parseFloat(winnerScore.toFixed(1)),
+      winnerScore: parseFloat(winnerScore.toFixed(2)),
       decisionMethod,
       decisionTally,
       isClinch,
@@ -278,8 +278,8 @@ class BattleSessionEngine {
         hasSeries,
         roundsWon1,
         roundsWon2,
-        grandTotal1: parseFloat(grandTotal1.toFixed(1)),
-        grandTotal2: parseFloat(grandTotal2.toFixed(1)),
+        grandTotal1: parseFloat(grandTotal1.toFixed(2)),
+        grandTotal2: parseFloat(grandTotal2.toFixed(2)),
         totalRounds: seriesData ? seriesData.totalRounds : 1,
         hasOvertime,
         format: hasSeries ? 'best_of_3' : 'single_round'
