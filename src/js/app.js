@@ -23,6 +23,7 @@ import { KeyboardShortcutsManager } from './shortcuts.js';
 import { BattleSessionEngine } from './battleEngine.js';
 import { BattleStorageManager } from './storage.js';
 import { ProducerReportModal } from './producerReport.js';
+import { OverlayPanelManager } from './overlayPanels.js';
 
 // ============================================================
 // Initialize all modules
@@ -36,6 +37,7 @@ const tournament = new TournamentManager(roster, leagues);
 const history = new HistoryManager();
 const notes = new NotesManager();
 const djController = new DJControllerRenderer();
+const overlayPanels = new OverlayPanelManager();
 const soundboard = new SoundboardManager();
 const gamepad = new GamepadManager();
 const announcer = new AnnouncerManager();
@@ -85,6 +87,7 @@ window.rounds = rounds;
 window.battleEngine = battleEngine;
 window.storage = storage;
 window.producerReport = producerReport;
+window.djController = djController;
 
 // Current battle state
 let selectedContestant1Id = null;
@@ -99,6 +102,7 @@ function switchScreen(screenId) {
 
   const screen = document.getElementById(`screen-${screenId}`);
   if (screen) screen.classList.add('active');
+  if (screenId !== 'battle') overlayPanels.setStageView(false);
 
   const btn = document.querySelector(`.main-nav-btn[data-screen="${screenId}"]`);
   if (btn) btn.classList.add('active');
@@ -1150,6 +1154,7 @@ function init() {
 
   // DJ Controller 3D & Real Audio Reactivity
   djController.init();
+  overlayPanels.init();
   djController.setAudioPlayer(audio);
 
   // Connect Audio Player state changes to 3D DJ Stage

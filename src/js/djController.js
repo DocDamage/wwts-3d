@@ -76,12 +76,13 @@ class DJControllerRenderer {
     this.qualityPreset = 'high';
 
     // Camera Orbit & Controls
-    this.cameraTarget = new THREE.Vector3(0, 0.9, 0);
+    this.cameraTarget = new THREE.Vector3(0, 1.25, 0);
     this.desiredCamPos = new THREE.Vector3(0, 2.8, 5.0);
     this.currentCamPos = new THREE.Vector3(0, 2.8, 5.0);
     this.isDragging = false;
     this.previousMousePosition = { x: 0, y: 0 };
-    this.orbitAngles = { theta: 0, phi: 0.45, radius: 4.8 };
+    // Pulled back so characters stay visible between the full-screen overlay panels
+    this.orbitAngles = { theta: 0, phi: 0.3, radius: 7.4 };
     this.cameraMode = 'front'; // 'front', 'dj_pov', 'drone', 'staredown', 'auto'
     this.autoCamTimer = 0;
     this.autoCamIndex = 0;
@@ -788,9 +789,9 @@ class DJControllerRenderer {
     this.isDragging = false;
     if (mode === 'front') {
       this.orbitAngles.theta = 0;
-      this.orbitAngles.phi = 0.45;
-      this.orbitAngles.radius = 4.8;
-      this.cameraTarget.set(0, 0.9, 0);
+      this.orbitAngles.phi = 0.3;
+      this.orbitAngles.radius = 7.4;
+      this.cameraTarget.set(0, 1.25, 0);
     } else if (mode === 'dj_pov') {
       this.orbitAngles.theta = Math.PI;
       this.orbitAngles.phi = 0.38;
@@ -1631,7 +1632,7 @@ class DJControllerRenderer {
 
     const onWheel = (e) => {
       e.preventDefault();
-      this.orbitAngles.radius = Math.max(3.2, Math.min(8.5, this.orbitAngles.radius + e.deltaY * 0.004));
+      this.orbitAngles.radius = Math.max(3.2, Math.min(11, this.orbitAngles.radius + e.deltaY * 0.004));
     };
 
     canvas.addEventListener('mousedown', onMouseDown);

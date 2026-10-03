@@ -54,6 +54,9 @@
         <button id="btn-open-broadcast-popout" class="control-btn secondary" type="button" title="Open OBS Studio / 2nd Monitor Standalone Stream View">
           📺 Popout Stream
         </button>
+        <button id="btn-stage-view" class="icon-toggle-btn" type="button" title="Hide all panels to see the full stage (V)">
+          👁 Stage View
+        </button>
         <button id="btn-broadcast-mode" class="broadcast-toggle-btn" type="button" title="Toggle Clean Broadcast Screen Overlay">
           🎥 Screen Mode
         </button>
@@ -237,8 +240,8 @@
       </div>
 
       <!-- Title row (sketch: big red "Who Want That Smoke") + host flow desk -->
-      <div class="wwts-topbar">
-        <h2 class="wwts-title" id="battle-league-title">Who Want That Smoke</h2>
+      <div class="wwts-topbar" data-overlay-panel="topbar" data-min-label="Host Desk">
+        <h2 class="wwts-title panel-keep" id="battle-league-title">Who Want That Smoke</h2>
         <!-- Host Battle Flow & Readiness Desk -->
         <div class="host-battle-flow-bar" id="host-battle-flow-bar">
           <div class="flow-readiness-checklist">
@@ -270,7 +273,7 @@
       </div>
 
       <!-- Series rounds + judges, compact -->
-      <div class="battle-meta-row">
+      <div class="battle-meta-row" data-overlay-panel="meta" data-min-label="Rounds &amp; Judges">
         <!-- Round Navigation Bar (Best of 3 Battle Series) -->
         <div class="round-series-bar">
           <div class="series-tally-box p1">
@@ -362,8 +365,8 @@
 
       <!-- Main Scoring Grid (sketch: C1 | center | C2) -->
       <div id="scoring-area">
-        <section id="contestant-1-panel" class="contestant-panel p1">
-          <div class="contestant-header">
+        <section id="contestant-1-panel" class="contestant-panel p1" data-overlay-panel="c1">
+          <div class="contestant-header panel-keep">
             <div class="contestant-badge">1</div>
             <span class="contestant-display-name" id="contestant-1-display">Contestant 1</span>
             <div class="picker-preview" id="picker-preview-1"></div>
@@ -391,7 +394,7 @@
         </section>
 
         <!-- Center Controls (sketch: Submit, Reset, record, 3:00 timer, Tournament) -->
-        <section id="center-controls">
+        <section id="center-controls" data-overlay-panel="center">
           <button id="btn-submit" class="control-btn primary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             Submit
@@ -405,7 +408,7 @@
             <div class="record-disc"><div class="record-label"><span class="record-spindle"></span></div></div>
           </div>
           <!-- Timer: one timer per round; follows the deck, single reset button -->
-          <div id="timer-display" class="timer-container">
+          <div id="timer-display" class="timer-container panel-keep">
             <div class="timer-value" id="timer-value">3:00</div>
             <div class="timer-controls">
               <button id="btn-timer-play" class="timer-btn" title="Play/Pause (follows the deck)" hidden>
@@ -433,8 +436,8 @@
           </div>
         </section>
 
-        <section id="contestant-2-panel" class="contestant-panel p2">
-          <div class="contestant-header">
+        <section id="contestant-2-panel" class="contestant-panel p2" data-overlay-panel="c2">
+          <div class="contestant-header panel-keep">
             <div class="contestant-badge">2</div>
             <span class="contestant-display-name" id="contestant-2-display">Contestant 2</span>
             <div class="picker-preview" id="picker-preview-2"></div>
@@ -488,6 +491,232 @@
         </div>
       </div>
 
+      <!-- Tab drawer floats over the stage -->
+      <div id="tab-content" class="tab-drawer">
+        <button type="button" class="tab-drawer-close" id="btn-tab-drawer-close" title="Close">&times;</button>
+      <div id="tab-history" class="tab-panel active">
+        <div class="tab-panel-inner">
+          <h2>Achievements & History</h2>
+          <div id="achievements-list" class="achievements-grid"></div>
+          <h3>Battle History</h3>
+          <div id="history-list" class="history-entries"></div>
+          <p class="empty-state" id="history-empty">No battles recorded yet. Submit scores to start tracking!</p>
+        </div>
+      </div>
+        <div id="tab-notes" class="tab-panel">
+          <div class="tab-panel-inner">
+            <h2>Battle Notes</h2>
+            <!-- Timestamped Feedback Notes -->
+            <div class="timestamp-notes-panel">
+              <div class="ts-input-wrap">
+                <input type="text" id="input-timestamp-note" placeholder="0:42 — strong switch-up..." class="ts-note-input" />
+                <button type="button" id="btn-add-timestamp-note" class="ts-add-btn" title="Add timestamped note">⏱️ Note</button>
+              </div>
+              <div id="active-timestamp-notes-list" class="ts-notes-mini-list"></div>
+            </div>
+            <textarea id="notes-textarea" class="notes-input" placeholder="Jot down your observations during the battle..." rows="5"></textarea>
+            <div id="saved-notes" class="saved-notes-list"></div>
+          </div>
+        </div>
+        <div id="tab-h2h" class="tab-panel">
+          <div class="tab-panel-inner">
+            <h2>Head-to-Head</h2>
+            <!-- Live Head-to-Head Score Radar Chart -->
+            <div class="score-radar-card" id="score-radar-container">
+              <div class="radar-header">
+                <span class="radar-title">📊 HEAD-TO-HEAD RADAR</span>
+                <div class="radar-legend">
+                  <span class="legend-item"><span class="legend-dot p1"></span> C1</span>
+                  <span class="legend-item"><span class="legend-dot p2"></span> C2</span>
+                </div>
+              </div>
+              <div class="radar-canvas-wrap">
+                <canvas id="score-radar-canvas" width="280" height="240"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom overlay row: C1 dock | camera director | C2 dock -->
+      <!-- Character control dock: stations, moves, and who you're driving -->
+      <div class="character-dock p1" data-overlay-panel="dock1" data-min-label="C1 Moves">
+        <div class="dock-header panel-keep">
+          <span class="dock-title" id="dock-title-1">C1 MOVES</span>
+          <button type="button" class="dock-control-btn" data-player="1" title="Drive this character with the arrow keys (Shift = run)">🎮 Control</button>
+        </div>
+        <div class="stage-char-controls" id="controls-p1">
+          <button type="button" class="stage-action-btn" data-player="1" data-action="deck" title="Send Contestant 1 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
+          <button type="button" class="stage-action-btn active" data-player="1" data-action="hype" title="Walk Contestant 1 to Side Stage">🚶 Side Stage</button>
+          <button type="button" class="stage-action-btn" data-player="1" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
+        </div>
+        <div class="emote-grid" id="emote-grid-1" data-player="1"></div>
+      </div>
+
+      <!-- Camera director -->
+      <div class="stage-director-bar" data-overlay-panel="director" data-min-label="Camera">
+        <div class="camera-views-group">
+          <span class="director-label">🎥 Director:</span>
+          <button type="button" class="cam-btn active" data-cam-view="front">Spectator</button>
+          <button type="button" class="cam-btn" data-cam-view="dj_pov">DJ POV</button>
+          <button type="button" class="cam-btn" data-cam-view="drone">Drone</button>
+          <button type="button" class="cam-btn" data-cam-view="staredown">Face-Off</button>
+          <button type="button" class="cam-btn" data-cam-view="auto">Auto-Cut</button>
+        </div>
+        <div class="stage-fx-group">
+          <button id="btn-manual-smoke" class="smoke-blast-btn" type="button" title="Blast cryogenic stage smoke cannons!">
+            💨 Blast Smoke
+          </button>
+          <button id="btn-announcer-hype" class="announcer-hype-btn" type="button" title="Trigger announcer fight hype!">
+            🎙️ Hype Call
+          </button>
+        </div>
+      </div>
+
+      <!-- Character control dock: stations, moves, and who you're driving -->
+      <div class="character-dock p2" data-overlay-panel="dock2" data-min-label="C2 Moves">
+        <div class="dock-header panel-keep">
+          <span class="dock-title" id="dock-title-2">C2 MOVES</span>
+          <button type="button" class="dock-control-btn" data-player="2" title="Drive this character with the arrow keys (Shift = run)">🎮 Control</button>
+        </div>
+        <div class="stage-char-controls" id="controls-p2">
+          <button type="button" class="stage-action-btn" data-player="2" data-action="deck" title="Send Contestant 2 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
+          <button type="button" class="stage-action-btn active" data-player="2" data-action="hype" title="Walk Contestant 2 to Side Stage">🚶 Side Stage</button>
+          <button type="button" class="stage-action-btn" data-player="2" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
+        </div>
+        <div class="emote-grid" id="emote-grid-2" data-player="2"></div>
+      </div>
+
+      <!-- Deck strip: load each contestant's beat, soundboard pads, crossfader -->
+      <div class="stage-deck-strip" data-overlay-panel="decks" data-min-label="Decks &amp; Soundboard">
+        <div class="audio-player-slot" id="audio-slot-1">
+          <div class="audio-slot-label">🎵 P1 Audio</div>
+          <div class="audio-input-row">
+            <label class="audio-file-btn" title="Upload audio file">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <input type="file" class="audio-file-input" data-player="1" accept="audio/*" hidden />
+            </label>
+            <select class="preset-beat-select" data-player="1" title="Select battle beat preset">
+              <option value="">⚡ Presets...</option>
+              <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
+              <option value="trap808">💣 Trap 808 (140 BPM)</option>
+              <option value="gfunk">🌴 West Coast (98 BPM)</option>
+              <option value="drill">⚔️ Drill (142 BPM)</option>
+            </select>
+            <input type="text" class="audio-url-input" data-player="1" placeholder="Or paste URL..." />
+            <button class="audio-load-btn" data-player="1" title="Load URL">↵</button>
+            <button type="button" class="audio-scratch-btn" data-player="1" title="Trigger vinyl scratch">🎛️</button>
+          </div>
+          <div class="audio-controls" data-player="1">
+            <button class="audio-play-btn" data-player="1" title="Play" disabled>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>
+            <div class="audio-progress-wrap">
+              <div class="audio-progress-bar" data-player="1">
+                <div class="audio-progress-fill" data-player="1"></div>
+              </div>
+              <span class="audio-time" data-player="1">0:00 / 0:00</span>
+            </div>
+            <input type="range" class="audio-volume" data-player="1" min="0" max="1" step="0.05" value="0.8" title="Volume" />
+          </div>
+        </div>
+        <div class="deck-strip-center">
+          <!-- DJ Battle Soundboard -->
+          <div class="dj-soundboard" id="dj-soundboard">
+            <div class="soundboard-header">
+              <span class="soundboard-title">⚡ DJ SOUNDBOARD</span>
+              <div class="soundboard-vol-wrap">
+                <span class="soundboard-vol-label">VOL</span>
+                <input type="range" id="soundboard-volume" min="0" max="1" step="0.05" value="0.85" title="Soundboard Volume" />
+              </div>
+            </div>
+            <div class="soundboard-grid">
+              <button type="button" class="soundboard-pad pad-airhorn" data-sound="airhorn" title="Air Horn (HotKey: 1)">
+                <span class="pad-icon">📢</span>
+                <span class="pad-label">HORN</span>
+                <span class="pad-key">1</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-bell" data-sound="bell" title="Round Bell (HotKey: 2)">
+                <span class="pad-icon">🔔</span>
+                <span class="pad-label">BELL</span>
+                <span class="pad-key">2</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-react" data-sound="crowd_react" title="Crowd Oohs &amp; Aahhs (HotKey: 3)">
+                <span class="pad-icon">😲</span>
+                <span class="pad-label">REACT</span>
+                <span class="pad-key">3</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-cheer" data-sound="crowd_cheer" title="Crowd Cheer &amp; Hype (HotKey: 4)">
+                <span class="pad-icon">👏</span>
+                <span class="pad-label">CHEER</span>
+                <span class="pad-key">4</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-drop" data-sound="needle_drop" title="Vinyl Needle Drop (HotKey: 5)">
+                <span class="pad-icon">🎚️</span>
+                <span class="pad-label">DROP</span>
+                <span class="pad-key">5</span>
+              </button>
+              <button type="button" class="soundboard-pad pad-stop" data-sound="needle_stop" title="Vinyl Stop Scratch (HotKey: 6)">
+                <span class="pad-icon">🛑</span>
+                <span class="pad-label">STOP</span>
+                <span class="pad-key">6</span>
+              </button>
+            </div>
+          </div>
+          <!-- DJ Equal-Power Crossfader -->
+          <div class="dj-crossfader-container">
+            <div class="crossfader-top">
+              <span class="cf-tag p1">DECK 1</span>
+              <span class="cf-title">🎚️ DJ CROSSFADER</span>
+              <span class="cf-tag p2">DECK 2</span>
+            </div>
+            <div class="crossfader-track-row">
+              <button type="button" class="crossfader-cut-btn cut-p1" data-val="0.0" title="Quick cut to Deck 1 (100% P1)">CUT 1</button>
+              <div class="crossfader-slider-wrap">
+                <input type="range" id="dj-crossfader" min="0" max="1" step="0.01" value="0.5" class="crossfader-slider" title="Crossfade blend between Deck 1 and Deck 2" />
+                <div class="crossfader-center-tick"></div>
+              </div>
+              <button type="button" class="crossfader-cut-btn cut-p2" data-val="1.0" title="Quick cut to Deck 2 (100% P2)">CUT 2</button>
+            </div>
+            <button type="button" class="crossfader-cut-btn center-btn" data-val="0.5" title="Reset Crossfader to Center (50/50 Mix)">CENTER (50/50)</button>
+          </div>
+        </div>
+        <div class="audio-player-slot" id="audio-slot-2">
+          <div class="audio-slot-label">🎵 P2 Audio</div>
+          <div class="audio-input-row">
+            <label class="audio-file-btn" title="Upload audio file">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <input type="file" class="audio-file-input" data-player="2" accept="audio/*" hidden />
+            </label>
+            <select class="preset-beat-select" data-player="2" title="Select battle beat preset">
+              <option value="">⚡ Presets...</option>
+              <option value="trap808">💣 Trap 808 (140 BPM)</option>
+              <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
+              <option value="drill">⚔️ Drill (142 BPM)</option>
+              <option value="gfunk">🌴 West Coast (98 BPM)</option>
+            </select>
+            <input type="text" class="audio-url-input" data-player="2" placeholder="Or paste URL..." />
+            <button class="audio-load-btn" data-player="2" title="Load URL">↵</button>
+            <button type="button" class="audio-scratch-btn" data-player="2" title="Trigger vinyl scratch">🎛️</button>
+          </div>
+          <div class="audio-controls" data-player="2">
+            <button class="audio-play-btn" data-player="2" title="Play" disabled>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>
+            <div class="audio-progress-wrap">
+              <div class="audio-progress-bar" data-player="2">
+                <div class="audio-progress-fill" data-player="2"></div>
+              </div>
+              <span class="audio-time" data-player="2">0:00 / 0:00</span>
+            </div>
+            <input type="range" class="audio-volume" data-player="2" min="0" max="1" step="0.05" value="0.8" title="Volume" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating restore button for Stage View -->
+      <button type="button" id="btn-show-ui" class="show-ui-btn" title="Bring the panels back (V)">☰ Show Panels</button>
+
       <!-- ============================================================
            3D BATTLE ARENA HERO STAGE (DJ DECK, SUBWOOFERS & CHARACTERS)
            ============================================================ -->
@@ -515,221 +744,8 @@
           </div>
         </div>
 
-        <div class="stage-director-bar">
-          <div class="camera-views-group">
-            <span class="director-label">🎥 Director:</span>
-            <button type="button" class="cam-btn active" data-cam-view="front">Spectator</button>
-            <button type="button" class="cam-btn" data-cam-view="dj_pov">DJ POV</button>
-            <button type="button" class="cam-btn" data-cam-view="drone">Drone</button>
-            <button type="button" class="cam-btn" data-cam-view="staredown">Face-Off</button>
-            <button type="button" class="cam-btn" data-cam-view="auto">Auto-Cut</button>
-          </div>
-          <div class="stage-fx-group">
-            <button id="btn-manual-smoke" class="smoke-blast-btn" type="button" title="Blast cryogenic stage smoke cannons!">
-              💨 Blast Smoke
-            </button>
-            <button id="btn-announcer-hype" class="announcer-hype-btn" type="button" title="Trigger announcer fight hype!">
-              🎙️ Hype Call
-            </button>
-          </div>
-        </div>
-
         <div id="dj-canvas-container">
           <canvas id="dj-canvas"></canvas>
-          <div class="stage-bottom-bar">
-            <div class="stage-char-controls left" id="controls-p1">
-              <span class="char-ctrl-label" id="ctrl-label-1">C1:</span>
-              <button type="button" class="stage-action-btn" data-player="1" data-action="deck" title="Send Contestant 1 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
-              <button type="button" class="stage-action-btn active" data-player="1" data-action="hype" title="Walk Contestant 1 to Side Stage">🚶 Side Stage</button>
-              <button type="button" class="stage-action-btn" data-player="1" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
-            </div>
-
-            <div class="stage-tip">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              Click stage floor to walk • Playing beats sends DJ to console to scratch &amp; mix
-            </div>
-
-            <div class="stage-char-controls right" id="controls-p2">
-              <span class="char-ctrl-label" id="ctrl-label-2">C2:</span>
-              <button type="button" class="stage-action-btn" data-player="2" data-action="deck" title="Send Contestant 2 to DJ Deck to Scratch & Mix">🎛️ Scratch &amp; Mix</button>
-              <button type="button" class="stage-action-btn active" data-player="2" data-action="hype" title="Walk Contestant 2 to Side Stage">🚶 Side Stage</button>
-              <button type="button" class="stage-action-btn" data-player="2" data-action="center" title="Walk to Center Battle Face-off">🥊 Face-off</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Deck strip: load each contestant's beat, soundboard pads, crossfader -->
-        <div class="stage-deck-strip">
-          <div class="audio-player-slot" id="audio-slot-1">
-            <div class="audio-slot-label">🎵 P1 Audio</div>
-            <div class="audio-input-row">
-              <label class="audio-file-btn" title="Upload audio file">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <input type="file" class="audio-file-input" data-player="1" accept="audio/*" hidden />
-              </label>
-              <select class="preset-beat-select" data-player="1" title="Select battle beat preset">
-                <option value="">⚡ Presets...</option>
-                <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
-                <option value="trap808">💣 Trap 808 (140 BPM)</option>
-                <option value="gfunk">🌴 West Coast (98 BPM)</option>
-                <option value="drill">⚔️ Drill (142 BPM)</option>
-              </select>
-              <input type="text" class="audio-url-input" data-player="1" placeholder="Or paste URL..." />
-              <button class="audio-load-btn" data-player="1" title="Load URL">↵</button>
-              <button type="button" class="audio-scratch-btn" data-player="1" title="Trigger vinyl scratch">🎛️</button>
-            </div>
-            <div class="audio-controls" data-player="1">
-              <button class="audio-play-btn" data-player="1" title="Play" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-              </button>
-              <div class="audio-progress-wrap">
-                <div class="audio-progress-bar" data-player="1">
-                  <div class="audio-progress-fill" data-player="1"></div>
-                </div>
-                <span class="audio-time" data-player="1">0:00 / 0:00</span>
-              </div>
-              <input type="range" class="audio-volume" data-player="1" min="0" max="1" step="0.05" value="0.8" title="Volume" />
-            </div>
-          </div>
-          <div class="deck-strip-center">
-            <!-- DJ Battle Soundboard -->
-            <div class="dj-soundboard" id="dj-soundboard">
-              <div class="soundboard-header">
-                <span class="soundboard-title">⚡ DJ SOUNDBOARD</span>
-                <div class="soundboard-vol-wrap">
-                  <span class="soundboard-vol-label">VOL</span>
-                  <input type="range" id="soundboard-volume" min="0" max="1" step="0.05" value="0.85" title="Soundboard Volume" />
-                </div>
-              </div>
-              <div class="soundboard-grid">
-                <button type="button" class="soundboard-pad pad-airhorn" data-sound="airhorn" title="Air Horn (HotKey: 1)">
-                  <span class="pad-icon">📢</span>
-                  <span class="pad-label">HORN</span>
-                  <span class="pad-key">1</span>
-                </button>
-                <button type="button" class="soundboard-pad pad-bell" data-sound="bell" title="Round Bell (HotKey: 2)">
-                  <span class="pad-icon">🔔</span>
-                  <span class="pad-label">BELL</span>
-                  <span class="pad-key">2</span>
-                </button>
-                <button type="button" class="soundboard-pad pad-react" data-sound="crowd_react" title="Crowd Oohs &amp; Aahhs (HotKey: 3)">
-                  <span class="pad-icon">😲</span>
-                  <span class="pad-label">REACT</span>
-                  <span class="pad-key">3</span>
-                </button>
-                <button type="button" class="soundboard-pad pad-cheer" data-sound="crowd_cheer" title="Crowd Cheer &amp; Hype (HotKey: 4)">
-                  <span class="pad-icon">👏</span>
-                  <span class="pad-label">CHEER</span>
-                  <span class="pad-key">4</span>
-                </button>
-                <button type="button" class="soundboard-pad pad-drop" data-sound="needle_drop" title="Vinyl Needle Drop (HotKey: 5)">
-                  <span class="pad-icon">🎚️</span>
-                  <span class="pad-label">DROP</span>
-                  <span class="pad-key">5</span>
-                </button>
-                <button type="button" class="soundboard-pad pad-stop" data-sound="needle_stop" title="Vinyl Stop Scratch (HotKey: 6)">
-                  <span class="pad-icon">🛑</span>
-                  <span class="pad-label">STOP</span>
-                  <span class="pad-key">6</span>
-                </button>
-              </div>
-            </div>
-            <!-- DJ Equal-Power Crossfader -->
-            <div class="dj-crossfader-container">
-              <div class="crossfader-top">
-                <span class="cf-tag p1">DECK 1</span>
-                <span class="cf-title">🎚️ DJ CROSSFADER</span>
-                <span class="cf-tag p2">DECK 2</span>
-              </div>
-              <div class="crossfader-track-row">
-                <button type="button" class="crossfader-cut-btn cut-p1" data-val="0.0" title="Quick cut to Deck 1 (100% P1)">CUT 1</button>
-                <div class="crossfader-slider-wrap">
-                  <input type="range" id="dj-crossfader" min="0" max="1" step="0.01" value="0.5" class="crossfader-slider" title="Crossfade blend between Deck 1 and Deck 2" />
-                  <div class="crossfader-center-tick"></div>
-                </div>
-                <button type="button" class="crossfader-cut-btn cut-p2" data-val="1.0" title="Quick cut to Deck 2 (100% P2)">CUT 2</button>
-              </div>
-              <button type="button" class="crossfader-cut-btn center-btn" data-val="0.5" title="Reset Crossfader to Center (50/50 Mix)">CENTER (50/50)</button>
-            </div>
-          </div>
-          <div class="audio-player-slot" id="audio-slot-2">
-            <div class="audio-slot-label">🎵 P2 Audio</div>
-            <div class="audio-input-row">
-              <label class="audio-file-btn" title="Upload audio file">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <input type="file" class="audio-file-input" data-player="2" accept="audio/*" hidden />
-              </label>
-              <select class="preset-beat-select" data-player="2" title="Select battle beat preset">
-                <option value="">⚡ Presets...</option>
-                <option value="trap808">💣 Trap 808 (140 BPM)</option>
-                <option value="boombap">🔥 Boombap 90s (92 BPM)</option>
-                <option value="drill">⚔️ Drill (142 BPM)</option>
-                <option value="gfunk">🌴 West Coast (98 BPM)</option>
-              </select>
-              <input type="text" class="audio-url-input" data-player="2" placeholder="Or paste URL..." />
-              <button class="audio-load-btn" data-player="2" title="Load URL">↵</button>
-              <button type="button" class="audio-scratch-btn" data-player="2" title="Trigger vinyl scratch">🎛️</button>
-            </div>
-            <div class="audio-controls" data-player="2">
-              <button class="audio-play-btn" data-player="2" title="Play" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-              </button>
-              <div class="audio-progress-wrap">
-                <div class="audio-progress-bar" data-player="2">
-                  <div class="audio-progress-fill" data-player="2"></div>
-                </div>
-                <span class="audio-time" data-player="2">0:00 / 0:00</span>
-              </div>
-              <input type="range" class="audio-volume" data-player="2" min="0" max="1" step="0.05" value="0.8" title="Volume" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab drawer slides up over the stage so the page never scrolls -->
-        <div id="tab-content" class="tab-drawer">
-          <button type="button" class="tab-drawer-close" id="btn-tab-drawer-close" title="Close">&times;</button>
-        <div id="tab-history" class="tab-panel active">
-          <div class="tab-panel-inner">
-            <h2>Achievements & History</h2>
-            <div id="achievements-list" class="achievements-grid"></div>
-            <h3>Battle History</h3>
-            <div id="history-list" class="history-entries"></div>
-            <p class="empty-state" id="history-empty">No battles recorded yet. Submit scores to start tracking!</p>
-          </div>
-        </div>
-          <div id="tab-notes" class="tab-panel">
-            <div class="tab-panel-inner">
-              <h2>Battle Notes</h2>
-              <!-- Timestamped Feedback Notes -->
-              <div class="timestamp-notes-panel">
-                <div class="ts-input-wrap">
-                  <input type="text" id="input-timestamp-note" placeholder="0:42 — strong switch-up..." class="ts-note-input" />
-                  <button type="button" id="btn-add-timestamp-note" class="ts-add-btn" title="Add timestamped note">⏱️ Note</button>
-                </div>
-                <div id="active-timestamp-notes-list" class="ts-notes-mini-list"></div>
-              </div>
-              <textarea id="notes-textarea" class="notes-input" placeholder="Jot down your observations during the battle..." rows="5"></textarea>
-              <div id="saved-notes" class="saved-notes-list"></div>
-            </div>
-          </div>
-          <div id="tab-h2h" class="tab-panel">
-            <div class="tab-panel-inner">
-              <h2>Head-to-Head</h2>
-              <!-- Live Head-to-Head Score Radar Chart -->
-              <div class="score-radar-card" id="score-radar-container">
-                <div class="radar-header">
-                  <span class="radar-title">📊 HEAD-TO-HEAD RADAR</span>
-                  <div class="radar-legend">
-                    <span class="legend-item"><span class="legend-dot p1"></span> C1</span>
-                    <span class="legend-item"><span class="legend-dot p2"></span> C2</span>
-                  </div>
-                </div>
-                <div class="radar-canvas-wrap">
-                  <canvas id="score-radar-canvas" width="280" height="240"></canvas>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div id="dj-loading" class="dj-loading-overlay">
