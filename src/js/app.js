@@ -112,6 +112,47 @@ function postBroadcast(type, data) {
   } catch (e) {
     console.warn('BroadcastChannel message error:', e);
   }
+  // Every change also refreshes the popout's full picture (names, scores, clock, decks)
+  if (type !== 'STATE_UPDATE') scheduleBroadcastState();
+}
+
+let broadcastStateQueued = false;
+function scheduleBroadcastState() {
+  if (broadcastStateQueued || !broadcastChannel) return;
+  broadcastStateQueued = true;
+  setTimeout(() => {
+    broadcastStateQueued = false;
+    try { postBroadcast('STATE_UPDATE', buildBroadcastState()); } catch (e) { console.warn('Broadcast state error:', e); }
+  }, 0);
+}
+
+function buildBroadcastState() {
+  const c1 = selectedContestant1Id ? roster.getById(selectedContestant1Id) : null;
+  const c2 = selectedContestant2Id ? roster.getById(selectedContestant2Id) : null;
+  const ss = rounds.getSeriesSummary();
+  const r = rounds.currentRound || 1;
+  return {
+    c1Name: c1 ? c1.name : 'Contestant 1',
+    c2Name: c2 ? c2.name : 'Contestant 2',
+    score1: scoring.getTotal(1),
+    score2: scoring.getTotal(2),
+    roundsWon1: ss.roundsWon1 || 0,
+    roundsWon2: ss.roundsWon2 || 0,
+    roundTitle: r === 4 ? 'Overtime' : r === 3 ? 'Final Round' : `Round ${r}`,
+    timerFormatted: timer.getFormattedTime(),
+    timerCritical: timer.running && timer.remaining <= 10,
+    audioState1: audio.isPlaying(1),
+    audioState2: audio.isPlaying(2),
+    avatar1: djController.currentAvatars?.[1],
+    avatar2: djController.currentAvatars?.[2]
+  };
+}
+
+// A popout opened mid-battle asks for the current state
+if (broadcastChannel) {
+  broadcastChannel.onmessage = (e) => {
+    if (e.data?.type === 'HELLO') scheduleBroadcastState();
+  };
 }
 
 // Expose on window for easy dev/test console inspection
@@ -851,11 +892,18 @@ async function runWinnerReveal(finalResult, unlocks = []) {
   audio.pauseAll();
   timer.pause();
   djController.startReveal();
+  postBroadcast('REVEAL_START', {});
   setTimeout(() => announcer.play('whowillwin'), 350);
   audio.playDrumroll(2.8);
   await wait(2950);
 
   djController.revealWinner(winNum);
+  postBroadcast('REVEAL_WINNER', {
+    winnerNum: winNum,
+    winnerName: winNum ? finalResult.winnerName : 'DRAW',
+    decisionMethod: DECISION_LABELS[finalResult.decisionMethod] || finalResult.decisionMethod,
+    decisionTally: finalResult.decisionTally || ''
+  });
   soundboard.play('crowd_cheer');
   const method = finalResult.decisionMethod;
   setTimeout(() => {
@@ -959,6 +1007,7 @@ function closeReveal() {
   if (overlay) overlay.style.display = 'none';
   document.body.classList.remove('reveal-mode');
   djController.endReveal();
+  postBroadcast('DISMISS_WINNER', {});
 }
 
 function handleResetBattle() {
@@ -1350,6 +1399,7 @@ function init() {
   soundboard.init();
   soundboard.onPlay((soundKey) => {
     djController.triggerSoundReaction(soundKey);
+    postBroadcast('SOUND', { soundKey });
   });
 
   // Performance pads (20, mirrored on the 3D controller)
@@ -1406,6 +1456,7 @@ function init() {
       document.querySelectorAll(`.avatar-btn[data-player="${playerNum}"]`).forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       djController.setPlayerAvatar(playerNum, gender);
+      scheduleBroadcastState();
     });
   });
 

@@ -14,13 +14,17 @@ class BroadcastController {
   init() {
     // Initialize 3D Arena
     this.djController.init();
-    this.djController.setCameraView('drone');
+    this.djController.setCameraView('front');
+    this.audio = { 1: false, 2: false };
+    this.avatars = {};
 
     // Wire Broadcast Channel
     if (this.channel) {
       this.channel.onmessage = (event) => {
         this.handleBroadcastMessage(event.data);
       };
+      // Ask the host console for the current state (popout opened mid-battle)
+      this.channel.postMessage({ type: 'HELLO' });
     }
 
     // Also listen to storage events as fallback
@@ -36,17 +40,30 @@ class BroadcastController {
 
   handleBroadcastMessage(data) {
     if (!data || !data.type) return;
+    const payload = data.payload ?? data.data;
 
     switch (data.type) {
       case 'STATE_UPDATE':
-        this.updateState(data.payload);
+        this.updateState(payload);
+        break;
+
+      case 'REVEAL_START':
+        this.djController.startReveal();
         break;
 
       case 'REVEAL_WINNER':
-        this.showWinner(data.payload);
+        this.showWinner(payload);
+        break;
+
+      case 'SOUND':
+        if (payload?.soundKey) this.djController.triggerSoundReaction(payload.soundKey);
         break;
 
       case 'DISMISS_WINNER':
+        this.hideWinner();
+        break;
+
+      case 'BATTLE_RESET':
       case 'RESET':
         this.resetView();
         break;
@@ -81,11 +98,11 @@ class BroadcastController {
     // Series Tallies
     if (payload.roundsWon1 !== undefined) {
       const el = document.getElementById('b-p1-tally');
-      if (el) el.textContent = `${payload.roundsWon1} WINS`;
+      if (el) el.textContent = `${payload.roundsWon1} ${payload.roundsWon1 === 1 ? "WIN" : "WINS"}`;
     }
     if (payload.roundsWon2 !== undefined) {
       const el = document.getElementById('b-p2-tally');
-      if (el) el.textContent = `${payload.roundsWon2} WINS`;
+      if (el) el.textContent = `${payload.roundsWon2} ${payload.roundsWon2 === 1 ? "WIN" : "WINS"}`;
     }
 
     // Round title
@@ -103,11 +120,31 @@ class BroadcastController {
       }
     }
 
-    // Audio states & camera
-    if (payload.audioState1 !== undefined || payload.audioState2 !== undefined) {
-      this.djController.setAudioState(1, !!payload.audioState1);
-      this.djController.setAudioState(2, !!payload.audioState2);
-    }
+    // Same avatars as the host
+    [1, 2].forEach(p => {
+      const key = payload[`avatar${p}`];
+      if (key && this.avatars[p] !== key) {
+        this.avatars[p] = key;
+        this.djController.setPlayerAvatar(p, key);
+      }
+    });
+
+    // Jumbotron mirrors the host
+    this.djController.setJumbotronData({
+      c1Name: payload.c1Name, c2Name: payload.c2Name,
+      score1: payload.score1 !== undefined ? Number(payload.score1).toFixed(2) : undefined,
+      score2: payload.score2 !== undefined ? Number(payload.score2).toFixed(2) : undefined,
+      timer: payload.timerFormatted
+    });
+
+    // Decks: the playing contestant walks to the controller (only on change)
+    [1, 2].forEach(p => {
+      const on = !!payload[`audioState${p}`];
+      if (on !== this.audio[p]) {
+        this.audio[p] = on;
+        this.djController.setAudioPlaying(p, on);
+      }
+    });
     if (payload.smoke) {
       this.djController.triggerSmokeBlast(payload.smokeDuration || 2.5, payload.smokeColor || 0xffaa00);
     }
@@ -121,19 +158,24 @@ class BroadcastController {
 
     if (nameEl) nameEl.textContent = (result.winnerName || 'CHAMPION').toUpperCase();
     if (verdictEl) {
-      verdictEl.textContent = `${result.decisionMethod || 'OFFICIAL DECISION'} (${result.decisionTally || ''})`;
+      verdictEl.textContent = `${result.decisionMethod || 'OFFICIAL DECISION'}${result.decisionTally ? ` (${result.decisionTally})` : ''}`;
     }
 
     if (modal) modal.style.display = 'flex';
 
-    // Trigger stage pyro
-    this.djController.triggerSmokeBlast(4.0, 0xffaa00);
-    this.djController.pulse();
+    // Same reveal as the host stage: face-off, beams on the winner, confetti
+    this.djController.startReveal();
+    this.djController.revealWinner(result.winnerNum || null);
+  }
+
+  hideWinner() {
+    const modal = document.getElementById('b-winner-modal');
+    if (modal) modal.style.display = 'none';
+    this.djController.endReveal();
   }
 
   resetView() {
-    const modal = document.getElementById('b-winner-modal');
-    if (modal) modal.style.display = 'none';
+    this.hideWinner();
 
     const s1 = document.getElementById('b-p1-score');
     const s2 = document.getElementById('b-p2-score');

@@ -517,12 +517,13 @@ class DJControllerRenderer {
     ctx.fillText('WHO WANT THAT SMOKE', w / 2, 55);
     ctx.restore();
 
-    // Contestant Data
-    const c1Name = document.querySelector('#contestant-1-panel .contestant-name')?.textContent || 'CONTESTANT 1';
-    const c2Name = document.querySelector('#contestant-2-panel .contestant-name')?.textContent || 'CONTESTANT 2';
-    const c1Score = document.getElementById('contestant-1-total')?.textContent || '0.00';
-    const c2Score = document.getElementById('contestant-2-total')?.textContent || '0.00';
-    const timerDisplay = document.getElementById('timer-display')?.textContent || '00:00';
+    // Contestant Data (the OBS popout feeds it in; the host page reads its own panels)
+    const jd = this.jumbotronData || {};
+    const c1Name = jd.c1Name || document.querySelector('#contestant-1-panel .contestant-name')?.textContent || 'CONTESTANT 1';
+    const c2Name = jd.c2Name || document.querySelector('#contestant-2-panel .contestant-name')?.textContent || 'CONTESTANT 2';
+    const c1Score = jd.score1 || document.getElementById('contestant-1-total')?.textContent || '0.00';
+    const c2Score = jd.score2 || document.getElementById('contestant-2-total')?.textContent || '0.00';
+    const timerDisplay = jd.timer || document.getElementById('timer-display')?.textContent || '00:00';
 
     // Left Box (Contestant 1 - Red)
     ctx.fillStyle = 'rgba(255, 45, 45, 0.15)';
@@ -2419,6 +2420,11 @@ class DJControllerRenderer {
     this.camera.aspect = container.clientWidth / container.clientHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(container.clientWidth, container.clientHeight);
+  }
+
+  setJumbotronData(data) {
+    const clean = Object.fromEntries(Object.entries(data || {}).filter(([, v]) => v !== undefined));
+    this.jumbotronData = { ...(this.jumbotronData || {}), ...clean };
   }
 
   setAudioPlayer(audioPlayer) {
