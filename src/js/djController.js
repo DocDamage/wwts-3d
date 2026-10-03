@@ -12,7 +12,10 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CharacterAnimator } from './characterAnimator.js';
+import { StageArena } from './stageArena.js';
+import { addRimLight } from './rimLight.js';
 import {
   MOVES_BY_ID, TAUNT_REACTIONS, HYPE_REACTIONS, IDLE_FIDGETS, walkCycle, djStation, groove, registerMove
 } from './characterMoves.js';
@@ -147,8 +150,8 @@ class DJControllerRenderer {
 
     // 1. Scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0a0b10);
-    this.scene.fog = new THREE.FogExp2(0x0a0b10, 0.045);
+    this.scene.background = new THREE.Color(0x07070d);
+    this.scene.fog = new THREE.FogExp2(0x0b0a14, 0.03);
 
     // 2. Camera
     const aspect = container.clientWidth / container.clientHeight;
@@ -166,9 +169,15 @@ class DJControllerRenderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.25;
+    this.renderer.toneMappingExposure = 1.3;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Soft studio reflections so the metal deck, speakers and stage floor read as metal
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = 0.22;
+    pmrem.dispose();
 
     // 4. Lighting
     this.setupLighting();
@@ -188,7 +197,8 @@ class DJControllerRenderer {
     // 9. Moving Head Lasers / Spotlights
     this.buildArenaLasers();
 
-    // 10. Stadium Crowd Atmosphere & Camera Flashes
+    // 10. Arena: truss + beams, lasers, LED floor, tiered crowd, haze — plus camera flashes
+    this.arena = new StageArena(this.scene, { quality: this.qualityPreset });
     this.buildArenaCrowd();
 
     // 11. DJ Deck Model
@@ -209,13 +219,13 @@ class DJControllerRenderer {
      LIGHTING
      ============================================================ */
   setupLighting() {
-    // Soft atmospheric ambient
-    const ambient = new THREE.AmbientLight(0x454b60, 1.4);
+    // Atmospheric sky/ground fill (cool from above, warm bounce from the stage)
+    const ambient = new THREE.HemisphereLight(0x8a93b8, 0x2a1c1c, 1.5);
     this.scene.add(ambient);
     this.ambientLight = ambient;
 
     // Front Stage Fill Light (illuminates faces, clothing, and speaker cones)
-    const frontFill = new THREE.DirectionalLight(0xfff2e6, 2.0);
+    const frontFill = new THREE.DirectionalLight(0xfff2e6, 1.6);
     frontFill.position.set(0, 4.5, 5.0);
     this.scene.add(frontFill);
 
@@ -230,30 +240,55 @@ class DJControllerRenderer {
     this.scene.add(deckSpot);
     this.stageLights.deckLight = deckSpot;
 
-    // Player 1 (Red / Left) Spotlight
-    const spotP1 = new THREE.SpotLight(0xff2222, 5.0, 16, Math.PI / 4, 0.4);
-    spotP1.position.set(-3.5, 4.5, 2.0);
+    // Player colour spotlights (red stage-left, cyan stage-right) — they track their contestant
+    const spotP1 = new THREE.SpotLight(0xff2222, 5.0, 18, Math.PI / 7, 0.5, 1.2);
+    spotP1.position.set(-3.5, 5.0, 2.0);
     spotP1.target.position.set(-1.6, 0.8, 0);
     this.scene.add(spotP1);
     this.scene.add(spotP1.target);
     this.stageLights.spotP1 = spotP1;
 
-    // Player 2 (Cyan / Right) Spotlight
-    const spotP2 = new THREE.SpotLight(0x00e5ff, 5.0, 16, Math.PI / 4, 0.4);
-    spotP2.position.set(3.5, 4.5, 2.0);
+    const spotP2 = new THREE.SpotLight(0x00e5ff, 5.0, 18, Math.PI / 7, 0.5, 1.2);
+    spotP2.position.set(3.5, 5.0, 2.0);
     spotP2.target.position.set(1.6, 0.8, 0);
     this.scene.add(spotP2);
     this.scene.add(spotP2.target);
     this.stageLights.spotP2 = spotP2;
 
-    // Rim backlights for dramatic stage silhouette
-    const rimP1 = new THREE.PointLight(0xff3344, 3.0, 10);
-    rimP1.position.set(-2.5, 2.0, -2.5);
-    this.scene.add(rimP1);
+    // Per-contestant follow spot (warm white key from the front truss) and a
+    // coloured back light behind each one, so even an all-black outfit reads
+    this.followLights = {};
+    [1, 2].forEach(p => {
+      const color = p === 1 ? 0xff3344 : 0x00d4ff;
+      const key = new THREE.SpotLight(0xfff1e0, 55, 20, 0.2, 0.65, 2);
+      key.position.set(p === 1 ? -1.2 : 1.2, 5.2, 5.5);
+      const back = new THREE.SpotLight(color, 40, 12, 0.35, 0.6, 2);
+      back.position.set(p === 1 ? -2.2 : 2.2, 4.2, -2.6);
+      [key, back].forEach(l => { this.scene.add(l); this.scene.add(l.target); });
+      this.followLights[p] = { key, back, keyBase: 55, backBase: 40 };
+    });
+  }
 
-    const rimP2 = new THREE.PointLight(0x00d4ff, 3.0, 10);
-    rimP2.position.set(2.5, 2.0, -2.5);
-    this.scene.add(rimP2);
+  /** Follow spots and player spots track their contestant every frame */
+  updateFollowLights() {
+    [1, 2].forEach(p => {
+      const char = this.characters[p];
+      const f = this.followLights?.[p];
+      if (!char || !f) return;
+      const pos = char.position;
+      const spot = p === 1 ? this.stageLights.spotP1 : this.stageLights.spotP2;
+      f.key.target.position.lerp(new THREE.Vector3(pos.x, 1.0, pos.z), 0.15);
+      f.back.target.position.lerp(new THREE.Vector3(pos.x, 1.1, pos.z), 0.15);
+      f.back.position.x += ((pos.x * 1.2) - f.back.position.x) * 0.05;
+      f.back.position.z += ((pos.z - 3.2) - f.back.position.z) * 0.05;
+      f.key.position.x += ((pos.x * 0.8) - f.key.position.x) * 0.05;
+      if (spot) spot.target.position.lerp(new THREE.Vector3(pos.x, 0.9, pos.z), 0.15);
+
+      // During the reveal the loser's follow spot fades out
+      const dim = this.revealActive && this.revealWinnerNum && this.revealWinnerNum !== p ? 0.15 : 1;
+      f.key.intensity += (f.keyBase * dim - f.key.intensity) * 0.1;
+      f.back.intensity += (f.backBase * (this.revealActive ? Math.max(dim, 0.6) * 1.5 : 1) - f.back.intensity) * 0.1;
+    });
   }
 
   /* ============================================================
@@ -630,7 +665,7 @@ class DJControllerRenderer {
             map: this.smokeTexture,
             color: this.smokeColorHex || c.colorHex || 0xffffff,
             transparent: true,
-            opacity: 0.85,
+            opacity: 0.5,
             depthWrite: false,
             blending: THREE.AdditiveBlending
           });
@@ -683,7 +718,7 @@ class DJControllerRenderer {
 
       const curScale = 0.35 + progress * p.scaleSpeed;
       p.sprite.scale.set(curScale, curScale, 1);
-      p.mat.opacity = Math.max(0, 0.85 * (1 - Math.pow(progress, 1.4)));
+      p.mat.opacity = Math.max(0, 0.5 * (1 - Math.pow(progress, 1.4)));
       p.mat.rotation += p.rotSpeed * delta;
     }
   }
@@ -720,60 +755,15 @@ class DJControllerRenderer {
      STADIUM CROWD ATMOSPHERE & CAMERA FLASHBULBS
      ============================================================ */
   buildArenaCrowd() {
+    // The crowd itself lives in StageArena; this adds the camera flashbulbs in the pit
     this.crowdMembers = [];
     this.crowdFlashes = [];
-
-    const crowdMat = new THREE.MeshBasicMaterial({ color: 0x07080f });
-    const headGeo = new THREE.SphereGeometry(0.14, 8, 8);
-    const bodyGeo = new THREE.CylinderGeometry(0.16, 0.22, 0.65, 8);
-    const armGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.45, 6);
-
-    const numSpectators = 18;
-    for (let i = 0; i < numSpectators; i++) {
-      const group = new THREE.Group();
-      const angle = -0.72 + (i / (numSpectators - 1)) * 1.44; // Fan arc across front stage
-      const radius = 3.9 + (i % 2) * 0.4;
-
-      const x = Math.sin(angle) * radius;
-      const z = Math.cos(angle) * radius;
-      group.position.set(x, -0.3, z);
-      group.rotation.y = angle + Math.PI; // Face towards the center DJ stage
-
-      const body = new THREE.Mesh(bodyGeo, crowdMat);
-      body.position.y = 0.32;
-      group.add(body);
-
-      const head = new THREE.Mesh(headGeo, crowdMat);
-      head.position.y = 0.72;
-      group.add(head);
-
-      // Some spectators wave their arms in the air
-      if (i % 3 === 0) {
-        const armLeft = new THREE.Mesh(armGeo, crowdMat);
-        armLeft.position.set(-0.2, 0.65, 0.05);
-        armLeft.rotation.z = 0.8;
-        group.add(armLeft);
-
-        const armRight = new THREE.Mesh(armGeo, crowdMat);
-        armRight.position.set(0.2, 0.65, 0.05);
-        armRight.rotation.z = -0.8;
-        group.add(armRight);
-      }
-
-      this.scene.add(group);
-      this.crowdMembers.push({
-        group,
-        baseY: -0.3,
-        phaseOffset: i * 0.45,
-        bouncePower: 0.02 + (i % 3) * 0.015
-      });
-    }
 
     // 4 Camera Flashbulbs in the audience
     for (let f = 0; f < 4; f++) {
       const flash = new THREE.PointLight(0xffffff, 0, 7.0);
       const angle = -0.6 + (f / 3) * 1.2;
-      flash.position.set(Math.sin(angle) * 4.1, 0.5, Math.cos(angle) * 4.1);
+      flash.position.set(Math.sin(angle) * 6.6, 1.6, Math.cos(angle) * 6.6);
       this.scene.add(flash);
       this.crowdFlashes.push(flash);
     }
@@ -781,16 +771,8 @@ class DJControllerRenderer {
 
   updateCrowd(delta, elapsed) {
     const isPlaying = this.audioState[1] || this.audioState[2];
-    const tempo = this.bpm / 60;
-    const beatTime = elapsed * tempo * Math.PI * 2;
-
-    this.crowdMembers.forEach(m => {
-      const bob = Math.sin(beatTime + m.phaseOffset) * (isPlaying ? m.bouncePower : 0.008);
-      m.group.position.y = m.baseY + Math.max(0, bob);
-    });
-
     // Random occasional stadium camera flash during active music
-    if (isPlaying) {
+    if (isPlaying && !this.noFlash) {
       this.flashTimer += delta;
       if (this.flashTimer > 1.8 + Math.random() * 2.5) {
         this.flashTimer = 0;
@@ -1195,6 +1177,18 @@ class DJControllerRenderer {
 
     // Clone the FBX object with bones and skeleton intact
     const char = SkeletonUtils.clone(template);
+
+    // Own materials per contestant, with a rim glow in their colour so dark outfits stay visible
+    const rimColor = playerNum === 1 ? 0xff4a4a : 0x2ee8ff;
+    char.traverse((child) => {
+      if (!child.isMesh || !child.material) return;
+      const own = (m) => {
+        const c = m.clone();
+        addRimLight(c, { color: rimColor, strength: 0.9, power: 2.6 });
+        return c;
+      };
+      child.material = Array.isArray(child.material) ? child.material.map(own) : own(child.material);
+    });
 
     // Standardize character height to ~1.75 world units
     const box = new THREE.Box3().setFromObject(char);
@@ -1796,6 +1790,11 @@ class DJControllerRenderer {
       if (this.stageLights.spotP2) this.stageLights.spotP2.intensity = 7;
     }
     if (this.ambientLight) this.ambientLight.intensity = 0.8;
+    this.revealWinnerNum = winnerNum || null;
+    this.arena?.cheer(winnerNum ? 6 : 3);
+    const champ = winnerNum ? this.characters[winnerNum] : null;
+    if (champ) this.arena?.focusOn(champ.position, winnerNum === 1 ? 0xff3b3b : 0x22e6ff);
+    else this.arena?.focusOn(new THREE.Vector3(0, 0, STATIONS.faceoffZ), 0xffc23a);
 
     if (winnerNum) {
       this.playResultReaction(winnerNum);
@@ -1813,6 +1812,8 @@ class DJControllerRenderer {
   endReveal() {
     if (!this.revealActive) return;
     this.revealActive = false;
+    this.revealWinnerNum = null;
+    this.arena?.clearFocus();
     const prev = this.preRevealLights || {};
     if (this.ambientLight && prev.ambient !== undefined) this.ambientLight.intensity = prev.ambient;
     if (this.stageLights.spotP1 && prev.p1 !== undefined) this.stageLights.spotP1.intensity = prev.p1;
@@ -1971,9 +1972,11 @@ class DJControllerRenderer {
       }, 65);
 
       [1, 2].forEach(p => this.autoReact(p, HYPE_REACTIONS));
+      this.arena?.cheer(2);
       this.pulse();
     } else if (soundKey === 'crowd_cheer') {
       this.triggerSmokeBlast(1.8, 0xffaa00);
+      this.arena?.cheer(3);
       [1, 2].forEach(p => this.autoReact(p, HYPE_REACTIONS));
       this.pulse();
     } else if (soundKey === 'bell') {
@@ -1988,7 +1991,8 @@ class DJControllerRenderer {
         }, 600);
       }
       this.pulse();
-    } else if (soundKey === 'crowd_react' || soundKey === 'crowd_cheer') {
+    } else if (soundKey === 'crowd_react') {
+      this.arena?.cheer(1.5);
       // Contestants react to the crowd
       [1, 2].forEach(p => this.autoReact(p, ['shocked', 'nod_yes', 'laugh', 'clap']));
       // Flash stage spotlights
@@ -2344,6 +2348,18 @@ class DJControllerRenderer {
 
     // 8. Arena Crowd Spectators & Camera Flashes
     this.updateCrowd(delta, elapsed);
+    this.arena?.update(delta, elapsed, {
+      playing: !!isAnyPlaying,
+      active1: this.audioState[1],
+      active2: this.audioState[2],
+      bass: realBass ?? (isAnyPlaying ? Math.pow(Math.max(0, Math.sin(beatPhase)), 4) * 0.6 : 0),
+      highs: (analysis && analysis.isPlaying) ? analysis.highEnergy : (isAnyPlaying ? 0.3 : 0),
+      beat: beatPhase,
+      chars: [null, this.characters[1]?.position || null, this.characters[2]?.position || null],
+      reducedMotion: this.reducedMotion,
+      noFlash: this.noFlash
+    });
+    this.updateFollowLights();
 
     // 8. Camera Director Auto-Rotation
     if (this.cameraMode === 'auto') {
@@ -2419,6 +2435,7 @@ class DJControllerRenderer {
 
   setQualityPreset(preset = 'high') {
     this.qualityPreset = preset;
+    this.arena?.setQuality(preset);
     if (!this.renderer) return;
 
     if (preset === 'low') {
