@@ -41,6 +41,7 @@ import { JudgeStatsPanel } from './judgeStats.js';
 import { AudienceVote } from './audienceVote.js';
 import { BattleRecorder, ReplayViewer } from './replay.js';
 import { DeckWaveforms } from './deckWave.js';
+import { OverlayFeed, OverlaysPanel, bracketSummary } from './overlayFeed.js';
 
 // ============================================================
 // Initialize all modules
@@ -1082,6 +1083,7 @@ function showWinner(finalResult, unlocks = []) {
   document.getElementById('winner-name').textContent = winNum ? finalResult.winnerName : finalResult.decisionMethod === 'INCOMPLETE_PANEL' ? 'Judges Still Scoring' : 'DRAW';
   overlay.dataset.winner = winNum || 'draw';
   const crowd = window.audienceVotes ? window.audienceVotes() : null;
+  window.lastOverlayResult = { winnerName: finalResult.winnerName, decision: `${DECISION_LABELS[finalResult.decisionMethod] || finalResult.decisionMethod}${finalResult.decisionTally ? ` · ${finalResult.decisionTally}` : ''}`, at: Date.now() };
   const crowdLine = crowd ? ` · 📣 People's Choice: ${crowd[1] === crowd[2] ? 'tied' : (crowd[1] > crowd[2] ? finalResult.contestant1?.name : finalResult.contestant2?.name)} (${Math.max(crowd[1], crowd[2])}-${Math.min(crowd[1], crowd[2])})` : '';
   document.getElementById('winner-decision').textContent =
     `${DECISION_LABELS[finalResult.decisionMethod] || finalResult.decisionMethod}${finalResult.decisionTally ? ` · ${finalResult.decisionTally}` : ''}${crowdLine}${finalResult.isDemo ? ' · DEMO (not recorded)' : ''}`;
@@ -1944,6 +1946,31 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
   });
   crowdVote.init();
   window.crowdVote = crowdVote;
+
+  // Stream overlays (OBS browser sources) fed through the hub
+  const fightSummary = () => {
+    const g = fightScreen?.game;
+    if (g?.matchActive && g.f) {
+      return { names: g.names, hp: { 1: g.f[1].hp, 2: g.f[2].hp }, wins: g.wins, need: g.need, clock: g.opts?.roundTime >= 999 ? '∞' : Math.max(0, Math.ceil(g.clockLeft ?? 0)), combo: { 1: g.f[1].combo, 2: g.f[2].combo } };
+    }
+    const d = djController.fight;
+    if (d?.active && d.hp) return { names: d.names || { 1: 'P1', 2: 'P2' }, hp: d.hp, wins: null, need: 0, clock: '', combo: {} };
+    return null;
+  };
+  const overlayFeed = new OverlayFeed({
+    judgeLink,
+    build: () => ({
+      ...buildBroadcastState(),
+      league: leagues.getActive()?.name || '',
+      bpm: djController.beatNow?.bpm || null,
+      bracket: bracketSummary(tournament, roster),
+      crowd: crowdVote.poll ? { title: crowdVote.poll.title, open: crowdVote.poll.open, options: crowdVote.poll.options, counts: crowdVote.counts, url: crowdVote.link.selectedAddress ? `${crowdVote.link.selectedAddress}${crowdVote.link.port ? ':' + crowdVote.link.port : ''}/vote.html` : null } : null,
+      fight: fightSummary(),
+      result: window.lastOverlayResult || null
+    })
+  });
+  overlayFeed.start();
+  new OverlaysPanel({ judgeLink, toast: showToast }).init();
 
   // Deck waveforms, BPM / key, hot cues
   const deckWaves = new DeckWaveforms(audio);

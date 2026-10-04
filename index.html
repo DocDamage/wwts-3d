@@ -1391,6 +1391,21 @@
       </div>
     </div>
 
+    <!-- ===== OBS OVERLAYS ===== -->
+    <div id="overlays-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="overlays-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="overlays-title">🎬 OBS Overlays</h2>
+          <button class="modal-close" data-close="overlays-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <p class="backup-lead">Add each as a <b>Browser Source</b> in OBS (same computer). Backgrounds are transparent and they update live from room <b id="overlays-room">----</b>. Use Preview to check the layout with sample data.</p>
+          <ul id="overlays-list" class="backup-list overlays-list"></ul>
+          <p class="profile-muted">Options: add <code>&amp;scale=1.5</code> to resize, <code>&amp;align=left</code> or <code>right</code> to anchor.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== BATTLE RULES ===== -->
     <div id="rules-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="rules-title">
       <div class="modal-content rules-content">

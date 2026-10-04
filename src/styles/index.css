@@ -5542,3 +5542,5 @@ body.blind-on .picker-preview img { filter: blur(10px); }
 .deck-cues { margin-left: auto; display: flex; gap: 3px; }
 .deck-cue { width: 24px; height: 22px; border-radius: 5px; border: 1px solid var(--cue); background: transparent; color: var(--cue); font: 700 0.7rem 'Inter', sans-serif; cursor: pointer; padding: 0; }
 .deck-cue.set { background: var(--cue); color: #111; }
+.overlays-list code { display: block; font-size: 0.7rem; color: #9aa3b8; margin-top: 3px; word-break: break-all; }
+.overlays-list a.fs-small { text-decoration: none; display: inline-flex; align-items: center; }

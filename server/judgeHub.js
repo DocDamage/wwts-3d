@@ -22,6 +22,11 @@
  *   host  → hub   { t:'poll', poll }                       { id, open, options:[a,b], title, showResults }
  *   hub   → host  { t:'vote-tally', pollId, counts:[a,b], voters } · { t:'aud-count', n } · { t:'aud-hype', n }
  *   hub   → aud   { t:'aud-joined' } · { t:'poll', poll, myVote, counts? }
+ *
+ * Stream overlays (overlay.html in OBS browser sources):
+ *   ov    → hub   { t:'ov-join', room }
+ *   host  → hub   { t:'overlay', state }                  relayed to every overlay in the room
+ *   hub   → ov    { t:'overlay', state }
  */
 
 import os from 'os';
@@ -41,7 +46,7 @@ class JudgeRooms {
     let r = this.rooms.get(code);
     if (r && r.token !== token) return { ok: false, code: 'room-taken' };
     if (!r) {
-      r = { token, host: null, state: null, judges: new Map(), audience: new Map(), poll: null };
+      r = { token, host: null, state: null, judges: new Map(), audience: new Map(), poll: null, overlays: new Set(), overlay: null };
       this.rooms.set(code, r);
     }
     r.host = send;
@@ -178,6 +183,30 @@ class JudgeRooms {
     return true;
   }
 
+  /* ---- stream overlays ---- */
+
+  joinOverlay(room, send) {
+    const code = String(room || '').toUpperCase();
+    const r = this.rooms.get(code);
+    if (!r) return { ok: false, code: 'no-room' };
+    r.overlays.add(send);
+    send({ t: 'ov-joined', room: code });
+    if (r.overlay) send({ t: 'overlay', state: r.overlay });
+    return { ok: true, room: code };
+  }
+
+  setOverlay(room, state) {
+    const r = this.rooms.get(room);
+    if (!r) return 0;
+    r.overlay = state;
+    r.overlays.forEach(send => send({ t: 'overlay', state }));
+    return r.overlays.size;
+  }
+
+  leaveOverlay(room, send) {
+    this.rooms.get(room)?.overlays.delete(send);
+  }
+
   leaveAudience(room, deviceId) {
     const r = this.rooms.get(room);
     if (r?.audience.delete(deviceId)) r.host?.({ t: 'aud-count', n: r.audience.size });
@@ -244,6 +273,13 @@ function attachJudgeHub(httpServer) {
         rooms.vote(room, deviceId, msg.pollId, Number(msg.choice));
       } else if (role === 'audience' && msg.t === 'aud-hype') {
         rooms.hype(room, deviceId);
+      } else if (msg.t === 'ov-join') {
+        const res = rooms.joinOverlay(msg.room, send);
+        if (!res.ok) return send({ t: 'error', code: res.code });
+        role = 'overlay';
+        room = res.room;
+      } else if (role === 'host' && msg.t === 'overlay') {
+        rooms.setOverlay(room, msg.state);
       } else if (role === 'host' && msg.t === 'poll') {
         rooms.setPoll(room, msg.poll);
       } else if (role === 'host' && msg.t === 'state') {
@@ -262,6 +298,7 @@ function attachJudgeHub(httpServer) {
     ws.on('close', () => {
       if (role === 'judge') rooms.leave(room, deviceId);
       if (role === 'audience') rooms.leaveAudience(room, deviceId);
+      if (role === 'overlay') rooms.leaveOverlay(room, send);
       if (role === 'host') rooms.hostGone(room, send);
     });
   });

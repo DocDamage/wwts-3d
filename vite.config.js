@@ -37,7 +37,8 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         broadcast: path.resolve(__dirname, 'broadcast.html'),
         judge: path.resolve(__dirname, 'judge.html'),
-        vote: path.resolve(__dirname, 'vote.html')
+        vote: path.resolve(__dirname, 'vote.html'),
+        overlay: path.resolve(__dirname, 'overlay.html')
       }
     }
   },

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WWTS Overlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/overlay.css" />
+</head>
+<body>
+  <!-- One widget per browser source: ?room=ABCD&w=scoreboard|lower|timer|bracket|fight|crowd|result -->
+  <div id="ov-root"></div>
+  <div id="ov-status" class="ov-status" hidden></div>
+  <script type="module" src="/src/js/overlayApp.js"></script>
+</body>
+</html>
