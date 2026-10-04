@@ -54,6 +54,7 @@ class HistoryManager {
       timestampedNotes: finalResult.timestampedNotes || [],
       ratingChanges: finalResult.ratingChanges || null,
       isClinch: !!finalResult.isClinch,
+      timeline: finalResult.timeline || null,
       timestamp: finalResult.timestamp || new Date().toISOString()
     };
 
@@ -145,6 +146,7 @@ class HistoryManager {
           <div class="he-vs">VS</div>
           ${decisionBadge}
           ${demoBadge}
+          ${battle.timeline ? '<button type="button" class="he-replay" aria-label="Replay this battle">▶ Replay</button>' : ''}
         </div>
         <div class="he-right">
           <div class="he-name ${c2IsWinner ? 'winner' : ''}">${this.escapeHtml(battle.contestant2Name)}</div>
@@ -152,6 +154,7 @@ class HistoryManager {
         </div>
       `;
 
+      entry.querySelector('.he-replay')?.addEventListener('click', () => this.onReplay?.(battle));
       container.appendChild(entry);
     });
   }

@@ -5510,3 +5510,25 @@ body.blind-on .picker-preview img { filter: blur(10px); }
 .crowd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .crowd-history { margin: 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-muted); }
 @media (max-width: 560px) { .crowd-join { flex-direction: column; align-items: flex-start; } .crowd-row { grid-template-columns: 80px 1fr 64px; } }
+
+/* Battle replay */
+.he-replay { margin-top: 4px; font: 600 0.7rem 'Inter', sans-serif; padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); color: #e7e9f2; cursor: pointer; }
+.replay-content { width: min(760px, 96vw); }
+.replay-body { padding: 4px 22px 22px; display: flex; flex-direction: column; gap: 12px; }
+.replay-score { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+.replay-score b { font: 400 2rem 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
+.replay-score .p1 b { color: #ff5a4a; } .replay-score .p2 b { color: #26d4ff; }
+.replay-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.replay-chart { width: 100%; height: 180px; background: rgba(255,255,255,0.03); border-radius: 10px; cursor: pointer; }
+.rp-line { fill: none; stroke-width: 2.5; } .rp-line.p1 { stroke: #ff5a4a; } .rp-line.p2 { stroke: #26d4ff; }
+.rp-mark { stroke: rgba(255,255,255,0.15); stroke-dasharray: 3 3; } .rp-mark.round { stroke: rgba(255,210,26,0.5); } .rp-mark.lock { stroke: rgba(255,255,255,0.35); }
+.rp-cursor { stroke: #fff; stroke-width: 1.5; }
+.rp-axis { font-size: 10px; fill: #8a90a2; }
+.replay-controls { display: flex; gap: 10px; align-items: center; }
+.replay-controls input { flex: 1; }
+.replay-events { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.replay-events button { width: 100%; text-align: left; background: none; border: none; color: #cfd3e0; padding: 5px 8px; border-radius: 6px; font: 500 0.82rem 'Inter', sans-serif; cursor: pointer; opacity: 0.55; }
+.replay-events li.past button { opacity: 1; }
+.replay-events button:hover, .replay-events button:focus-visible { background: rgba(255,255,255,0.06); }
+.rp-t { font-variant-numeric: tabular-nums; color: #ffd21a; margin-right: 6px; }
+.replay-controls .control-btn { flex: 0 0 auto; width: auto; }

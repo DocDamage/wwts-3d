@@ -39,6 +39,7 @@ import { renderProfileExtras, makeProfileCard, downloadBlob } from './profiles.j
 import { RulesPanel, rulesFor, resolveTie } from './battleRules.js';
 import { JudgeStatsPanel } from './judgeStats.js';
 import { AudienceVote } from './audienceVote.js';
+import { BattleRecorder, ReplayViewer } from './replay.js';
 
 // ============================================================
 // Initialize all modules
@@ -1157,6 +1158,7 @@ function closeReveal() {
 function handleResetBattle() {
   battleEngine.resetBattleSession();
   window.crowdVote?.reset();
+  window.recorder?.reset();
   storage.clearActiveSession();
   updateContestantDisplay(1);
   updateContestantDisplay(2);
@@ -1941,6 +1943,32 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
   });
   crowdVote.init();
   window.crowdVote = crowdVote;
+
+  // Battle timeline recorder + replay viewer
+  const recorder = new BattleRecorder(() => {
+    const r = rounds.currentRound;
+    let judgesIn = 0;
+    if (judges.mode === 'panel') { try { judgesIn = judges.getConsensus(r).judges.filter(j => j.scored).length; } catch { /* no panel */ } }
+    const tn = battleEngine.timestampedNotes || [];
+    return {
+      round: r,
+      total1: scoring.getTotal(1),
+      total2: scoring.getTotal(2),
+      deck1: audio.isPlaying(1),
+      deck2: audio.isPlaying(2),
+      judgesIn,
+      locked: !!scoring.locked,
+      notes: tn.length,
+      lastNote: tn[tn.length - 1]?.text,
+      names: { 1: shownName(1), 2: shownName(2) }
+    };
+  });
+  recorder.start();
+  window.recorder = recorder;
+  battleEngine.timelineProvider = () => recorder.export({ crowd: crowdVote.history });
+  const replayViewer = new ReplayViewer();
+  replayViewer.init();
+  history.onReplay = (battle) => replayViewer.open(battle);
 
   // Tools menu, backups
   const tools = new ToolsMenu({ onAction: (act) => document.dispatchEvent(new CustomEvent('wwts-tool-action', { detail: act })) });

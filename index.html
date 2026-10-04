@@ -1375,6 +1375,22 @@
       </div>
     </div>
 
+    <!-- ===== BATTLE REPLAY ===== -->
+    <div id="replay-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="replay-title">
+      <div class="modal-content replay-content">
+        <div class="modal-header">
+          <h2>▶ Replay: <span id="replay-title"></span></h2>
+          <button class="modal-close" data-close="replay-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="replay-body">
+          <div class="replay-score"><span class="p1"><span id="replay-n1"></span> <b id="replay-s1">0.00</b></span><span id="replay-time" class="replay-time">0:00</span><span class="p2"><b id="replay-s2">0.00</b> <span id="replay-n2"></span></span></div>
+          <svg id="replay-chart" class="replay-chart" role="img" aria-label="Score totals over the battle"></svg>
+          <div class="replay-controls"><button type="button" id="replay-play" class="control-btn primary">▶ Play</button><input type="range" id="replay-range" min="0" max="1" value="0" aria-label="Replay position" /></div>
+          <ol id="replay-events" class="replay-events"></ol>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== BATTLE RULES ===== -->
     <div id="rules-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="rules-title">
       <div class="modal-content rules-content">

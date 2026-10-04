@@ -410,6 +410,11 @@ class BattleSessionEngine {
       });
     }
 
+    // The battle's timeline (for replays)
+    if (typeof this.timelineProvider === 'function') {
+      try { officialResult.timeline = this.timelineProvider() || null; } catch { officialResult.timeline = null; }
+    }
+
     // Mark finalized
     this.isFinalized = true;
     this.finalizedResult = officialResult;
