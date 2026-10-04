@@ -1406,6 +1406,22 @@
       </div>
     </div>
 
+    <!-- ===== MIDI & STREAM DECK ===== -->
+    <div id="midi-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="midi-title">
+      <div class="modal-content judge-stats-content">
+        <div class="modal-header">
+          <h2 id="midi-title">🎛 MIDI &amp; Stream Deck</h2>
+          <button class="modal-close" data-close="midi-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <p class="backup-lead" id="midi-status" role="status"></p>
+          <p class="backup-lead"><b>MIDI:</b> press <b>Learn</b> next to an action, then hit a pad or move a knob on your controller. <b>Stream Deck:</b> use its Hotkey action with the keyboard shortcuts, or with Bitfocus Companion add an HTTP GET button for any action ID, e.g. <code id="midi-http"></code> (this computer only).</p>
+          <input type="search" id="midi-filter" class="form-input" placeholder="Filter actions…" aria-label="Filter actions" />
+          <ul id="midi-list" class="midi-list"></ul>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== BATTLE RULES ===== -->
     <div id="rules-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="rules-title">
       <div class="modal-content rules-content">

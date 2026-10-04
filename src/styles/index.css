@@ -5544,3 +5544,12 @@ body.blind-on .picker-preview img { filter: blur(10px); }
 .deck-cue.set { background: var(--cue); color: #111; }
 .overlays-list code { display: block; font-size: 0.7rem; color: #9aa3b8; margin-top: 3px; word-break: break-all; }
 .overlays-list a.fs-small { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* MIDI mapping */
+.midi-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 55vh; overflow: auto; }
+.midi-group { font: 700 0.72rem 'Inter', sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: #ffd21a; margin: 10px 0 2px; }
+.midi-row { display: grid; grid-template-columns: 1fr 150px 170px auto auto; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 8px; background: rgba(255,255,255,0.03); font-size: 0.82rem; }
+.midi-row.learning { background: rgba(255,210,26,0.15); outline: 1px solid #ffd21a; }
+.midi-id { font-size: 0.7rem; color: #9aa3b8; }
+.midi-bind { color: #cfd3e0; font-size: 0.76rem; }
+@media (max-width: 700px) { .midi-row { grid-template-columns: 1fr auto auto; } .midi-id, .midi-bind { display: none; } }

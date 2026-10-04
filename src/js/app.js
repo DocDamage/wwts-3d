@@ -42,6 +42,8 @@ import { AudienceVote } from './audienceVote.js';
 import { BattleRecorder, ReplayViewer } from './replay.js';
 import { DeckWaveforms } from './deckWave.js';
 import { OverlayFeed, OverlaysPanel, bracketSummary } from './overlayFeed.js';
+import { buildActions, startCommandRelay } from './controlActions.js';
+import { MidiMapper, MidiPanel } from './midiMap.js';
 
 // ============================================================
 // Initialize all modules
@@ -1971,6 +1973,27 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
   });
   overlayFeed.start();
   new OverlaysPanel({ judgeLink, toast: showToast }).init();
+
+  // Hardware control: one action registry for MIDI learn and Stream Deck / Companion HTTP buttons
+  const actions = buildActions({
+    audio, timer, rounds, padBank, soundboard, announcer, crowdVote,
+    get deckWaves() { return window.deckWaves; },
+    toggleActiveDeck,
+    lockCurrentRound,
+    submit: () => submitBtn?.click(),
+    closeReveal,
+    toggleBlind: () => setBlind(!blind.on),
+    smoke: () => { djController.triggerSmokeBlast(2.8, 0x00e5ff); soundboard.play('airhorn'); },
+    hype: () => { announcer.announceHype?.(); djController.arena?.boost(0.4); djController.triggerSmokeBlast(1.6, 0xff2d2d); },
+    camera: (v) => document.querySelector(`.cam-btn[data-cam-view="${v}"]`)?.click() || djController.setCameraView(v),
+    stageView: () => document.getElementById('btn-stage-view')?.click()
+  });
+  window.controlActions = actions;
+  const midi = new MidiMapper(actions, { toast: showToast });
+  new MidiPanel(midi, actions).init();
+  // reconnect saved mappings silently when MIDI was used before
+  if (Object.keys(midi.map).length && navigator.requestMIDIAccess) midi.connect();
+  startCommandRelay(actions);
 
   // Deck waveforms, BPM / key, hot cues
   const deckWaves = new DeckWaveforms(audio);
