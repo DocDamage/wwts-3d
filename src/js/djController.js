@@ -1895,6 +1895,74 @@ class DJControllerRenderer {
       this.sendCharacterToCenter(p);
     });
     this.setCameraView('reveal');
+    this.revealAt = null;
+    this.startRevealCamera();
+  }
+
+  /**
+   * Directed reveal camera: crane down over the crowd, a tense side-on two-shot
+   * pushing in, then (on the result) a whip round to orbit the winner close up
+   * before pulling back wide for the confetti. Draws cut between the two.
+   */
+  startRevealCamera() {
+    const t0 = this.clock.elapsedTime;
+    const V = THREE.Vector3;
+    const still = () => this.reducedMotion;
+    const cam = (camPos, target) => {
+      const now = this.clock.elapsedTime;
+      const t = now - t0;
+      const A = this.characters[1]?.position || new V(-1, 0, 2);
+      const B = this.characters[2]?.position || new V(1, 0, 2);
+      const mid = A.clone().add(B).multiplyScalar(0.5);
+      const ax = new V(B.x - A.x, 0, B.z - A.z).normalize();
+      let perp = new V(-ax.z, 0, ax.x);
+      if (perp.z < 0) perp.negate();
+      if (this.revealAt !== null && this.revealAt !== undefined) {
+        const tw = now - this.revealAt;
+        const w = this.revealWinnerNum;
+        if (w) {
+          const P = this.characters[w].position;
+          const f = this.characterStates[w].facing;
+          // three-quarter view from the audience side, so the loser isn't in the way
+          const face = new V(Math.sin(f), 0, Math.cos(f));
+          const base = face.clone().multiplyScalar(0.5).addScaledVector(perp, 0.9).normalize();
+          const orbit = still() ? 0 : Math.min(0.6, tw * 0.15) - 0.25;
+          const dir = base.applyAxisAngle(new V(0, 1, 0), orbit);
+          const pull = Math.max(0, Math.min(1, (tw - 4.2) / 2));
+          const r = 2.2 + pull * 3.3;
+          camPos.set(P.x + dir.x * r, 1.5 + pull * 1.1, P.z + dir.z * r);
+          target.set(P.x, 1.3 - pull * 0.2, P.z);
+        } else {
+          // draw: cut between the two, then the pair
+          const which = tw < 1.6 ? 1 : tw < 3.2 ? 2 : 0;
+          if (which) {
+            const P = this.characters[which].position;
+            const f = this.characterStates[which].facing;
+            const dir = new V(Math.sin(f), 0, Math.cos(f)).multiplyScalar(0.5).addScaledVector(perp, 0.9).normalize();
+            camPos.set(P.x + dir.x * 2.2, 1.5, P.z + dir.z * 2.2);
+            target.set(P.x, 1.3, P.z);
+          } else {
+            camPos.copy(mid).addScaledVector(perp, 5).setY(2.2);
+            target.copy(mid).setY(1.1);
+          }
+        }
+        return;
+      }
+      if (t < 2.4 && !still()) {
+        const u = t / 2.4;
+        const e = u * u * (3 - 2 * u);
+        const ang = -0.6 + e * 0.45;
+        const r = 10 - e * 3;
+        camPos.set(mid.x + Math.sin(ang) * r, 6.5 - e * 3.6, mid.z + Math.cos(ang) * r);
+        target.set(mid.x, 1.2, mid.z);
+      } else {
+        const u = still() ? 0 : Math.min(1, (t - 2.4) / 5);
+        camPos.copy(mid).addScaledVector(perp, 3.8 - u * 1.2).setY(1.35);
+        target.copy(mid).setY(1.25);
+      }
+    };
+    this._revealCam = cam;
+    this.cameraOverride = cam;
   }
 
   /** winnerNum: 1, 2 or null for a draw */
@@ -1909,6 +1977,7 @@ class DJControllerRenderer {
     }
     if (this.ambientLight) this.ambientLight.intensity = 0.8;
     this.revealWinnerNum = winnerNum || null;
+    this.revealAt = this.clock.elapsedTime;
     this.arena?.cheer(winnerNum ? 6 : 3);
     const champ = winnerNum ? this.characters[winnerNum] : null;
     if (champ) this.arena?.focusOn(champ.position, winnerNum === 1 ? 0xff3b3b : 0x22e6ff);
@@ -1951,6 +2020,8 @@ class DJControllerRenderer {
     if (this.stageLights.spotP1 && prev.p1 !== undefined) this.stageLights.spotP1.intensity = prev.p1;
     if (this.stageLights.spotP2 && prev.p2 !== undefined) this.stageLights.spotP2.intensity = prev.p2;
     if (this.stageLights.deckLight && prev.deck !== undefined) this.stageLights.deckLight.intensity = prev.deck;
+    if (this.cameraOverride === this._revealCam) this.cameraOverride = null;
+    this._revealCam = null;
     this.setCameraView('front');
   }
 
