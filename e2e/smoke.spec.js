@@ -100,3 +100,19 @@ test('audience vote page and overlays load', async ({ page }) => {
   }
   expect(errors).toEqual([]);
 });
+
+test.describe('small screens', () => {
+  for (const vp of [{ width: 375, height: 812 }, { width: 768, height: 1024 }]) {
+    test(`no sideways scrolling at ${vp.width}px`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await skipTour(page);
+      await page.goto('/');
+      for (const screen of ['leagues', 'roster', 'battle', 'fight']) {
+        await page.click(`.main-nav-btn[data-screen="${screen}"]`);
+        await page.waitForTimeout(500);
+        const w = await page.evaluate(() => document.documentElement.scrollWidth);
+        expect(w, `${screen} at ${vp.width}px`).toBeLessThanOrEqual(vp.width + 1);
+      }
+    });
+  }
+});

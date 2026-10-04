@@ -5633,3 +5633,71 @@ body[data-palette="contrast"] .modal-content, body[data-palette="contrast"] .too
 .tour-prompt { position: fixed; right: 16px; bottom: 16px; z-index: 10030; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; max-width: calc(100vw - 32px); background: var(--bg-elevated); border: 1px solid rgba(255, 210, 26, 0.45); border-radius: 12px; padding: 10px 12px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5); }
 body.reduced-motion .tour-spot, body.reduced-motion .tour-card { transition: none; }
 @media (prefers-reduced-motion: reduce) { .tour-spot, .tour-card { transition: none; } }
+
+/* the deck strip's three-column rule above comes after the 1250px stack rule: restate it */
+@media (max-width: 1250px) {
+  .stage-deck-strip { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* the header toolbar has grown: let it wrap instead of pushing the page wide */
+.header-right { flex-wrap: wrap; row-gap: 6px; }
+@media (min-width: 1025px) { .header-right { flex: 1 1 100%; } }   /* its own full row beside the wrapped title + nav */
+.header-right > .control-btn { width: auto; }
+.header-center { min-width: 0; }
+#main-nav { max-width: 100%; }
+@media (max-width: 1024px) {
+  .battle-meta-row .round-series-bar { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; }
+  .battle-meta-row .round-series-bar .round-tabs-center { flex-wrap: wrap; white-space: normal; }
+}
+
+/* ===== Small screens (phones, narrow windows) ===== */
+@media (max-width: 760px) {
+  .header-right { flex-wrap: wrap; gap: 6px; }
+  .header-right > * { flex: 0 1 auto; }
+  #main-nav { overflow-x: auto; scrollbar-width: none; justify-content: flex-start; max-width: 100%; }
+  #main-nav::-webkit-scrollbar { display: none; }
+  .header-center { min-width: 0; max-width: 100%; }
+  .main-nav-btn { flex: 0 0 auto; padding: 8px 10px; }
+  .league-selector-wrap { flex: 1 1 100%; }
+  .league-select { min-width: 0; width: 100%; }
+
+  /* battle desk: one column, every toolbar wraps */
+  #screen-battle.active { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
+  #screen-battle.active > *,
+  #screen-battle #contestant-1-panel, #screen-battle #contestant-2-panel,
+  #screen-battle .total-score-container.p1, #screen-battle .total-score-container.p2,
+  #screen-battle .character-dock.p1, #screen-battle .character-dock.p2 { grid-column: 1 / -1 !important; }
+  .wwts-topbar { flex-wrap: wrap; padding: 6px 10px; gap: 8px; }
+  .wwts-topbar .host-battle-flow-bar,
+  .host-battle-flow-bar { flex-wrap: wrap; gap: 8px; }
+  .flow-readiness-checklist, .flow-quick-controls { flex-wrap: wrap; }
+  .flow-primary-action-wrap { flex: 1 1 100%; }
+  .flow-primary-btn { width: 100%; }
+  .battle-meta-row { padding: 4px 8px; }
+  .battle-meta-row .round-series-bar { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; }
+  .battle-meta-row .round-series-bar .round-tabs-center { flex-wrap: wrap; white-space: normal; }
+  .battle-meta-row .scoring-config-pill-bar { flex-wrap: wrap; }
+  #screen-battle .slider-label-wrap { width: 108px; }
+  .weights-popover { width: min(300px, calc(100vw - 32px)); }
+  .tab-drawer { width: 100vw; }
+  .wwts-topbar .host-battle-flow-bar { flex: 1 1 100%; }
+  .battle-meta-row .scoring-config-pill-bar { flex: 1 1 100%; min-width: 0; }
+  .center-mini-row { flex-wrap: wrap; }
+  .center-mini-row > * { flex: 1 1 40%; }
+  .pad-grid { grid-template-columns: repeat(5, minmax(44px, 1fr)); }
+  #dj-soundboard, .deck-strip-center { flex-wrap: wrap; max-width: 100%; }
+  .stage-deck-strip { padding: 8px 10px; }
+  .audio-input-row { flex-wrap: wrap; }
+  .audio-input-row .preset-beat-select, .audio-input-row .audio-url-input { flex: 1 1 100%; min-width: 0; }
+  .deck-wave-row { flex-wrap: wrap; }
+
+  /* Fight Club select: fighters stacked, four tiles a row */
+  .fs-body { grid-template-columns: minmax(0, 1fr); padding: 6px 10px 14px; gap: 10px; }
+  .fs-side { max-height: none; }
+  .fs-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fs-tile { padding: 5px 2px; min-width: 0; }
+  .fs-tile-init { width: 30px; height: 30px; font-size: 0.95rem; }
+  .fs-tile-name { font-size: 0.78rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .fs-center { grid-column: 1; grid-row: auto; }
+  .fs-controls-box { max-width: calc(100vw - 20px); overflow-x: auto; }
+}
