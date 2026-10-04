@@ -5553,3 +5553,12 @@ body.blind-on .picker-preview img { filter: blur(10px); }
 .midi-id { font-size: 0.7rem; color: #9aa3b8; }
 .midi-bind { color: #cfd3e0; font-size: 0.76rem; }
 @media (max-width: 700px) { .midi-row { grid-template-columns: 1fr auto auto; } .midi-id, .midi-bind { display: none; } }
+
+/* Live chat hype */
+.chat-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.chat-row label:first-child { min-width: 110px; font-size: 0.84rem; }
+.chat-row .form-input { flex: 1; min-width: 140px; }
+.chat-status { font-size: 0.76rem; color: var(--text-muted); }
+.chat-vote-line { font-weight: 700; margin: 12px 0 6px; }
+.chat-feed { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 3px; font-size: 0.82rem; }
+.chat-feed b.twitch { color: #b48cff; } .chat-feed b.youtube { color: #ff6b6b; }

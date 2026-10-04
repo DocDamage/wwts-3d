@@ -7,6 +7,7 @@
  *                         &w=fight        fight HUD (health, timer, round pips, combo)
  *                         &w=crowd        live crowd-vote bars
  *                         &w=result       winner card after the reveal (auto-hides)
+ *                         &w=chat         latest live-chat messages
  * Optional: &scale=1.5  &align=left|right|center  &demo=1 (sample data for layout)
  *
  * State arrives over the local hub (works in OBS, which is a separate browser),
@@ -81,6 +82,11 @@ const W = {
       <div class="ov-crowd-bar"><i class="p1" style="width:${pct(0)}%"><span>${esc(c.options[0])} ${total ? pct(0) + '%' : ''}</span></i><i class="p2" style="width:${pct(1)}%"><span>${total ? pct(1) + '% ' : ''}${esc(c.options[1])}</span></i></div>
       <div class="ov-crowd-sub">${total} vote${total === 1 ? '' : 's'}${c.url ? ` · vote at ${esc(c.url)}` : ''}</div></div>`;
   },
+  chat(s) {
+    const c = s.chat;
+    if (!c || !c.recent?.length) return '';
+    return `<div class="ov-chat">${c.recent.map(m => `<div class="ov-chat-msg"><b class="${m.platform}">${esc(m.user)}</b> ${esc(m.text)}</div>`).join('')}</div>`;
+  },
   result(s) {
     const r = s.result;
     if (!r || Date.now() - lastResultAt > 15000) return '';
@@ -139,7 +145,8 @@ if (demo) {
     bracket: { name: 'Summer Smoke', rounds: [{ title: 'Semis', matches: [{ p1: '808 Smoke', p2: 'Kick Master', winner: 1 }, { p1: 'Vinyl Vixen', p2: 'Queen Poly', winner: 1 }] }, { title: 'Final', matches: [{ p1: '808 Smoke', p2: 'Vinyl Vixen', current: true }] }] },
     fight: { names: { 1: 'Marcus', 2: 'Ninja' }, hp: { 1: 64, 2: 38 }, wins: { 1: 1, 2: 0 }, need: 2, clock: 47, combo: { 1: 4, 2: 0 } },
     crowd: { title: 'Who won round 3?', open: true, options: ['808 Smoke', 'Vinyl Vixen'], counts: [23, 31] },
-    result: { winnerName: 'Vinyl Vixen', decision: 'Split Decision · 2-1', at: 1 }
+    result: { winnerName: 'Vinyl Vixen', decision: 'Split Decision · 2-1', at: 1 },
+    chat: { recent: [{ user: 'beatnerd', text: 'that flip was crazy 🔥', platform: 'twitch' }, { user: 'kickqueen', text: '2 all day', platform: 'youtube' }, { user: 'sp1200', text: 'W', platform: 'twitch' }], votes: [12, 19], rate: 80 }
   });
 } else {
   status(room ? `Connecting to room ${room}…` : null);

@@ -59,7 +59,8 @@ const OVERLAY_WIDGETS = [
   { w: 'crowd', name: 'Crowd vote', size: '1920 × 200', desc: 'Live crowd-vote bars while voting is open' },
   { w: 'bracket', name: 'Bracket', size: '1920 × 600', desc: 'The current tournament bracket' },
   { w: 'fight', name: 'Fight HUD', size: '1920 × 160', desc: 'Health bars, timer, round pips and combos' },
-  { w: 'result', name: 'Winner card', size: '1920 × 400', desc: 'Pops up after the reveal for 15 s' }
+  { w: 'result', name: 'Winner card', size: '1920 × 400', desc: 'Pops up after the reveal for 15 s' },
+  { w: 'chat', name: 'Live chat', size: '600 × 400', desc: 'Latest Twitch / YouTube messages (needs Live Chat Hype connected)' }
 ];
 
 class OverlaysPanel {

@@ -44,6 +44,7 @@ import { DeckWaveforms } from './deckWave.js';
 import { OverlayFeed, OverlaysPanel, bracketSummary } from './overlayFeed.js';
 import { buildActions, startCommandRelay } from './controlActions.js';
 import { MidiMapper, MidiPanel } from './midiMap.js';
+import { ChatHype, ChatPanel } from './chatHype.js';
 
 // ============================================================
 // Initialize all modules
@@ -1949,6 +1950,12 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
   crowdVote.init();
   window.crowdVote = crowdVote;
 
+  // Live chat hype (Twitch / YouTube)
+  const chatHype = new ChatHype({ onHype: (v) => djController.arena?.boost(v), getNames: () => [shownName(1), shownName(2)], toast: showToast });
+  new ChatPanel(chatHype).init();
+  window.chatHype = chatHype;
+  if (chatHype.settings.twitch && chatHype.settings.autoConnect) chatHype.connectTwitch(chatHype.settings.twitch);
+
   // Stream overlays (OBS browser sources) fed through the hub
   const fightSummary = () => {
     const g = fightScreen?.game;
@@ -1968,6 +1975,7 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
       bracket: bracketSummary(tournament, roster),
       crowd: crowdVote.poll ? { title: crowdVote.poll.title, open: crowdVote.poll.open, options: crowdVote.poll.options, counts: crowdVote.counts, url: crowdVote.link.selectedAddress ? `${crowdVote.link.selectedAddress}${crowdVote.link.port ? ':' + crowdVote.link.port : ''}/vote.html` : null } : null,
       fight: fightSummary(),
+      chat: chatHype.overlayState(),
       result: window.lastOverlayResult || null
     })
   });

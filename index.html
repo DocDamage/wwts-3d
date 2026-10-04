@@ -1422,6 +1422,26 @@
       </div>
     </div>
 
+    <!-- ===== LIVE CHAT HYPE ===== -->
+    <div id="chat-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="chat-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="chat-title">💬 Live Chat Hype</h2>
+          <button class="modal-close" data-close="chat-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <p class="backup-lead">Chat activity and hype words (🔥, W, fire, sheesh…) lift the stage crowd. Typing <b>1</b> or <b>2</b> (or a producer's name) counts as a chat vote.</p>
+          <div class="chat-row"><label for="chat-twitch">Twitch channel</label><input id="chat-twitch" class="form-input" placeholder="yourchannel" autocomplete="off" /><button type="button" id="chat-twitch-go" class="control-btn secondary">Connect</button><span id="chat-twitch-status" class="chat-status" role="status"></span></div>
+          <p class="profile-muted">Read-only and anonymous — no login needed.</p>
+          <div class="chat-row"><label for="chat-yt-video">YouTube live</label><input id="chat-yt-video" class="form-input" placeholder="Live video link or ID" autocomplete="off" /><input id="chat-yt-key" class="form-input" placeholder="Your YouTube Data API key" type="password" autocomplete="off" /><button type="button" id="chat-yt-go" class="control-btn secondary">Connect</button><span id="chat-yt-status" class="chat-status" role="status"></span></div>
+          <p class="profile-muted">YouTube needs an API key from Google Cloud (YouTube Data API v3); it's stored only in this browser.</p>
+          <div class="chat-row"><label class="inline-check"><input type="checkbox" id="chat-hype-on" /> Chat hypes the crowd</label><label class="inline-check"><input type="checkbox" id="chat-votes-on" /> Count 1 / 2 votes</label><button type="button" id="chat-votes-reset" class="fs-small">Reset votes</button></div>
+          <p class="chat-vote-line" id="chat-vote-line"></p>
+          <ul id="chat-feed" class="chat-feed" aria-live="off"></ul>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== BATTLE RULES ===== -->
     <div id="rules-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="rules-title">
       <div class="modal-content rules-content">
