@@ -14,7 +14,7 @@
  * one-shot moves (dances, attacks, hits, falls, turns) using smooth weight fades.
  */
 import * as THREE from 'three';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { loadModel } from './modelLoader.js';
 
 // Hip height (source units, cm) of the Mixamo character the clips were exported on
 const SOURCE_STAND_HIP = 111;
@@ -281,7 +281,7 @@ class MocapLibrary {
     this.byId = {};
     this.data = {};      // id -> { clip, rm, entry }
     this.pending = {};   // id -> Promise
-    this.loader = new FBXLoader();
+    this.sourceHip = null;   // standing hip height of the skeleton the clips were made on (clip units)
     this.listeners = new Set();
   }
 
@@ -311,17 +311,22 @@ class MocapLibrary {
     const entry = this.byId[id];
     if (!entry) return Promise.resolve(null);
     this.pending[id] = new Promise(resolve => {
-      this.loader.load(this.base + entry.file, (obj) => {
+      loadModel(this.base + entry.file, { classic: false }).then((obj) => {
         const clip = obj.animations?.[0];
         if (!clip) return resolve(null);
         clip.name = id;
+        // skeleton joints (animation-only GLBs have plain nodes, not Bones)
         const bones = [];
-        obj.traverse(n => { if (n.isBone) bones.push(n); });
+        obj.traverse(n => { if (n.isBone || /mixamorig/i.test(n.name)) bones.push(n); });
+        if (this.sourceHip === null) {
+          const hips = bones.find(b => /Hips$/.test(b.name));
+          if (hips && hips.position.y > 0) this.sourceHip = hips.position.y;
+        }
         const rm = processClip(clip, { perFrameYaw: turnsCharacter(entry), bones, entry });
         this.data[id] = { clip, rm, entry };
         this.listeners.forEach(fn => fn(id));
         resolve(this.data[id]);
-      }, undefined, () => resolve(null));
+      }).catch(() => resolve(null));
     });
     return this.pending[id];
   }
@@ -379,12 +384,16 @@ class MocapRig {
     if (t) rest = t.values[1];
     if (rest === null && this.hips) rest = this.hips.position.y;
     this.restHip = rest || SOURCE_STAND_HIP;
-    this.hipScale = this.restHip / SOURCE_STAND_HIP;
 
     // Rig units -> world metres (the root is scaled to make the character 1.75 m tall)
     const ws = new THREE.Vector3();
     (this.hips?.parent || char).getWorldScale(ws);
     this.unitToWorld = ws.x;
+  }
+
+  /** Rig hip height relative to the clips' source skeleton (units cancel out) */
+  get hipScale() {
+    return this.restHip / (this.lib.sourceHip || SOURCE_STAND_HIP);
   }
 
   /** Has the clip been loaded? (and build its action for this rig) */

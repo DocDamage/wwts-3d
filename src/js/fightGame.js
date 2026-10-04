@@ -923,7 +923,7 @@ class FightGame extends FightDirector {
       let pk = 0;
       hy.forEach((y, i) => { if (y > hy[pk]) pk = i; });
       const thr = rest + 0.22 * (hy[pk] - rest);
-      if (hy[pk] - rest > 8) {
+      if (hy[pk] - rest > rest * 0.07) {
         let a = 0;
         while (a < pk && hy[a] < thr) a++;
         let b = pk;
@@ -1053,7 +1053,8 @@ class FightGame extends FightDirector {
     const data = this.dj.mocap.get(id);
     const e = this.dj.mocap.byId[id];
     if (!data || !e || !rig.ready(id)) return false;
-    const strikes = data.rm.strikes?.length ? data.rm.strikes : (e.hits || [0.5]).map(t => ({ t, x: 0, z: 90, hx: 0, hz: 90, y: 120, bone: 'RightHandMiddle1', side: 'c', height: 1.2 }));
+    const u = data.rm.hip0 || this.dj.mocap.sourceHip || 100;   // clip units per hip height
+    const strikes = data.rm.strikes?.length ? data.rm.strikes : (e.hits || [0.5]).map(t => ({ t, x: 0, z: u * 0.85, hx: 0, hz: u * 0.85, y: u * 1.2, bone: 'RightHandMiddle1', side: 'c', height: 1.2 }));
     const S = rig.hipScale * rig.unitToWorld;
     const power = def.power || e.power || 2;
     const ts = def.speed || (def.super ? 1.1 : def.special ? 1.1 : [1, 1.25, 1.15, 1.05][power]);
@@ -1131,7 +1132,8 @@ class FightGame extends FightDirector {
     const data = this.dj.mocap.get(id);
     const rig = this.dj.rigs[f.p];
     if (!data || !rig.ready(id)) return false;
-    const strikes = data.rm.strikes?.length ? data.rm.strikes : [{ t: (data.entry.hits || [0.4])[0], hx: 0, hz: 90, x: 0, z: 90, bone: 'RightToeBase', side: 'c', height: 1.2 }];
+    const u = data.rm.hip0 || this.dj.mocap.sourceHip || 100;
+    const strikes = data.rm.strikes?.length ? data.rm.strikes : [{ t: (data.entry.hits || [0.4])[0], hx: 0, hz: u * 0.85, x: 0, z: u * 0.85, bone: 'RightToeBase', side: 'c', height: 1.2 }];
     const t0 = strikes[0].t;
     const from = Math.max(0, t0 - 0.2);
     const ts = 1.2;

@@ -11,6 +11,7 @@
 
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { loadModel } from './modelLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CharacterAnimator } from './characterAnimator.js';
@@ -481,13 +482,12 @@ class DJControllerRenderer {
 
     // Also attempt loading stage+led+screen.fbx if available in public
     try {
-      const fbxLoader = new FBXLoader();
-      fbxLoader.load('/models/stage/stage+led+screen.fbx', (fbx) => {
+      loadModel('/models/stage/stage+led+screen.fbx', { classic: false }).then((fbx) => {
         fbx.scale.set(0.012, 0.012, 0.012);
         fbx.position.set(0, 0, -2.4);
         fbx.rotation.y = Math.PI;
         this.scene.add(fbx);
-      }, undefined, () => {});
+      }, () => {});
     } catch {}
   }
 
@@ -1027,11 +1027,11 @@ class DJControllerRenderer {
     const textureLoader = new THREE.TextureLoader();
     const basePath = '/models/dj_controller/';
 
-    const baseColor = textureLoader.load(basePath + 'T_DJ_Controller_BaseColor.png');
+    const baseColor = textureLoader.load(basePath + 'T_DJ_Controller_BaseColor.webp');
     baseColor.colorSpace = THREE.SRGBColorSpace;
-    const normalMap = textureLoader.load(basePath + 'T_DJ_Controller_Normal.png');
-    const ormMap = textureLoader.load(basePath + 'T_DJ_Controller_OcclusionRoughnessMetallic.png');
-    const emissiveMap = textureLoader.load(basePath + 'T_DJ_Controller_Emissive.png');
+    const normalMap = textureLoader.load(basePath + 'T_DJ_Controller_Normal.webp');
+    const ormMap = textureLoader.load(basePath + 'T_DJ_Controller_OcclusionRoughnessMetallic.webp');
+    const emissiveMap = textureLoader.load(basePath + 'T_DJ_Controller_Emissive.webp');
     emissiveMap.colorSpace = THREE.SRGBColorSpace;
 
     loader.load(
@@ -1114,19 +1114,17 @@ class DJControllerRenderer {
      CONTESTANT 3D CHARACTERS (4 FBX MODELS WITH SKELETAL IDLE)
      ============================================================ */
   loadCharacters() {
-    const loader = new FBXLoader();
     const basePath = '/models/characters/';
     const characterList = [
-      { key: 'black_male', file: 'black_male.fbx' },
-      { key: 'black_female', file: 'black_female.fbx' },
-      { key: 'white_male', file: 'white_male.fbx' },
-      { key: 'white_female', file: 'white_female.fbx' }
+      { key: 'black_male', file: 'black_male.glb' },
+      { key: 'black_female', file: 'black_female.glb' },
+      { key: 'white_male', file: 'white_male.glb' },
+      { key: 'white_female', file: 'white_female.glb' }
     ];
 
     let loadedCount = 0;
     characterList.forEach(({ key, file }) => {
-      loader.load(
-        basePath + file,
+      loadModel(basePath + file).then(
         (object) => {
           this.setupCharacterMaterials(object);
           this.loadedFbxCache[key] = object;
@@ -1140,7 +1138,6 @@ class DJControllerRenderer {
             this.checkAllLoaded();
           }
         },
-        undefined,
         (err) => {
           console.warn(`Note on loading character ${key}:`, err);
           loadedCount++;
@@ -1250,23 +1247,20 @@ class DJControllerRenderer {
     this.scene.add(char);
     this.characters[playerNum] = char;
 
-    // Setup Animation Mixer with the embedded Breathing Idle clip
-    if (template.animations && template.animations.length > 0) {
-      const mixer = new THREE.AnimationMixer(char);
-      const clip = template.animations[0];
-      const action = mixer.clipAction(clip);
+    // Animation mixer (with the model's embedded idle as a fallback until mocap loads)
+    const mixer = new THREE.AnimationMixer(char);
+    this.mixers[playerNum] = mixer;
+    this.idleActions[playerNum] = null;
+    const embedded = (template.animations || []).find(c => c.tracks.length);
+    if (embedded) {
+      const action = mixer.clipAction(embedded);
       action.setEffectiveTimeScale(1.0);
       action.play();
-      this.mixers[playerNum] = mixer;
       this.idleActions[playerNum] = action;
-    } else {
-      this.mixers[playerNum] = null;
     }
     this.animators[playerNum] = new CharacterAnimator(char, this.mixers[playerNum]);
     char.updateMatrixWorld(true);
-    this.rigs[playerNum] = this.mixers[playerNum]
-      ? new MocapRig(char, this.mixers[playerNum], this.mocap, this.idleActions[playerNum])
-      : null;
+    this.rigs[playerNum] = new MocapRig(char, mixer, this.mocap, this.idleActions[playerNum]);
   }
 
   /**
@@ -1297,11 +1291,11 @@ class DJControllerRenderer {
     const entry = CAST_BY_KEY[key];
     if (!entry) return Promise.resolve(false);
     this._avatarLoads[key] = new Promise(resolve => {
-      new FBXLoader().load(entry.file, (object) => {
+      loadModel(entry.file).then((object) => {
         this.setupCharacterMaterials(object);
         this.loadedFbxCache[key] = object;
         resolve(true);
-      }, undefined, (err) => {
+      }, (err) => {
         console.warn('Could not load fighter', key, err);
         delete this._avatarLoads[key];
         resolve(false);

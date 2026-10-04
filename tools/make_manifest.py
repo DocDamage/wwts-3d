@@ -1,9 +1,11 @@
 import json, os
 
 # Regenerates public/models/animations/manifest.json from the downloaded Mixamo clips
+# Source clips live in assets-src/animations (FBX); the app serves the converted GLBs
+SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets-src', 'animations')
 DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'public', 'models', 'animations')
 OUT = os.path.join(DIR, 'manifest.json')
-files = sorted(f[:-4] for f in os.listdir(DIR) if f.endswith('.fbx'))
+files = sorted(f[:-4] for f in os.listdir(SRC) if f.endswith('.fbx'))
 
 # id: (label, icon, category, loop, extra)
 T = {
@@ -364,7 +366,7 @@ NO_FIGHT = {'fight_capoeira_kicks', 'fight_flying_shoulder_throw', 'fight_grab_s
 entries = []
 for fid in files:
     label, icon, cat, loop, extra = T[fid]
-    e = {'id': 'mx_' + fid, 'clip': fid, 'label': label, 'icon': icon, 'category': cat, 'file': fid + '.fbx', 'loop': loop}
+    e = {'id': 'mx_' + fid, 'clip': fid, 'label': label, 'icon': icon, 'category': cat, 'file': fid + '.glb', 'loop': loop}
     # one-shots carry their travel/turn onto the character; loops stay on the spot
     e['rootMotion'] = not loop
     for k, v in extra.items():

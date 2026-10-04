@@ -24,3 +24,6 @@ yarn-error.log*
 # IDE & Editor files
 .vscode/
 .idea/
+
+# Textures FBX2glTF extracts next to source models
+*.fbm/
