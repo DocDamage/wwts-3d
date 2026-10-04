@@ -133,6 +133,63 @@ function analyzeClip(clip, rm, bones, entry) {
   }
 
   const cat = entry?.category;
+  // Dances: the clip's own tempo from its motion energy (steps and hits pulse with the beat)
+  if (cat === 'dance' || cat === 'breaking') {
+    const fps = 30;
+    const n = Math.floor(dur * fps);
+    if (n > fps * 2) {
+      const parts = ['Hips', 'LeftToeBase', 'RightToeBase', 'LeftHand', 'RightHand', 'Head'];
+      const prevPos = {};
+      const energy = new Float32Array(n);
+      const hipY = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const p = pose(i / fps);
+        let e = 0;
+        parts.forEach(k => {
+          if (!p[k]) return;
+          if (prevPos[k]) e += p[k].distanceTo(prevPos[k]);
+          prevPos[k] = (prevPos[k] || p[k].clone()).copy(p[k]);
+        });
+        energy[i] = e;
+        hipY[i] = p.Hips.y;
+      }
+      energy[0] = energy[1];
+      // detrend over ~1 s
+      const w = fps >> 1;
+      const ys = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        let s = 0; let c = 0;
+        for (let j = Math.max(0, i - w); j < Math.min(n, i + w); j++) { s += energy[j]; c++; }
+        ys[i] = energy[i] - s / c;
+      }
+      const minLag = Math.floor(fps * 0.36);
+      const maxLag = Math.min(Math.floor(fps * 1.6), Math.floor(n / 2));
+      const ac = new Float32Array(maxLag + 2);
+      for (let lag = minLag - 1; lag <= maxLag + 1; lag++) {
+        let s = 0;
+        for (let i = 0; i + lag < n; i++) s += ys[i] * ys[i + lag];
+        ac[lag] = s / (n - lag);
+      }
+      let best = 0;
+      let bestLag = 0;
+      for (let lag = minLag; lag <= maxLag; lag++) {
+        if (!(ac[lag] > ac[lag - 1] && ac[lag] >= ac[lag + 1]) || ac[lag] <= 0) continue;
+        let bpm = (60 * fps) / lag;
+        const score = ac[lag] * (bpm >= 75 && bpm <= 135 ? 1.2 : 1);
+        if (score > best) { best = score; bestLag = lag; }
+      }
+      if (bestLag) {
+        let bpm = (60 * fps) / bestLag;
+        if (bpm < 60) bpm *= 2;      // a 2-beat cycle
+        rm.danceBpm = Math.round(bpm);
+        // where in its beat the hips bottom out (that should land on the kick)
+        const per = (60 * fps) / bpm;
+        let lo = 0;
+        for (let i = 1; i < Math.min(n, per); i++) if (hipY[i] < hipY[lo]) lo = i;
+        rm.danceOffset = lo / per;
+      }
+    }
+  }
   if (!['fight', 'air', 'spec'].includes(cat)) return;
 
   // How far each striking part reaches out from the hips, beyond where it sits in guard.

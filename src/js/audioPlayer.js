@@ -516,6 +516,7 @@ class AudioPlayerManager {
         const data = decoded.getChannelData(c);
         for (let i = 0; i < len; i++) mono[i] += data[i] / decoded.numberOfChannels;
       }
+      this.analyzeTrack(num, mono.slice(), decoded.sampleRate, token);
       const fwd = this.audioContext.createBuffer(1, len, decoded.sampleRate);
       const rev = this.audioContext.createBuffer(1, len, decoded.sampleRate);
       fwd.copyToChannel(mono, 0);
@@ -526,6 +527,38 @@ class AudioPlayerManager {
       // Not fatal — scratching falls back to the synthesized scratch sound
       console.info(`Deck ${num}: scratch buffer unavailable`, e?.message || e);
     }
+  }
+
+  /** BPM / key / waveform in a worker (doesn't block the stage) */
+  analyzeTrack(num, samples, rate, token) {
+    try {
+      if (!this.beatWorker) {
+        this.beatWorker = new Worker(new URL('./beatWorker.js', import.meta.url), { type: 'module' });
+        this.beatJobs = {};
+        this.beatWorker.onmessage = (e) => {
+          const job = this.beatJobs[e.data.id];
+          delete this.beatJobs[e.data.id];
+          if (!job || job.token !== this.players[job.num]?.loadToken || e.data.error) return;
+          this.players[job.num].analysis = e.data;
+          this.onTrackAnalyzed?.(job.num, e.data);
+        };
+      }
+      const id = `${num}_${token}`;
+      this.beatJobs[id] = { num, token };
+      this.players[num].analysis = null;
+      this.beatWorker.postMessage({ id, samples, rate }, [samples.buffer]);
+    } catch (e) {
+      console.info('Beat analysis unavailable', e?.message || e);
+    }
+  }
+
+  /** Where the deck is in the beat: { bpm, beats (since the first beat), phase 0..1 } or null */
+  getBeat(num) {
+    const p = this.players[num];
+    const a = p?.analysis;
+    if (!a || !a.bpm || !p.audio) return null;
+    const beats = ((p.audio.currentTime - (a.firstBeat || 0)) * a.bpm) / 60;
+    return { bpm: a.bpm, beats, phase: beats - Math.floor(beats) };
   }
 
   checkTrackDuration(playerNum) {

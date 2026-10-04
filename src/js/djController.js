@@ -1265,6 +1265,44 @@ class DJControllerRenderer {
     this.rigs[playerNum] = new MocapRig(char, mixer, this.mocap, this.idleActions[playerNum]);
   }
 
+  /** The playing deck's beat (from the track analysis), shared by the crowd and dancers */
+  updateBeat() {
+    const ap = this.audioPlayer;
+    let bt = null;
+    if (ap?.getBeat) {
+      const playing = [1, 2].filter(n => ap.isPlaying(n));
+      const n = playing.length === 1 ? playing[0] : playing.length ? (ap.crossfade < 0.5 ? 1 : 2) : null;
+      if (n) bt = ap.getBeat(n);
+    }
+    this.beatNow = bt;
+    if (bt) this.bpm = bt.bpm;
+  }
+
+  /** Dance clips follow the track: matched tempo, and the hip drop nudged onto the kick */
+  syncDances() {
+    const bt = this.beatNow;
+    [1, 2].forEach(p => {
+      const o = this.rigs[p]?.oneShot;
+      if (!o || o.stopping) return;
+      const cat = o.a.entry?.category;
+      if (cat !== 'dance' && cat !== 'breaking') return;
+      const clipBpm = o.a.rm.danceBpm;
+      const action = o.a.action;
+      if (!clipBpm) return;
+      if (!bt) { action.timeScale += (1 - action.timeScale) * 0.05; return; }
+      let r = bt.bpm / clipBpm;
+      while (r > 1.45) r /= 2;
+      while (r < 0.72) r *= 2;
+      const k = (r * clipBpm) / bt.bpm;          // clip beats per track beat (≈ 0.5, 1 or 2)
+      const clipBeats = (action.time * clipBpm) / 60 - (o.a.rm.danceOffset || 0);
+      const want = bt.beats * k;
+      let diff = (want - clipBeats) % 1;
+      if (diff > 0.5) diff -= 1;
+      if (diff < -0.5) diff += 1;
+      action.timeScale = r * (1 + THREE.MathUtils.clamp(diff * 0.6, -0.1, 0.1));
+    });
+  }
+
   /** A contestant's signature colour on their rim light (null = the P1 red / P2 cyan default) */
   setPlayerColor(playerNum, color) {
     this.playerColors = this.playerColors || {};
@@ -2193,7 +2231,7 @@ class DJControllerRenderer {
     }
     const near = oppAngle >= 0 ? 'Left' : 'Right';
     const ctx = {
-      beat: elapsed * (this.bpm / 60) * Math.PI * 2,
+      beat: this.beatNow ? this.beatNow.beats * Math.PI * 2 : elapsed * (this.bpm / 60) * Math.PI * 2,
       bpm: this.bpm,
       style: isP1 ? 0 : 1, // each contestant grooves a little differently
       playing,
@@ -2474,6 +2512,8 @@ class DJControllerRenderer {
     this.fight?.update(realDelta);
     this.fightGame?.update(realDelta);
     const delta = realDelta * (this.timeScale ?? 1);
+    this.updateBeat();
+    this.syncDances();
     const elapsed = this.clock.getElapsedTime();
 
     // 1. Update Skeletal Animation Mixers (Breathing Idle)
@@ -2510,7 +2550,8 @@ class DJControllerRenderer {
     const analysis = this.audioPlayer?.getAudioAnalysis ? this.audioPlayer.getAudioAnalysis() : null;
     const isAnyPlaying = analysis ? analysis.isPlaying : (this.audioState[1] || this.audioState[2]);
     const realBass = (analysis && analysis.isPlaying) ? analysis.bassEnergy : null;
-    const beatPhase = elapsed * (this.bpm / 60) * Math.PI * 2;
+    const bt = this.beatNow;
+    const beatPhase = bt ? bt.beats * Math.PI * 2 : elapsed * (this.bpm / 60) * Math.PI * 2;
 
     this.cones.forEach(item => {
       const isPlaying = this.audioState[item.playerNum] || (isAnyPlaying && realBass !== null);

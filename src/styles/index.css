@@ -5532,3 +5532,13 @@ body.blind-on .picker-preview img { filter: blur(10px); }
 .replay-events button:hover, .replay-events button:focus-visible { background: rgba(255,255,255,0.06); }
 .rp-t { font-variant-numeric: tabular-nums; color: #ffd21a; margin-right: 6px; }
 .replay-controls .control-btn { flex: 0 0 auto; width: auto; }
+
+/* Deck waveforms + hot cues */
+.deck-wave { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.deck-wave-canvas { width: 100%; height: 46px; border-radius: 6px; cursor: pointer; display: block; }
+.deck-wave-canvas:focus-visible { outline: 2px solid #ffd21a; outline-offset: 2px; }
+.deck-wave-row { display: flex; align-items: center; gap: 8px; font: 600 0.72rem 'Inter', sans-serif; color: var(--text-muted); }
+.deck-bpm { color: #fff; font-variant-numeric: tabular-nums; }
+.deck-cues { margin-left: auto; display: flex; gap: 3px; }
+.deck-cue { width: 24px; height: 22px; border-radius: 5px; border: 1px solid var(--cue); background: transparent; color: var(--cue); font: 700 0.7rem 'Inter', sans-serif; cursor: pointer; padding: 0; }
+.deck-cue.set { background: var(--cue); color: #111; }

@@ -40,6 +40,7 @@ import { RulesPanel, rulesFor, resolveTie } from './battleRules.js';
 import { JudgeStatsPanel } from './judgeStats.js';
 import { AudienceVote } from './audienceVote.js';
 import { BattleRecorder, ReplayViewer } from './replay.js';
+import { DeckWaveforms } from './deckWave.js';
 
 // ============================================================
 // Initialize all modules
@@ -1943,6 +1944,11 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
   });
   crowdVote.init();
   window.crowdVote = crowdVote;
+
+  // Deck waveforms, BPM / key, hot cues
+  const deckWaves = new DeckWaveforms(audio);
+  deckWaves.init();
+  window.deckWaves = deckWaves;
 
   // Battle timeline recorder + replay viewer
   const recorder = new BattleRecorder(() => {
