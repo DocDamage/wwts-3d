@@ -34,3 +34,8 @@ data/
 # Playwright
 test-results/
 playwright-report/
+
+# Heavy assets stay local (not pushed to GitHub)
+assets-src/
+public/models/
+public/sounds/announcer/
