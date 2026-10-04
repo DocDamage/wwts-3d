@@ -5784,3 +5784,38 @@ body.reduced-motion .coin { animation-duration: 0.01s; }
 .tpl-list li small { display: block; color: var(--text-muted); font-size: 0.72rem; }
 .tpl-list li span { display: flex; gap: 6px; flex-shrink: 0; }
 .co-pin { font-family: 'Orbitron', monospace; font-size: 1.8rem; letter-spacing: 0.2em; color: #ffd21a; margin: 0 8px; }
+
+/* ===== 3/4-way battles, seasons ===== */
+.cypher-content { max-width: 760px; }
+.cy-pickers { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 10px 0; }
+.cy-order { list-style: none; padding: 0; margin: 6px 0 12px; display: flex; flex-direction: column; gap: 6px; }
+.cy-order li { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); }
+.cy-order li.live { background: rgba(255, 45, 45, 0.12); box-shadow: inset 3px 0 0 var(--ember-red); }
+.cy-letter { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; width: 26px; text-align: center; color: #ffd21a; }
+.cy-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cy-name small { color: var(--text-muted); }
+.cy-order .control-btn { width: auto; }
+.cy-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.cy-tabs .active { border-color: #ffd21a; color: #ffd21a; }
+.cy-sliders { display: grid; gap: 4px; }
+.cy-slider-row { display: grid; grid-template-columns: 130px 1fr 44px; gap: 8px; align-items: center; font-size: 0.8rem; }
+.cy-val { text-align: right; font-weight: 700; }
+.cy-seat-wrap { font-size: 0.8rem; font-weight: 400; margin-left: 8px; }
+.cy-seat-wrap select { display: inline-block; width: auto; }
+.cy-results h3 { color: #ffd21a; }
+.cy-podium { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cy-podium li { display: grid; grid-template-columns: 50px 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); }
+.cy-podium li small { grid-column: 2 / 4; color: var(--text-muted); }
+.cy-podium .place-1 { background: rgba(255, 210, 26, 0.12); }
+.cy-place { font-size: 1.4rem; }
+.standings-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.standings-head h3 { margin-right: auto; }
+.standings-head select { width: auto; max-width: 240px; padding: 4px 8px; }
+.standings-table tr.st-qualified td:first-child { box-shadow: inset 3px 0 0 #ffd21a; }
+.st-form i { font-style: normal; font-size: 0.65rem; font-weight: 700; display: inline-block; width: 15px; text-align: center; border-radius: 3px; margin-right: 1px; }
+.st-form .f-W { background: rgba(34, 197, 94, 0.25); color: #4ade80; }
+.st-form .f-L { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+.st-form .f-D { background: rgba(255, 255, 255, 0.1); }
+.st-note { font-size: 0.74rem; color: var(--text-muted); margin: 4px 0 0; }
+.history-cypher .he-cypher { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+.history-cypher small { color: var(--text-muted); }

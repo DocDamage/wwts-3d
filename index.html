@@ -454,6 +454,7 @@
             </button>
             <button id="btn-battle-rules" class="control-btn secondary" type="button" title="Overtime and tie-break rules for this league">⚖ Rules</button>
             <button id="btn-run-of-show" class="control-btn secondary" type="button" title="Tonight's matchups, timing and King of the Hill">📋 Show</button>
+            <button id="btn-cypher" class="control-btn secondary" type="button" title="3- or 4-way battle">⚔ 3/4-way</button>
             <button id="btn-beat-inbox" class="control-btn secondary inbox-btn" type="button" title="Beats producers uploaded from their phones">📥 Beats</button>
             <button id="btn-crowd-vote" class="control-btn secondary crowd-btn" type="button" title="Let the crowd vote from their phones">📣 Crowd</button>
             <label class="blind-toggle" title="Judges, stage and stream see Beat A / Beat B until the reveal"><input type="checkbox" id="chk-blind" /> 🙈 Blind</label>
@@ -519,7 +520,11 @@
         <div class="tab-panel-inner">
           <h2>Hall of Fame</h2>
           <div id="hof-records" class="hof-records"></div>
-          <h3>League Standings</h3>
+          <div class="standings-head"><h3>League Standings</h3>
+            <select id="standings-season" class="form-input" aria-label="Season"></select>
+            <button type="button" class="fs-small" id="btn-seasons">🗓 Seasons</button>
+            <button type="button" class="fs-small" id="btn-league-stats">📊 Stats</button>
+          </div>
           <div id="standings-table" class="standings-table"></div>
           <h3>Producer Badges</h3>
           <div id="badge-producer-chips" class="badge-producer-chips"></div>
@@ -1579,6 +1584,62 @@
             <p class="co-pin-row">PIN <b class="co-pin" id="co-pin">0000</b> <button type="button" class="fs-small" id="co-new-pin">New PIN (signs tablets out)</button></p>
             <ul class="su-list" id="co-list"></ul>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 3/4-WAY BATTLE ===== -->
+    <div id="cypher-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="cy-title">
+      <div class="modal-content backup-content cypher-content">
+        <div class="modal-header">
+          <h2 id="cy-title">⚔ 3/4-way battle</h2>
+          <button class="modal-close" data-close="cypher-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <div id="cy-setup">
+            <p class="backup-lead">Three or four producers, played in a shuffled order, every judge scores everyone. Highest panel average wins; ties go to first-place votes.</p>
+            <label>Producers <select id="cy-count" class="form-input es-num"><option value="3">3</option><option value="4">4</option></select></label>
+            <div class="cy-pickers" id="cy-pickers"></div>
+            <div class="form-actions"><button type="button" class="control-btn primary" id="cy-start">Shuffle order &amp; start</button></div>
+          </div>
+          <div id="cy-live" hidden>
+            <h3>Play order</h3>
+            <ol class="cy-order" id="cy-order"></ol>
+            <h3>Score <label class="cy-seat-wrap">as <select id="cy-seat" class="form-input"></select></label></h3>
+            <div class="cy-tabs" id="cy-tabs"></div>
+            <div class="cy-sliders" id="cy-sliders"></div>
+            <p class="guide-line" id="cy-guide"></p>
+            <p class="chat-status" id="cy-status" role="status"></p>
+            <div class="form-actions">
+              <button type="button" class="control-btn primary" id="cy-finish">🏆 Finish &amp; reveal</button>
+              <button type="button" class="control-btn secondary" id="cy-cancel">Cancel</button>
+            </div>
+          </div>
+          <div id="cy-results" class="cy-results" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SEASONS ===== -->
+    <div id="season-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="season-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="season-title">🗓 Seasons</h2>
+          <button class="modal-close" data-close="season-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <p class="profile-muted" id="season-started"></p>
+          <div class="chat-row">
+            <label for="season-name">Current season</label><input id="season-name" class="form-input" maxlength="40" />
+            <label for="season-spots">Playoff spots</label><input id="season-spots" type="number" class="form-input es-num" min="0" max="32" />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="control-btn secondary" id="season-playoffs">🏆 Start playoffs from the table</button>
+            <button type="button" class="control-btn primary" id="season-end">👑 End season &amp; crown champion</button>
+            <button type="button" class="control-btn secondary" id="season-new">＋ New season</button>
+          </div>
+          <h3>Past seasons</h3>
+          <ul class="tpl-list" id="season-past"></ul>
         </div>
       </div>
     </div>

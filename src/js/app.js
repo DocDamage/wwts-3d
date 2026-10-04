@@ -57,6 +57,8 @@ import { EventTemplates, EventTemplatesPanel } from './eventTemplates.js';
 import { Signups, SignupsPanel } from './signups.js';
 import { BeatInbox } from './beatInbox.js';
 import { CohostLink } from './cohostLink.js';
+import { Seasons, SeasonsPanel } from './seasons.js';
+import { Cypher } from './cypher.js';
 
 // ============================================================
 // Initialize all modules
@@ -112,6 +114,10 @@ battleExtras.push(() => ({
 }));
 window.eventSettings = settings;
 const ros = new RunOfShow();
+const seasons = new Seasons({ leagues });
+let seasonsPanel = null;
+let cypher = null;
+battleExtras.push(() => ({ seasonId: seasons.current()?.id || undefined }));
 const signups = new Signups();
 window.ros = ros;
 window.playOrder = playOrder;
@@ -347,6 +353,7 @@ leagues.onLeagueChange = (league) => {
 
 leagueSelect?.addEventListener('change', (e) => {
   leagues.setActive(e.target.value || null);
+  if (leagues.activeLeagueId) seasons.ensure();
 });
 
 // ============================================================
@@ -680,6 +687,24 @@ function refreshBattle() {
 function renderStandings(leagueId) {
   const el = document.getElementById('standings-table');
   if (!el) return;
+  seasonsPanel?.renderSelector();
+  const seasonId = seasonsPanel?.viewSeasonId();
+  if (seasonsPanel && seasonId) {
+    const rows = seasonsPanel.standings(seasonId);
+    const season = seasons.list().find(x => x.id === seasonId);
+    if (!rows.length) { el.innerHTML = `<p class="empty-state">No battles in ${esc(season?.name || 'this season')} yet.</p>`; return; }
+    const streakTxt = (n) => (n > 0 ? `W${n}` : n < 0 ? `L${-n}` : '—');
+    el.innerHTML = `<table>
+      <thead><tr><th>#</th><th>Producer</th><th>W</th><th>L</th><th>D</th><th>Pts</th><th>Win %</th><th>Avg</th><th>Form</th><th>Streak</th></tr></thead>
+      <tbody>${rows.map(r => `<tr class="${r.qualified ? 'st-qualified' : ''}">
+        <td class="st-rank">${r.rank}</td><td class="st-name">${esc(r.name)}</td>
+        <td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td class="st-rating">${r.points}</td>
+        <td>${r.battles ? Math.round(r.winRate * 100) + '%' : '—'}</td><td>${r.avgScore ? r.avgScore.toFixed(2) : '—'}</td>
+        <td class="st-form">${r.form.map(f => `<i class="f-${f}">${f}</i>`).join('')}</td>
+        <td class="${r.streak > 0 ? 'st-hot' : r.streak < 0 ? 'st-cold' : ''}">${streakTxt(r.streak)}</td>
+      </tr>`).join('')}</tbody></table>${season?.playoffSpots ? `<p class="st-note">Top ${season.playoffSpots} qualify for the playoffs.</p>` : ''}`;
+    return;
+  }
   const rows = leagueId ? roster.getStandings(leagueId) : [];
   if (!rows.length) {
     el.innerHTML = '<p class="empty-state">No contestants in this league yet.</p>';
@@ -1085,6 +1110,10 @@ function initFlipRounds() {
 let timerOwner = null; // contestant whose beat the timer is currently tracking
 
 function syncTimerToDeck(playerNum, isPlaying) {
+  if (cypher?.active) {   // 3/4-way battle: the clock follows the deck, the 1-v-1 flow stays put
+    if (!isPlaying) timer.pause();
+    return;
+  }
   const phase = battleEngine.phase;
   const roundOpen = !['round_locked', 'finalized'].includes(phase);
   const [firstSlot, secondSlot] = roundOrder();
@@ -1973,7 +2002,8 @@ function init() {
       flipSample: rounds.flipFor(round)?.name || '',
       commentsOn: !!settings.get('judgeComments'),
       closeMargin: Number(settings.get('closeMargin')) || 0,
-      guides: settings.get('showGuides') ? (c) => guidesFor(c, scoring.customGuides) : null
+      guides: settings.get('showGuides') ? (c) => guidesFor(c, scoring.customGuides) : null,
+      ...(cypher?.phoneState() || {})
     };
   };
   judgeLink.onScoresUpdated = () => {
@@ -2286,6 +2316,27 @@ function init() {
     onApplied: () => { window.rulesPanel?.apply?.(); judges.recomputeTotals(); judgeLink.pushState(); updateBattleFlowUI(); }
   });
   new EventTemplatesPanel(templates, { toast: showToast, download: downloadBlob }).init();
+
+  // Seasons (standings per season, playoff line, champions) and 3/4-way battles
+  seasons.ensure();
+  seasonsPanel = new SeasonsPanel({ seasons, history, roster, leagues, tournament, achievements, toast: showToast, onChange: () => refreshBattle() });
+  seasonsPanel.init();
+  cypher = new Cypher({
+    roster, leagues, scoring, judges, judgeLink, audio, history, timer, settings, announcer, soundboard,
+    toast: showToast,
+    inbox: beatInbox,
+    seasonId: () => seasons.current()?.id || null,
+    onFinish: (result) => {
+      window.lastOverlayResult = { winnerName: result.winnerName, decision: `${result.placings.length}-way battle · ${result.decisionTally}`, at: Date.now() };
+      postBroadcast('BATTLE_FINALIZED', result);
+      backup.snapshot('battle');
+      refreshBattle();
+      refreshRoster();
+    }
+  });
+  cypher.init();
+  window.cypher = cypher;
+  window.seasons = seasons;
 
   // Judge calibration (reference beat → common scale)
   const calPanel = new CalibrationPanel({ calibration, judges, judgeLink, scoring, audio, settings, toast: showToast });

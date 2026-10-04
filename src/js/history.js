@@ -133,6 +133,12 @@ class HistoryManager {
     battles.forEach(battle => {
       const entry = document.createElement('div');
       entry.className = 'history-entry';
+      if (battle.kind === 'cypher' && Array.isArray(battle.placings)) {
+        entry.classList.add('history-cypher');
+        entry.innerHTML = `<div class="he-cypher"><span class="he-badge">${battle.placings.length}-WAY</span>${battle.placings.map((p, i) => `<span class="${i === 0 ? 'he-name winner' : 'he-name'}">${i + 1}. ${this.escapeHtml(p.name)} <small>${Number(p.total).toFixed(2)}</small></span>`).join('')}${battle.isDemo ? '<span class="he-badge demo">DEMO</span>' : ''}</div>`;
+        container.appendChild(entry);
+        return;
+      }
 
       const c1IsWinner = battle.winnerId === battle.contestant1Id;
       const c2IsWinner = battle.winnerId === battle.contestant2Id;
