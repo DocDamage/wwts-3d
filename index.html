@@ -1439,6 +1439,36 @@
     </div>
 
     <!-- ===== LIVE CHAT HYPE ===== -->
+    <div id="a11y-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="a11y-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="a11y-title">♿ Accessibility</h2>
+          <button class="modal-close" data-close="a11y-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body a11y-body">
+          <fieldset><legend>Motion &amp; light</legend>
+            <label class="inline-check"><input type="checkbox" data-a11y="reducedMotion" /> Reduce motion (calmer camera, no shaking or bouncing)</label>
+            <label class="inline-check"><input type="checkbox" data-a11y="noFlash" /> No flashing lights (strobes and flashes off)</label>
+          </fieldset>
+          <fieldset><legend>Sound</legend>
+            <label class="inline-check"><input type="checkbox" data-a11y="uiSounds" /> Interface click sounds</label>
+            <label class="a11y-range">Sound effects volume <input type="range" min="0" max="100" step="5" data-a11y="sfxVolume" /></label>
+            <label class="inline-check"><input type="checkbox" data-a11y="captions" /> Captions for the announcer</label>
+            <button type="button" class="fs-small" id="a11y-test-caption">Test caption</button>
+          </fieldset>
+          <fieldset><legend>Colour &amp; focus</legend>
+            <label>Colours <select class="form-input" data-a11y="palette">
+              <option value="default">Default (red vs cyan)</option>
+              <option value="cb">Colour-blind safe (orange vs blue)</option>
+              <option value="contrast">High contrast</option>
+            </select></label>
+            <label class="inline-check"><input type="checkbox" data-a11y="focusRings" /> Always show a bold keyboard focus outline</label>
+          </fieldset>
+          <p class="profile-muted">Saved in this browser. Your system's "reduce motion" setting is used the first time.</p>
+        </div>
+      </div>
+    </div>
+
     <div id="chat-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="chat-title">
       <div class="modal-content backup-content">
         <div class="modal-header">

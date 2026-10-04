@@ -2,6 +2,7 @@
  * Announcer Manager — Real Battle Voice System
  * Uses the authentic Announcer Voice Pack assets
  */
+import { ANNOUNCER_LINES } from './announcerLines.js';
 
 class AnnouncerManager {
   constructor() {
@@ -85,6 +86,7 @@ class AnnouncerManager {
       if (p && typeof p.catch === 'function') {
         p.catch(() => {});
       }
+      this.caption(this.clips[clipKey]);
     } catch {
       // Audio playback blocked or failed
     }
@@ -104,9 +106,17 @@ class AnnouncerManager {
       this.currentAudio = audio;
       audio.onended = callback ? () => callback() : null;
       audio.play()?.catch?.(() => {});
+      this.caption(file);
     } catch {
       // playback blocked
     }
+  }
+
+  /** Tell the page what was said (captions for deaf / muted viewers) */
+  caption(file) {
+    const stem = String(file || '').replace(/\.wav$/i, '');
+    const text = ANNOUNCER_LINES[stem];
+    if (text) window.dispatchEvent(new CustomEvent('wwts-announce', { detail: { text, file } }));
   }
 
   stop() {

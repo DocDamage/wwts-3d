@@ -34,6 +34,8 @@ import { AchievementEngine } from './achievements.js';
 import { HallOfFame } from './hallOfFame.js';
 import { BackupManager, BackupPanel } from './backup.js';
 import { ToolsMenu } from './toolsMenu.js';
+import { Accessibility } from './accessibility.js';
+import { Tour } from './tour.js';
 import { CAST, CAST_BY_KEY } from './fightCast.js';
 import { renderProfileExtras, makeProfileCard, downloadBlob } from './profiles.js';
 import { RulesPanel, rulesFor, resolveTie } from './battleRules.js';
@@ -1807,24 +1809,7 @@ function init() {
     window.open('broadcast.html', 'WWTS_Broadcast_Screen', 'width=1920,height=1080');
   });
 
-  // Reduced Motion & No-Flash Accessibility Toggles
-  const motionBtn = document.getElementById('btn-toggle-motion');
-  let reducedMotion = false;
-  motionBtn?.addEventListener('click', () => {
-    reducedMotion = !reducedMotion;
-    document.body.classList.toggle('reduced-motion', reducedMotion);
-    djController.setReducedMotion(reducedMotion);
-    motionBtn.classList.toggle('active', reducedMotion);
-  });
-
-  const flashBtn = document.getElementById('btn-toggle-flash');
-  let noFlash = false;
-  flashBtn?.addEventListener('click', () => {
-    noFlash = !noFlash;
-    document.body.classList.toggle('no-flash', noFlash);
-    djController.setNoFlash(noFlash);
-    flashBtn.classList.toggle('active', noFlash);
-  });
+  // Reduced motion / no-flash buttons: owned by the accessibility settings (accessibility.js)
 
   // Keyboard Shortcuts & Pro Hotkeys Manager
   shortcuts = new KeyboardShortcutsManager({
@@ -2046,6 +2031,12 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
   // Tools menu, backups
   const tools = new ToolsMenu({ onAction: (act) => document.dispatchEvent(new CustomEvent('wwts-tool-action', { detail: act })) });
   tools.init();
+  const a11y = new Accessibility({ djController });
+  a11y.init();
+  window.a11y = a11y;
+  const tour = new Tour();
+  document.addEventListener('wwts-tool-action', (e) => { if (e.detail === 'tour') tour.start(); });
+  tour.maybeAutoStart();
   window.toolsMenu = tools;
   new BackupPanel(backup, { toast: showToast }).init();
   new JudgeStatsPanel({ history, leagues }).init();
