@@ -196,6 +196,10 @@ class BattleSessionEngine {
         winnerScore = avgRound2;
         decisionMethod = hasOvertime ? 'SUDDEN_DEATH' : 'ROUNDS_WON';
         decisionTally = `${roundsWon2} - ${roundsWon1}`;
+      } else if (typeof this.tieBreaker === 'function') {
+        // Tied rounds: the league's tie-break chain decides (below)
+        decisionMethod = 'DRAW';
+        decisionTally = `${roundsWon1} - ${roundsWon2}`;
       } else {
         // Tied rounds: Fallback to cumulative grand total
         if (grandTotal1 > grandTotal2) {
@@ -240,6 +244,22 @@ class BattleSessionEngine {
         winnerScore = roundSnap.total1;
         decisionMethod = 'DRAW';
         decisionTally = `${roundSnap.total1.toFixed(2)} - ${roundSnap.total2.toFixed(2)}`;
+      }
+    }
+
+    // 4. Still level? The league's tie-break chain (total → category → audience → head judge → draw)
+    let tieBreak = null;
+    if (!winnerId && decisionMethod !== 'INCOMPLETE_PANEL' && typeof this.tieBreaker === 'function') {
+      tieBreak = this.tieBreaker({ grandTotal1, grandTotal2, seriesData, scoringSnapshot, contestant1, contestant2 });
+      if (tieBreak?.winner === 1 || tieBreak?.winner === 2) {
+        const w = tieBreak.winner === 1 ? contestant1 : contestant2;
+        winnerId = w.id;
+        winnerName = w.name;
+        winnerScore = tieBreak.winner === 1 ? (avgRound1 || grandTotal1) : (avgRound2 || grandTotal2);
+        decisionMethod = 'TIEBREAK';
+        decisionTally = tieBreak.label;
+      } else {
+        decisionMethod = 'DRAW';
       }
     }
 
@@ -311,9 +331,11 @@ class BattleSessionEngine {
         step: 0.1
       },
       tiebreaker: {
-        occurred: hasOvertime,
+        occurred: hasOvertime || !!tieBreak,
         round: hasOvertime ? 4 : null,
-        winnerId: hasOvertime ? winnerId : null
+        winnerId: hasOvertime || tieBreak?.winner ? winnerId : null,
+        method: tieBreak?.method || (hasOvertime ? 'overtime' : null),
+        label: tieBreak?.label || null
       },
       notes: notesText || '',
       timestampedNotes: timestampedNotes || []

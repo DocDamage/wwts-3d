@@ -34,6 +34,10 @@ import { AchievementEngine } from './achievements.js';
 import { HallOfFame } from './hallOfFame.js';
 import { BackupManager, BackupPanel } from './backup.js';
 import { ToolsMenu } from './toolsMenu.js';
+import { CAST, CAST_BY_KEY } from './fightCast.js';
+import { renderProfileExtras, makeProfileCard, downloadBlob } from './profiles.js';
+import { RulesPanel, rulesFor, resolveTie } from './battleRules.js';
+import { JudgeStatsPanel } from './judgeStats.js';
 
 // ============================================================
 // Initialize all modules
@@ -136,8 +140,8 @@ function buildBroadcastState() {
   const ss = rounds.getSeriesSummary();
   const r = rounds.currentRound || 1;
   return {
-    c1Name: c1 ? c1.name : 'Contestant 1',
-    c2Name: c2 ? c2.name : 'Contestant 2',
+    c1Name: shownName(1),
+    c2Name: shownName(2),
     score1: scoring.getTotal(1),
     score2: scoring.getTotal(2),
     roundsWon1: ss.roundsWon1 || 0,
@@ -174,6 +178,36 @@ window.audioPlayer = audio;
 // Current battle state
 let selectedContestant1Id = null;
 let selectedContestant2Id = null;
+
+// Blind judging: judges, stage and stream see "Beat A / Beat B" (coin-flipped order) until the reveal
+const blind = { on: false, swap: false };
+function realName(num) {
+  const id = num === 1 ? selectedContestant1Id : selectedContestant2Id;
+  const c = id ? roster.getById(id) : null;
+  return c ? c.name : `Contestant ${num}`;
+}
+/** The name everyone but the host sees */
+function shownName(num) {
+  if (!blind.on) return realName(num);
+  const isA = (num === 1) !== blind.swap;
+  return isA ? 'Beat A' : 'Beat B';
+}
+function setBlind(on, { silent = false } = {}) {
+  blind.on = !!on;
+  if (blind.on) {
+    blind.swap = Math.random() < 0.5;
+    const first = blind.swap ? 2 : 1;
+    if (!silent) showToast(`🙈 Blind judging on — Beat A (plays first) is ${realName(first)}. Only you can see this.`);
+  } else if (!silent) showToast('Identities revealed');
+  document.body.classList.toggle('blind-on', blind.on);
+  const chk = document.getElementById('chk-blind');
+  if (chk) chk.checked = blind.on;
+  updateContestantDisplay(1);
+  updateContestantDisplay(2);
+  broadcastContestants();
+  judgeLink.pushState(true);
+  scheduleBroadcastState();
+}
 
 // ============================================================
 // Screen Navigation
@@ -222,6 +256,7 @@ const leagueSelect = document.getElementById('active-league-select');
 
 leagues.onLeagueChange = (league) => {
   if (leagueSelect && league) leagueSelect.value = league.id;
+  window.rulesPanel?.apply();
   refreshRoster();
   refreshBattle();
 };
@@ -361,6 +396,10 @@ function clearContestantForm() {
   document.getElementById('contestant-social-input').value = '';
   document.getElementById('contestant-photo-url').value = '';
   document.getElementById('contestant-edit-id').value = '';
+  const av = document.getElementById('contestant-avatar-input');
+  if (av) av.value = '';
+  const colOn = document.getElementById('contestant-color-on');
+  if (colOn) colOn.checked = false;
   if (photoPreview) {
     photoPreview.innerHTML = `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
   }
@@ -387,15 +426,19 @@ saveContestantBtn?.addEventListener('click', () => {
 
   const bio = document.getElementById('contestant-bio-input')?.value || '';
   const socialLinks = document.getElementById('contestant-social-input')?.value || '';
+  const avatar = document.getElementById('contestant-avatar-input')?.value || '';
+  const color = document.getElementById('contestant-color-on')?.checked ? document.getElementById('contestant-color-input').value : '';
 
   if (editingContestantId) {
-    roster.update(editingContestantId, { name, photo, bio, socialLinks });
+    roster.update(editingContestantId, { name, photo, bio, socialLinks, avatar, color });
   } else {
     roster.add({
       name,
       photo,
       bio,
       socialLinks,
+      avatar,
+      color,
       leagueId: leagues.activeLeagueId
     });
   }
@@ -434,6 +477,19 @@ function openProfileModal(contestantId) {
   document.getElementById('profile-avg').textContent = c.stats.avgScore.toFixed(2);
   document.getElementById('profile-best').textContent = c.stats.bestCategory;
   hallOfFame.renderProfile(contestantId);
+  const pStats = renderProfileExtras(document.getElementById('profile-extra'), c, history.history, leagues.getAll());
+  const shareBtn = document.getElementById('btn-share-profile');
+  if (shareBtn) shareBtn.onclick = async () => {
+    shareBtn.disabled = true;
+    try {
+      const badgeCount = document.querySelectorAll('#profile-badges .badge, #profile-badges [class*=badge]').length;
+      const blob = await makeProfileCard(c, pStats, { badges: badgeCount, league: leagues.getActive()?.name });
+      downloadBlob(blob, `${c.name.replace(/[^a-z0-9]+/gi, '_')}_card.png`);
+      showToast('Profile card saved');
+    } finally {
+      shareBtn.disabled = false;
+    }
+  };
 
   // Battle history
   const battles = history.getForContestant(contestantId);
@@ -479,6 +535,9 @@ function openProfileModal(contestantId) {
     document.getElementById('contestant-name-input').value = c.name;
     document.getElementById('contestant-bio-input').value = c.bio;
     document.getElementById('contestant-social-input').value = c.socialLinks;
+    document.getElementById('contestant-avatar-input').value = c.avatar || '';
+    document.getElementById('contestant-color-on').checked = !!c.color;
+    if (c.color) document.getElementById('contestant-color-input').value = c.color;
     if (c.photo) {
       document.getElementById('contestant-photo-url').value = c.photo.startsWith('data:') ? '' : c.photo;
       setPhotoPreview(c.photo);
@@ -564,6 +623,7 @@ const pick2 = document.getElementById('pick-contestant-2');
 pick1?.addEventListener('change', (e) => {
   selectedContestant1Id = e.target.value || null;
   updateContestantDisplay(1);
+  applyContestantLook(1);
   updatePickerPreviews();
   // Refresh picker 2 to exclude selected
   roster.populateSelect('pick-contestant-2', leagues.activeLeagueId, selectedContestant1Id);
@@ -576,6 +636,7 @@ pick1?.addEventListener('change', (e) => {
 pick2?.addEventListener('change', (e) => {
   selectedContestant2Id = e.target.value || null;
   updateContestantDisplay(2);
+  applyContestantLook(2);
   updatePickerPreviews();
   roster.populateSelect('pick-contestant-1', leagues.activeLeagueId, selectedContestant2Id);
   if (selectedContestant1Id) pick1.value = selectedContestant1Id;
@@ -583,6 +644,28 @@ pick2?.addEventListener('change', (e) => {
   updateBattleFlowUI();
   autosaveActiveSession();
 });
+
+/** Fill an avatar <select> with the fight cast */
+function fillAvatarSelect(sel, keepFirst = false) {
+  if (!sel) return;
+  const first = keepFirst ? sel.querySelector('option') : null;
+  sel.innerHTML = '';
+  if (first) sel.appendChild(first);
+  CAST.forEach(c => sel.appendChild(new Option(`${c.name} · ${c.style}`, c.key)));
+}
+
+/** A contestant's saved stage avatar and colour follow them into the battle */
+function applyContestantLook(num) {
+  const id = num === 1 ? selectedContestant1Id : selectedContestant2Id;
+  const c = id ? roster.getById(id) : null;
+  if (c?.avatar && CAST_BY_KEY[c.avatar]) {
+    djController.setPlayerAvatar(num, c.avatar).then(() => djController.setPlayerColor(num, c.color || null));
+    const sel = document.getElementById(`avatar-select-${num}`);
+    if (sel) sel.value = c.avatar;
+  } else {
+    djController.setPlayerColor(num, c?.color || null);
+  }
+}
 
 function updateContestantDisplay(num) {
   const id = num === 1 ? selectedContestant1Id : selectedContestant2Id;
@@ -596,7 +679,9 @@ function updateContestantDisplay(num) {
   if (seriesNameEl) {
     seriesNameEl.textContent = name.slice(0, 12);
   }
-  djController.setContestantName(num, name);
+  djController.setContestantName(num, shownName(num));
+  if (blind.on && displayEl) { displayEl.textContent = `🙈 ${shownName(num)}`; displayEl.title = name; }
+  else if (displayEl) displayEl.title = '';
   notepad.render();
   const dockTitle = document.getElementById(`dock-title-${num}`);
   if (dockTitle) dockTitle.textContent = `${name} · Moves`;
@@ -639,10 +724,10 @@ function broadcastContestants() {
   const c1 = selectedContestant1Id ? roster.getById(selectedContestant1Id) : null;
   const c2 = selectedContestant2Id ? roster.getById(selectedContestant2Id) : null;
   postBroadcast('CONTESTANTS_UPDATE', {
-    c1Name: c1 ? c1.name : 'Contestant 1',
-    c1Photo: c1 ? c1.photo : '',
-    c2Name: c2 ? c2.name : 'Contestant 2',
-    c2Photo: c2 ? c2.photo : ''
+    c1Name: shownName(1),
+    c1Photo: c1 && !blind.on ? c1.photo : '',
+    c2Name: shownName(2),
+    c2Photo: c2 && !blind.on ? c2.photo : ''
   });
 }
 
@@ -832,6 +917,7 @@ const DECISION_LABELS = {
   ROUNDS_WON: 'Wins the Series',
   SUDDEN_DEATH: 'Sudden Death Victory',
   TOTAL_POINTS: 'Wins on Points',
+  TIEBREAK: 'Wins on Tie-break',
   DRAW: 'Draw',
   INCOMPLETE_PANEL: 'Panel Incomplete — No Decision'
 };
@@ -905,6 +991,7 @@ async function handleFinalizeBattle() {
 /** Lights down, face-off, drumroll… then the winner */
 async function runWinnerReveal(finalResult, unlocks = []) {
   const winNum = finalResult.winnerId === selectedContestant1Id ? 1 : finalResult.winnerId === selectedContestant2Id ? 2 : null;
+  if (blind.on) setBlind(false);   // the reveal shows who's who
   document.body.classList.add('reveal-mode');
   closeTabDrawer();
   audio.pauseAll();
@@ -1185,6 +1272,8 @@ tournament.onMatchSelect = (player1Id, player2Id, match) => {
 
   updateContestantDisplay(1);
   updateContestantDisplay(2);
+  applyContestantLook(1);
+  applyContestantLook(2);
   updatePickerPreviews();
   broadcastContestants();
   updateBattleFlowUI();
@@ -1502,14 +1591,14 @@ function init() {
     updateBattleFlowUI();
   });
 
-  // Avatar selector buttons (Male / Female)
-  document.querySelectorAll('.avatar-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const playerNum = parseInt(btn.dataset.player);
-      const gender = btn.dataset.avatar;
-      document.querySelectorAll(`.avatar-btn[data-player="${playerNum}"]`).forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      djController.setPlayerAvatar(playerNum, gender);
+  // Stage avatar dropdowns (the whole fight cast)
+  fillAvatarSelect(document.getElementById('contestant-avatar-input'), true);
+  [1, 2].forEach(num => {
+    const sel = document.getElementById(`avatar-select-${num}`);
+    fillAvatarSelect(sel);
+    if (sel) sel.value = djController.currentAvatars?.[num] || sel.value;
+    sel?.addEventListener('change', () => {
+      djController.setPlayerAvatar(num, sel.value);
       scheduleBroadcastState();
     });
   });
@@ -1556,7 +1645,7 @@ function init() {
     const round = rounds.currentRound;
     return {
       battleId: battleEngine.sessionId,
-      contestants: [c1 ? c1.name : 'Contestant 1', c2 ? c2.name : 'Contestant 2'],
+      contestants: [shownName(1), shownName(2)],
       round,
       roundLabel: round === 4 ? 'Sudden Death OT' : round === 3 ? 'Final Round' : `Round ${round}`,
       locked: scoring.locked || ['round_locked', 'finalized'].includes(battleEngine.phase),
@@ -1822,11 +1911,28 @@ function init() {
     leagues.setActive(leagues.getAll()[0].id);
   }
 
+  // Battle rules (overtime + tie-break chain) and blind judging
+  const rulesPanel = new RulesPanel({ leagues, scoring, rounds, toast: showToast });
+  rulesPanel.init();
+  window.rulesPanel = rulesPanel;
+  battleEngine.tieBreaker = (ctx) => resolveTie(rulesFor(leagues.getActive()), {
+    ...ctx,
+    rounds: ctx.seriesData?.rounds || null,
+    categories: scoring.categories.map(c => c.name),
+    audience: window.audienceVotes ? window.audienceVotes() : null,
+    names: { 1: ctx.contestant1.name, 2: ctx.contestant2.name },
+    askJudge: (names) => (window.confirm(`Still level after the tie-breaks.
+
+Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
+  });
+  document.getElementById('chk-blind')?.addEventListener('change', (e) => setBlind(e.target.checked));
+
   // Tools menu, backups
   const tools = new ToolsMenu({ onAction: (act) => document.dispatchEvent(new CustomEvent('wwts-tool-action', { detail: act })) });
   tools.init();
   window.toolsMenu = tools;
   new BackupPanel(backup, { toast: showToast }).init();
+  new JudgeStatsPanel({ history, leagues }).init();
   backup.startAuto();
   window.backup = backup;
 

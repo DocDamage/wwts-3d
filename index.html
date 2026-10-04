@@ -56,6 +56,7 @@
           <button id="btn-tools" class="icon-toggle-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="tools-menu" title="Tools: backups, overlays, MIDI, chat, accessibility, help">⚙ Tools</button>
           <div id="tools-menu" class="tools-menu" role="menu" hidden>
             <button type="button" role="menuitem" data-open="backup-modal" id="btn-backup">💾 Backup &amp; restore</button>
+            <button type="button" role="menuitem" data-open="judge-stats-modal">📈 Judge consistency</button>
             <button type="button" role="menuitem" data-open="overlays-modal">🎬 OBS overlays</button>
             <button type="button" role="menuitem" data-open="midi-modal">🎛 MIDI &amp; Stream Deck</button>
             <button type="button" role="menuitem" data-open="chat-modal">💬 Live chat hype</button>
@@ -183,6 +184,14 @@
             <label for="contestant-social-input">Social Links <span class="form-hint">(optional)</span></label>
             <input type="text" id="contestant-social-input" placeholder="Instagram, Twitter, etc." class="form-input" />
           </div>
+          <div class="form-group form-row-2">
+            <label for="contestant-avatar-input">Stage avatar
+              <select id="contestant-avatar-input" class="form-input"><option value="">— Use the battle default —</option></select>
+            </label>
+            <div class="color-field"><span>Colour</span>
+              <span class="color-row"><input type="color" id="contestant-color-input" value="#ff4a4a" aria-label="Contestant colour" /><label class="inline-check"><input type="checkbox" id="contestant-color-on" /> use this colour</label></span>
+            </div>
+          </div>
           <input type="hidden" id="contestant-edit-id" value="" />
           <div class="form-actions">
             <button id="btn-save-contestant" class="control-btn primary">Save Contestant</button>
@@ -226,12 +235,14 @@
               <span class="stat-label">Best Category</span>
             </div>
           </div>
+          <div id="profile-extra"></div>
           <h4>Badges &amp; Titles</h4>
           <div id="profile-badges" class="profile-badges"></div>
           <h4>Battle History</h4>
           <div id="profile-history" class="profile-history-list"></div>
         </div>
         <div class="form-actions" style="margin-top:16px">
+          <button id="btn-share-profile" class="control-btn primary">📸 Share card</button>
           <button id="btn-edit-from-profile" class="control-btn secondary">Edit</button>
           <button id="btn-delete-contestant" class="control-btn danger">Delete</button>
         </div>
@@ -390,20 +401,7 @@
             <select id="pick-contestant-1" class="picker-select">
               <option value="">— Select —</option>
             </select>
-            <div class="avatar-toggle-pills" data-player="1">
-              <button type="button" class="avatar-btn active" data-player="1" data-avatar="black_male" title="Black Male Avatar">
-                <span>🏾👨</span> B-Male
-              </button>
-              <button type="button" class="avatar-btn" data-player="1" data-avatar="black_female" title="Black Female Avatar">
-                <span>🏾👩</span> B-Fem
-              </button>
-              <button type="button" class="avatar-btn" data-player="1" data-avatar="white_male" title="White Male Avatar">
-                <span>🏻👨</span> W-Male
-              </button>
-              <button type="button" class="avatar-btn" data-player="1" data-avatar="white_female" title="White Female Avatar">
-                <span>🏻👩</span> W-Fem
-              </button>
-            </div>
+            <label class="avatar-select-wrap" title="3D avatar on stage"><span class="sr-only">Player 1 avatar</span><select class="avatar-select picker-select" id="avatar-select-1" data-player="1" aria-label="Player 1 3D avatar"></select></label>
           </div>
           <div class="sliders-container" id="contestant-1-sliders"></div>
         </section>
@@ -445,6 +443,8 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export Card
             </button>
+            <button id="btn-battle-rules" class="control-btn secondary" type="button" title="Overtime and tie-break rules for this league">⚖ Rules</button>
+            <label class="blind-toggle" title="Judges, stage and stream see Beat A / Beat B until the reveal"><input type="checkbox" id="chk-blind" /> 🙈 Blind</label>
             <button id="btn-view-report" class="control-btn secondary" type="button" style="display:none;" title="Open Certified Post-Battle Producer Report">
               📊 Producer Report
             </button>
@@ -461,20 +461,7 @@
             <select id="pick-contestant-2" class="picker-select">
               <option value="">— Select —</option>
             </select>
-            <div class="avatar-toggle-pills" data-player="2">
-              <button type="button" class="avatar-btn" data-player="2" data-avatar="black_male" title="Black Male Avatar">
-                <span>🏾👨</span> B-Male
-              </button>
-              <button type="button" class="avatar-btn active" data-player="2" data-avatar="black_female" title="Black Female Avatar">
-                <span>🏾👩</span> B-Fem
-              </button>
-              <button type="button" class="avatar-btn" data-player="2" data-avatar="white_male" title="White Male Avatar">
-                <span>🏻👨</span> W-Male
-              </button>
-              <button type="button" class="avatar-btn" data-player="2" data-avatar="white_female" title="White Female Avatar">
-                <span>🏻👩</span> W-Fem
-              </button>
-            </div>
+            <label class="avatar-select-wrap" title="3D avatar on stage"><span class="sr-only">Player 2 avatar</span><select class="avatar-select picker-select" id="avatar-select-2" data-player="2" aria-label="Player 2 3D avatar"></select></label>
           </div>
           <div class="sliders-container" id="contestant-2-sliders"></div>
         </section>
@@ -1340,6 +1327,39 @@
     </div>
 
     <!-- ===== KEYBOARD SHORTCUTS CHEAT SHEET MODAL ===== -->
+    <!-- ===== JUDGE CONSISTENCY ===== -->
+    <div id="judge-stats-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="judge-stats-title">
+      <div class="modal-content judge-stats-content">
+        <div class="modal-header">
+          <h2 id="judge-stats-title">📈 Judge Consistency</h2>
+          <button class="modal-close" data-close="judge-stats-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <label class="rules-ot-len">Show <select id="judge-stats-scope" class="form-input"><option value="league">this league</option><option value="all">all leagues</option></select></label>
+          <div id="judge-stats-body"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BATTLE RULES ===== -->
+    <div id="rules-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="rules-title">
+      <div class="modal-content rules-content">
+        <div class="modal-header">
+          <h2 id="rules-title">⚖ Battle Rules — <span id="rules-league-name"></span></h2>
+          <button class="modal-close" data-close="rules-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="rules-body">
+          <label class="inline-check"><input type="checkbox" id="rules-overtime" /> Sudden-death overtime when the rounds are level</label>
+          <label class="rules-ot-len">Overtime length <input type="number" id="rules-ot-seconds" min="15" max="300" step="5" class="form-input" /> seconds</label>
+          <h3>If it's still level</h3>
+          <p class="rules-lead">Tried in order until one step separates them.</p>
+          <ol id="rules-chain" class="rules-chain"></ol>
+          <div class="rules-add"><select id="rules-step-picker" class="form-input" aria-label="Tie-break step"></select><button type="button" id="rules-add-step" class="control-btn secondary">Add step</button></div>
+          <div class="form-actions"><button type="button" id="rules-save" class="control-btn primary">Save rules</button><button type="button" class="control-btn secondary" data-close="rules-modal">Cancel</button></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== BACKUP & RESTORE ===== -->
     <div id="backup-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="backup-title">
       <div class="modal-content backup-content">

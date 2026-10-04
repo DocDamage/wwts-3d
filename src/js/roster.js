@@ -125,13 +125,15 @@ class RosterManager {
   /**
    * Add a new contestant
    */
-  add({ name, photo, bio, socialLinks, leagueId }) {
+  add({ name, photo, bio, socialLinks, leagueId, avatar, color }) {
     const contestant = {
       id: 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       name: name.trim(),
       photo: photo || '',
       bio: (bio || '').trim(),
       socialLinks: (socialLinks || '').trim(),
+      avatar: avatar || '',     // stage avatar (fightCast key); '' = battle default
+      color: color || '',       // signature colour for their rim light / cards
       stats: {
         wins: 0,
         losses: 0,
@@ -171,6 +173,8 @@ class RosterManager {
     if (updates.photo !== undefined) contestant.photo = updates.photo;
     if (updates.bio !== undefined) contestant.bio = updates.bio.trim();
     if (updates.socialLinks !== undefined) contestant.socialLinks = updates.socialLinks.trim();
+    if (updates.avatar !== undefined) contestant.avatar = updates.avatar || '';
+    if (updates.color !== undefined) contestant.color = updates.color || '';
 
     this.save();
     return contestant;

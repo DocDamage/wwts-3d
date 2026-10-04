@@ -145,7 +145,7 @@ class RoundManager {
     }
     if (this.currentRound < this.totalRounds) {
       this.switchRound(this.currentRound + 1);
-    } else if (this.isSeriesTied() && !this.hasOvertime) {
+    } else if (this.isSeriesTied() && !this.hasOvertime && this.overtimeEnabled !== false) {
       this.triggerOvertime();
     }
   }
@@ -192,7 +192,7 @@ class RoundManager {
 
     // Set high-intensity 60s timer via duration interface
     if (this.timer) {
-      this.timer.setDuration(60, true);
+      this.timer.setDuration(this.overtimeSeconds || 60, true);
     }
 
     // Show Sudden Death Banner Notification

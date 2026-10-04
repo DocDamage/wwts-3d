@@ -1185,7 +1185,7 @@ class DJControllerRenderer {
     const char = SkeletonUtils.clone(template);
 
     // Own materials per contestant, with a rim glow in their colour so dark outfits stay visible
-    const rimColor = playerNum === 1 ? 0xff4a4a : 0x2ee8ff;
+    const rimColor = this.playerColors?.[playerNum] || (playerNum === 1 ? 0xff4a4a : 0x2ee8ff);
     char.traverse((child) => {
       if (!child.isMesh || !child.material) return;
       const own = (m) => {
@@ -1265,8 +1265,21 @@ class DJControllerRenderer {
     this.rigs[playerNum] = new MocapRig(char, mixer, this.mocap, this.idleActions[playerNum]);
   }
 
+  /** A contestant's signature colour on their rim light (null = the P1 red / P2 cyan default) */
+  setPlayerColor(playerNum, color) {
+    this.playerColors = this.playerColors || {};
+    this.playerColors[playerNum] = color || null;
+    const char = this.characters[playerNum];
+    if (!char) return;
+    const c = new THREE.Color(color || (playerNum === 1 ? 0xff4a4a : 0x2ee8ff));
+    char.traverse(n => {
+      if (!n.isMesh) return;
+      (Array.isArray(n.material) ? n.material : [n.material]).forEach(m => m?.userData?.rim?.uRimColor.value.copy(c));
+    });
+  }
+
   /**
-   * Called by UI to switch avatar between the 4 available models
+   * Called by UI to switch avatar (any fighter in the cast)
    */
   setPlayerAvatar(playerNum, key) {
     if (key === 'male') key = 'white_male';

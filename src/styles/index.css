@@ -5432,3 +5432,60 @@ body.fight-screen-on #app-header .header-right { display: none !important; }
 .backup-reason { font-size: 0.7rem; padding: 1px 6px; border-radius: 999px; background: rgba(255,210,26,0.15); color: #ffd21a; margin-left: 6px; }
 .backup-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .backup-empty { color: var(--text-muted); font-size: 0.82rem; }
+
+/* Avatar picks + contestant colour */
+.avatar-select-wrap { display: inline-flex; }
+.avatar-select { min-width: 130px; }
+.form-row-2 { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+.form-row-2 label, .color-field { display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem; color: var(--text-muted); }
+.color-row { display: flex; align-items: center; gap: 8px; }
+.color-row input[type=color] { width: 44px; height: 34px; border: none; background: none; padding: 0; }
+.inline-check { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 4px; font-size: 0.78rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Profile extras */
+.profile-extra-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin: 14px 0; }
+.profile-card-box { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px 12px; }
+.profile-card-box h4 { margin: 2px 0 6px; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.profile-rating { display: flex; align-items: baseline; gap: 8px; }
+.profile-rating b { font-size: 1.8rem; font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
+.profile-rating span, .profile-muted { color: var(--text-muted); font-size: 0.76rem; }
+.profile-spark { width: 100%; height: 70px; }
+.spark-label { font-size: 9px; fill: #8a90a2; }
+.profile-form { display: flex; gap: 5px; margin-bottom: 8px; }
+.form-pill { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 0.75rem 'Inter', sans-serif; color: #0b0c14; }
+.form-pill.W { background: #2ecc71; } .form-pill.L { background: #ff4a4a; } .form-pill.D { background: #9aa3b8; }
+.profile-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+.profile-table th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 2px 4px; }
+.profile-table td { padding: 3px 4px; border-top: 1px solid rgba(255,255,255,0.06); }
+.cat-bar { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; font-size: 0.76rem; margin: 4px 0; }
+.cat-bar i { display: block; height: 8px; border-radius: 4px; width: var(--w); background: linear-gradient(90deg, #ff2d2d, #ffd21a); }
+
+/* Battle rules + blind toggle */
+.rules-content { width: min(560px, 94vw); }
+.rules-body { padding: 4px 22px 22px; display: flex; flex-direction: column; gap: 10px; }
+.rules-body h3 { margin: 8px 0 0; font-size: 0.95rem; }
+.rules-lead { margin: 0; color: var(--text-muted); font-size: 0.8rem; }
+.rules-ot-len { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+.rules-ot-len input { width: 80px; }
+.rules-chain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rules-chain li { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 10px; background: rgba(255,255,255,0.05); }
+.rules-chain .rules-step { flex: 1; font-size: 0.86rem; }
+.rules-num { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #ffd21a; color: #111; font: 700 0.72rem 'Inter', sans-serif; }
+.rules-hint { color: var(--text-muted); font-size: 0.76rem; background: none !important; }
+.rules-add { display: flex; gap: 8px; }
+.rules-add select { flex: 1; }
+.blind-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--text-muted); cursor: pointer; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); }
+body.blind-on .blind-toggle { color: #ffd21a; border-color: #ffd21a; }
+body.blind-on .picker-preview img { filter: blur(10px); }
+
+/* Judge consistency */
+.judge-stats-content { width: min(900px, 96vw); }
+.judge-stats-table td, .judge-stats-table th { padding: 6px 6px; }
+.js-flag { padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+.js-flag.steady { background: rgba(46,204,113,0.18); color: #6ee7a0; }
+.js-flag.watch { background: rgba(255,210,26,0.18); color: #ffd21a; }
+.js-flag.outlier { background: rgba(255,74,74,0.2); color: #ff8a8a; }
+.js-flag.few { background: rgba(255,255,255,0.08); color: #9aa3b8; }
+.js-bias { color: #ffd21a; font-weight: 700; }
+.js-like { color: #6ee7a0; font-size: 0.72rem; } .js-dislike { color: #ff8a8a; font-size: 0.72rem; }
