@@ -203,6 +203,11 @@ class FightScreen {
     this.el.result.hidden = true;
     this.el.loading.hidden = false;
     await Promise.all([this.dj.ensureAvatar(this.sel[1]), this.dj.ensureAvatar(this.sel[2])]);
+    // moves still streaming in? show how far along
+    this.game.onLoadProgress = (n, total) => {
+      if (total && n < total) { this.el.loading.hidden = false; this.el.loading.textContent = `Loading moves ${n}/${total}…`; }
+      else { this.el.loading.hidden = true; this.el.loading.textContent = 'Loading fighters…'; }
+    };
     this.el.loading.hidden = true;
     this.game.startMatch({
       p1: this.sel[1],

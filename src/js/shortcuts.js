@@ -146,7 +146,8 @@ class KeyboardShortcutsManager {
   toggleModal() {
     const modal = document.getElementById('shortcuts-modal');
     if (!modal) return;
-    if (modal.style.display === 'none' || !modal.style.display) {
+    // (an empty inline display means it's showing — only 'none' is hidden)
+    if (modal.style.display === 'none') {
       this.openModal();
     } else {
       this.closeModal();

@@ -32,6 +32,8 @@ import { JudgeLink } from './judgeLink.js';
 import { BattleNotepad } from './notepad.js';
 import { AchievementEngine } from './achievements.js';
 import { HallOfFame } from './hallOfFame.js';
+import { BackupManager, BackupPanel } from './backup.js';
+import { ToolsMenu } from './toolsMenu.js';
 
 // ============================================================
 // Initialize all modules
@@ -58,6 +60,7 @@ const rounds = new RoundManager(scoring, announcer, djController, timer);
 const judges = new JudgeManager(scoring, announcer);
 const judgeLink = new JudgeLink(judges, scoring);
 const storage = new BattleStorageManager();
+const backup = new BackupManager();
 const producerReport = new ProducerReportModal();
 const battleEngine = new BattleSessionEngine({
   scoring,
@@ -892,6 +895,7 @@ async function handleFinalizeBattle() {
   const unlocks = finalResult.isDemo ? [] : hallOfFame.collectUnlocks([finalResult.contestant1.id, finalResult.contestant2.id]);
   finalResult.unlocks = unlocks.map(u => ({ contestantId: u.contestantId, id: u.badge.id, tier: u.badge.tier }));
 
+  backup.snapshot('battle');
   await runWinnerReveal(finalResult, unlocks);
   hallOfFame.celebrate(unlocks, 2600);
   if (championId) setTimeout(() => showToast(`👑 ${roster.getById(championId)?.name} is the tournament champion!`), 1200);
@@ -1817,6 +1821,14 @@ function init() {
   if (leagues.getAll().length > 0) {
     leagues.setActive(leagues.getAll()[0].id);
   }
+
+  // Tools menu, backups
+  const tools = new ToolsMenu({ onAction: (act) => document.dispatchEvent(new CustomEvent('wwts-tool-action', { detail: act })) });
+  tools.init();
+  window.toolsMenu = tools;
+  new BackupPanel(backup, { toast: showToast }).init();
+  backup.startAuto();
+  window.backup = backup;
 
   // Render initial screen
   refreshLeagues();

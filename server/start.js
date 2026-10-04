@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { attachJudgeHub, judgeInfoMiddleware, lanAddresses } from './judgeHub.js';
+import { dataApiMiddleware } from './dataApi.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const port = Number(process.env.PORT) || 3000;
@@ -17,7 +18,8 @@ const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
   '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.fbx': 'application/octet-stream',
-  '.obj': 'text/plain', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2'
+  '.obj': 'text/plain', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2',
+  '.glb': 'model/gltf-binary', '.webp': 'image/webp', '.webm': 'video/webm'
 };
 
 if (!fs.existsSync(path.join(root, 'index.html'))) {
@@ -26,9 +28,10 @@ if (!fs.existsSync(path.join(root, 'index.html'))) {
 }
 
 const info = judgeInfoMiddleware(() => port);
+const dataApi = dataApiMiddleware(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'data'));
 
 const server = http.createServer((req, res) => {
-  info(req, res, () => {
+  dataApi(req, res, () => info(req, res, () => {
     let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
     if (urlPath.endsWith('/')) urlPath += 'index.html';
     const file = path.normalize(path.join(root, urlPath));
@@ -44,7 +47,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream' });
       fs.createReadStream(file).pipe(res);
     });
-  });
+  }));
 });
 
 attachJudgeHub(server);

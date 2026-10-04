@@ -332,10 +332,13 @@ class MocapLibrary {
   }
 
   /** Load a list in the background, a few at a time */
-  async preload(ids, concurrency = 4) {
+  async preload(ids, concurrency = 4, onProgress = null) {
     const queue = ids.filter(id => !this.data[id]);
+    const total = queue.length;
+    let done = 0;
+    onProgress?.(0, total);
     const worker = async () => {
-      while (queue.length) await this.load(queue.shift());
+      while (queue.length) { await this.load(queue.shift()); onProgress?.(++done, total); }
     };
     await Promise.all(Array.from({ length: concurrency }, worker));
   }

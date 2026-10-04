@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 import { attachJudgeHub, judgeInfoMiddleware } from './server/judgeHub.js';
+import { dataApiMiddleware } from './server/dataApi.js';
 
 /** Runs the local judge hub inside Vite so phones on the same Wi-Fi can score */
 function judgeHubPlugin() {
@@ -8,6 +9,7 @@ function judgeHubPlugin() {
     if (!server.httpServer) return;
     attachJudgeHub(server.httpServer);
     server.middlewares.use(judgeInfoMiddleware(() => server.httpServer.address()?.port));
+    server.middlewares.use(dataApiMiddleware(path.resolve(__dirname, 'data')));
   };
   return {
     name: 'wwts-judge-hub',

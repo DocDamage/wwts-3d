@@ -240,7 +240,7 @@ class FightGame extends FightDirector {
 
     // Load the chosen fighters into the two slots, and every clip the fight uses
     await Promise.all([this.dj.setPlayerAvatar(1, this.opts.p1), this.dj.setPlayerAvatar(2, this.opts.p2)]);
-    await this.dj.mocap.preload(this.clipList(), 6);
+    await this.dj.mocap.preload(this.clipList(), 6, (n, total) => this.onLoadProgress?.(n, total));
     if (runId !== this.runId) return false;
     const names = { 1: CAST_BY_KEY[this.opts.p1]?.name || 'P1', 2: CAST_BY_KEY[this.opts.p2]?.name || (this.opts.mode === 'cpu' ? 'CPU' : 'P2') };
     this.names = names;

@@ -1129,6 +1129,7 @@ class DJControllerRenderer {
           this.setupCharacterMaterials(object);
           this.loadedFbxCache[key] = object;
           loadedCount++;
+          this.markLoaded(key);
 
           // If current selection matches this avatar, spawn immediately
           if (this.currentAvatars[1] === key) this.spawnContestant(1, key);
@@ -1141,6 +1142,7 @@ class DJControllerRenderer {
         (err) => {
           console.warn(`Note on loading character ${key}:`, err);
           loadedCount++;
+          this.markLoaded(key);
           if (loadedCount === characterList.length) {
             this.checkAllLoaded();
           }
@@ -1311,7 +1313,7 @@ class DJControllerRenderer {
    */
   async loadMocapMoves() {
     const ok = await this.mocap.init();
-    if (!ok) return;
+    if (!ok) { this.markLoaded('mocap'); return; }
     const entries = this.mocap.entries;
     entries.filter(e => e.category !== 'base' && e.category !== 'paired').forEach(entry => {
       registerMove({
@@ -1331,6 +1333,8 @@ class DJControllerRenderer {
       'mx_idle_weight_shift', 'mx_idle_look1'];
     await this.mocap.preload(first, 4);
     this.mocapReady = true;
+    this.markLoaded('mocap');
+    this.trackClipLoading();
     this.mocap.preload(entries.map(e => e.id), 3);
   }
 
@@ -1368,12 +1372,56 @@ class DJControllerRenderer {
     });
   }
 
-  checkAllLoaded() {
+  /**
+   * Startup progress: the overlay stays up (with a real progress bar) until the
+   * deck, the four contestants and the core motion set are in.
+   */
+  markLoaded(key) {
+    if (!this._loading) setTimeout(() => this.hideLoading(), 25000);   // never trap the app behind a stuck asset
+    const L = (this._loading = this._loading || { need: ['deck', 'black_male', 'black_female', 'white_male', 'white_female', 'mocap'], done: new Set() });
+    if (key) L.done.add(key);
+    const n = L.need.filter(k => L.done.has(k)).length;
+    const fill = document.getElementById('dj-loading-fill');
+    const text = document.getElementById('dj-loading-text');
+    if (fill) fill.style.transform = `scaleX(${n / L.need.length})`;
+    const next = L.need.find(k => !L.done.has(k));
+    const names = { deck: 'DJ deck', mocap: 'motion capture', black_male: 'contestants', black_female: 'contestants', white_male: 'contestants', white_female: 'contestants' };
+    if (text && next) text.textContent = `Loading ${names[next] || next}… ${Math.round((n / L.need.length) * 100)}%`;
+    if (n >= L.need.length) this.hideLoading();
+  }
+
+  hideLoading() {
     const loadingOverlay = document.getElementById('dj-loading');
     if (loadingOverlay && !loadingOverlay.classList.contains('hidden')) {
       loadingOverlay.classList.add('hidden');
       setTimeout(() => { loadingOverlay.style.display = 'none'; }, 400);
     }
+  }
+
+  checkAllLoaded() {
+    // (kept for older call sites: the deck finishing counts as one step)
+    this.markLoaded('deck');
+  }
+
+  /** Small corner pill while the rest of the move library streams in */
+  trackClipLoading() {
+    const total = this.mocap.entries.length;
+    let pill = document.getElementById('asset-pill');
+    if (!pill) {
+      pill = document.createElement('div');
+      pill.id = 'asset-pill';
+      pill.className = 'asset-pill';
+      pill.setAttribute('role', 'status');
+      document.body.appendChild(pill);
+    }
+    const update = () => {
+      const n = Object.keys(this.mocap.data).length;
+      pill.textContent = `Loading moves ${n}/${total}`;
+      pill.classList.toggle('done', n >= total);
+      if (n >= total) setTimeout(() => pill.remove(), 1500);
+    };
+    this.mocap.onLoaded(update);
+    update();
   }
 
   /* ============================================================

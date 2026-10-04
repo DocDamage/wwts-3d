@@ -52,6 +52,18 @@
           <span id="gamepad-status-label" class="gamepad-label">Controller Ready</span>
           <span id="gamepad-status-dot" class="gamepad-dot standby"></span>
         </button>
+        <div class="tools-menu-wrap">
+          <button id="btn-tools" class="icon-toggle-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="tools-menu" title="Tools: backups, overlays, MIDI, chat, accessibility, help">⚙ Tools</button>
+          <div id="tools-menu" class="tools-menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-open="backup-modal" id="btn-backup">💾 Backup &amp; restore</button>
+            <button type="button" role="menuitem" data-open="overlays-modal">🎬 OBS overlays</button>
+            <button type="button" role="menuitem" data-open="midi-modal">🎛 MIDI &amp; Stream Deck</button>
+            <button type="button" role="menuitem" data-open="chat-modal">💬 Live chat hype</button>
+            <button type="button" role="menuitem" data-open="a11y-modal">♿ Accessibility</button>
+            <button type="button" role="menuitem" data-action="tour">🧭 Guided tour</button>
+            <button type="button" role="menuitem" data-open="shortcuts-modal">⌨️ Keyboard shortcuts</button>
+          </div>
+        </div>
         <button id="btn-shortcuts-guide" class="shortcuts-guide-btn" type="button" title="Keyboard Shortcuts Cheat Sheet (Press ?)">
           ⌨️ Keys [?]
         </button>
@@ -725,6 +737,7 @@
         <div id="dj-loading" class="dj-loading-overlay">
           <div class="loading-spinner"></div>
           <span id="dj-loading-text">Loading 3D Soundstage &amp; Contestants...</span>
+          <div class="dj-loading-bar" aria-hidden="true"><i id="dj-loading-fill"></i></div>
         </div>
       </section>
     </section>
@@ -1327,6 +1340,30 @@
     </div>
 
     <!-- ===== KEYBOARD SHORTCUTS CHEAT SHEET MODAL ===== -->
+    <!-- ===== BACKUP & RESTORE ===== -->
+    <div id="backup-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="backup-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="backup-title">💾 Backup &amp; Restore</h2>
+          <button class="modal-close" data-close="backup-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <p class="backup-lead">Right now: <b id="backup-current">—</b>. Snapshots are taken automatically at startup, every 10 minutes when something changes, and after every finished battle.</p>
+          <div class="backup-buttons">
+            <button type="button" id="backup-now" class="control-btn primary">Snapshot now</button>
+            <button type="button" id="backup-export" class="control-btn secondary">Save backup file…</button>
+            <button type="button" id="backup-import" class="control-btn secondary">Restore from file…</button>
+            <input type="file" id="backup-import-file" accept="application/json,.json" hidden />
+          </div>
+          <h3>Snapshots in this browser</h3>
+          <ul id="backup-list" class="backup-list"></ul>
+          <h3>On this computer</h3>
+          <p id="backup-disk-note" class="backup-note"></p>
+          <ul id="backup-disk-list" class="backup-list"></ul>
+        </div>
+      </div>
+    </div>
+
     <div id="shortcuts-modal" class="modal-overlay" style="display:none">
       <div class="modal-content shortcuts-modal-content">
         <div class="modal-header">
