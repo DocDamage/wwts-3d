@@ -38,6 +38,7 @@ import { CAST, CAST_BY_KEY } from './fightCast.js';
 import { renderProfileExtras, makeProfileCard, downloadBlob } from './profiles.js';
 import { RulesPanel, rulesFor, resolveTie } from './battleRules.js';
 import { JudgeStatsPanel } from './judgeStats.js';
+import { AudienceVote } from './audienceVote.js';
 
 // ============================================================
 // Initialize all modules
@@ -1078,8 +1079,10 @@ function showWinner(finalResult, unlocks = []) {
   document.getElementById('winner-kicker').textContent = winNum ? 'THE WINNER IS' : finalResult.decisionMethod === 'INCOMPLETE_PANEL' ? 'NO DECISION' : "IT'S A";
   document.getElementById('winner-name').textContent = winNum ? finalResult.winnerName : finalResult.decisionMethod === 'INCOMPLETE_PANEL' ? 'Judges Still Scoring' : 'DRAW';
   overlay.dataset.winner = winNum || 'draw';
+  const crowd = window.audienceVotes ? window.audienceVotes() : null;
+  const crowdLine = crowd ? ` · 📣 People's Choice: ${crowd[1] === crowd[2] ? 'tied' : (crowd[1] > crowd[2] ? finalResult.contestant1?.name : finalResult.contestant2?.name)} (${Math.max(crowd[1], crowd[2])}-${Math.min(crowd[1], crowd[2])})` : '';
   document.getElementById('winner-decision').textContent =
-    `${DECISION_LABELS[finalResult.decisionMethod] || finalResult.decisionMethod}${finalResult.decisionTally ? ` · ${finalResult.decisionTally}` : ''}${finalResult.isDemo ? ' · DEMO (not recorded)' : ''}`;
+    `${DECISION_LABELS[finalResult.decisionMethod] || finalResult.decisionMethod}${finalResult.decisionTally ? ` · ${finalResult.decisionTally}` : ''}${crowdLine}${finalResult.isDemo ? ' · DEMO (not recorded)' : ''}`;
 
   const side = (n, name, score) => `
     <div class="ws-side p${n} ${winNum === n ? 'won' : ''}">
@@ -1153,6 +1156,7 @@ function closeReveal() {
 
 function handleResetBattle() {
   battleEngine.resetBattleSession();
+  window.crowdVote?.reset();
   storage.clearActiveSession();
   updateContestantDisplay(1);
   updateContestantDisplay(2);
@@ -1926,6 +1930,17 @@ function init() {
 Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
   });
   document.getElementById('chk-blind')?.addEventListener('change', (e) => setBlind(e.target.checked));
+
+  // Crowd vote from phones (+ 🔥 taps hype the stage crowd)
+  const crowdVote = new AudienceVote({
+    judgeLink,
+    getOptions: () => [shownName(1), shownName(2)],
+    getRound: () => rounds.currentRound,
+    onHype: () => djController.arena?.boost(0.06),
+    toast: showToast
+  });
+  crowdVote.init();
+  window.crowdVote = crowdVote;
 
   // Tools menu, backups
   const tools = new ToolsMenu({ onAction: (act) => document.dispatchEvent(new CustomEvent('wwts-tool-action', { detail: act })) });

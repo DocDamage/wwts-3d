@@ -1,0 +1,43 @@
+/* Crowd vote page — big thumb targets, high contrast */
+:root { --bg: #050507; --p1: #ff3b30; --p2: #12b8e6; --text: #f2f3f7; --muted: #9aa3b8; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+.v-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; padding-top: max(14px, env(safe-area-inset-top)); }
+.v-brand { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.12em; font-size: 1.1rem; color: var(--p1); }
+.v-conn { width: 10px; height: 10px; border-radius: 50%; background: #555; }
+.v-conn[data-status=online] { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+.v-conn[data-status=connecting] { background: #ffd21a; }
+.v-screen { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; max-width: 520px; width: 100%; margin: 0 auto; }
+.v-screen[hidden] { display: none; }
+h1, h2 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.06em; margin: 8px 0 0; font-size: 2.4rem; }
+h2 { font-size: 2rem; text-align: center; }
+p { color: var(--muted); margin: 0; }
+label { font-weight: 600; font-size: 0.85rem; margin-top: 8px; }
+input { font: 700 1.6rem 'Inter', sans-serif; letter-spacing: 0.3em; text-transform: uppercase; padding: 12px 14px; border-radius: 12px; border: 2px solid #2a2d3a; background: #10121a; color: var(--text); }
+input:focus-visible, button:focus-visible { outline: 3px solid #ffd21a; outline-offset: 2px; }
+.v-btn { font: 700 1.1rem 'Inter', sans-serif; padding: 16px; border-radius: 14px; border: none; cursor: pointer; }
+.v-btn.primary { background: var(--p1); color: #fff; }
+.v-error { color: #ff8a8a; }
+.v-spinner { width: 48px; height: 48px; border-radius: 50%; border: 4px solid #2a2d3a; border-top-color: var(--p1); margin: 40px auto 10px; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#v-wait-text { text-align: center; }
+.v-options { display: grid; gap: 14px; margin-top: 8px; }
+.v-opt { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 22px 18px; min-height: 120px; border-radius: 18px; border: 3px solid transparent; background: #12141d; color: var(--text); text-align: left; cursor: pointer; overflow: hidden; }
+.v-opt.p1 { border-color: rgba(255,59,48,0.45); }
+.v-opt.p2 { border-color: rgba(18,184,230,0.45); }
+.v-opt.chosen.p1 { background: rgba(255,59,48,0.22); border-color: var(--p1); }
+.v-opt.chosen.p2 { background: rgba(18,184,230,0.22); border-color: var(--p2); }
+.v-opt.chosen::after { content: '✓ YOUR VOTE'; position: absolute; top: 10px; right: 12px; font: 700 0.72rem 'Inter', sans-serif; letter-spacing: 0.08em; }
+.v-opt:disabled { cursor: default; opacity: 0.85; }
+.v-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.3rem; letter-spacing: 0.05em; line-height: 1; }
+.v-bar { width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.v-bar i { display: block; height: 100%; width: 0; background: currentColor; transition: width 0.4s ease; }
+.p1 .v-bar i { background: var(--p1); } .p2 .v-bar i { background: var(--p2); }
+.v-count { font-weight: 700; font-size: 1rem; }
+.v-status { text-align: center; min-height: 1.4em; }
+.v-foot { padding: 14px 16px; padding-bottom: max(14px, env(safe-area-inset-bottom)); display: flex; justify-content: center; }
+.v-hype { font: 800 1.4rem 'Inter', sans-serif; letter-spacing: 0.06em; padding: 18px 40px; border-radius: 999px; border: none; background: linear-gradient(90deg, #ff3b30, #ffb03a); color: #fff; box-shadow: 0 6px 24px rgba(255,90,40,0.45); cursor: pointer; width: min(420px, 100%); }
+.v-hype.pop { animation: pop 0.35s ease; }
+@keyframes pop { 40% { transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .v-hype.pop, .v-spinner { animation: none; } .v-bar i { transition: none; } }

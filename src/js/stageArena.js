@@ -446,6 +446,12 @@ class StageArena {
 
   /* ---------------- Battle moments ---------------- */
   /** Crowd erupts: jumps, arms up, beams go wild */
+  /** Add outside hype (0..1); a big burst also sets off a cheer */
+  boost(amount = 0.05) {
+    this.externalHype = Math.min(1, (this.externalHype || 0) + amount);
+    if (this.externalHype > 0.85 && !(this.cheerTimer > 0)) this.cheer(1.6);
+  }
+
   cheer(seconds = 2.5) {
     this.cheerTimer = Math.max(this.cheerTimer, seconds);
   }
@@ -479,7 +485,9 @@ class StageArena {
     this.highs += ((s.playing ? s.highs : 0) - this.highs) * smooth;
     this.cheerTimer = Math.max(0, this.cheerTimer - delta);
     const cheering = this.cheerTimer > 0;
-    const targetHype = cheering ? 1 : (s.playing ? 0.35 + Math.min(0.45, this.bass * 0.9) : 0.08);
+    // outside energy (crowd phones, live chat) lifts the floor and slowly fades
+    this.externalHype = Math.max(0, (this.externalHype || 0) - delta * 0.05);
+    const targetHype = cheering ? 1 : Math.max(this.externalHype, s.playing ? 0.35 + Math.min(0.45, this.bass * 0.9) : 0.08);
     this.hype += (targetHype - this.hype) * (1 - Math.exp(-delta * (cheering ? 6 : 1.5)));
 
     const motion = s.reducedMotion ? 0.15 : 1;

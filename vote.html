@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#050507" />
+  <meta name="description" content="Who Want That Smoke — vote for the winner from your phone" />
+  <title>WWTS Crowd Vote</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/vote.css" />
+</head>
+<body>
+  <header class="v-top">
+    <span class="v-brand">WHO WANT THAT SMOKE</span>
+    <span class="v-conn" id="v-conn" data-status="offline" role="status" aria-label="Connection status"></span>
+  </header>
+
+  <main class="v-screen" id="v-join">
+    <h1>People's Choice</h1>
+    <p>Vote for the beat you think won, and hype the crowd.</p>
+    <label for="v-room">Room code</label>
+    <input id="v-room" maxlength="8" autocapitalize="characters" placeholder="ABCD" />
+    <button id="v-join-btn" type="button" class="v-btn primary">Join</button>
+    <p class="v-error" id="v-error" role="alert" hidden></p>
+  </main>
+
+  <main class="v-screen" id="v-wait" hidden>
+    <div class="v-spinner" aria-hidden="true"></div>
+    <p id="v-wait-text">Waiting for the next vote…</p>
+  </main>
+
+  <main class="v-screen" id="v-poll" hidden>
+    <h2 id="v-title">Who won?</h2>
+    <div class="v-options" role="group" aria-labelledby="v-title">
+      <button type="button" class="v-opt p1" data-choice="1"><span class="v-name" id="v-opt-1">Beat A</span><span class="v-bar"><i id="v-bar-1"></i></span><span class="v-count" id="v-count-1"></span></button>
+      <button type="button" class="v-opt p2" data-choice="2"><span class="v-name" id="v-opt-2">Beat B</span><span class="v-bar"><i id="v-bar-2"></i></span><span class="v-count" id="v-count-2"></span></button>
+    </div>
+    <p class="v-status" id="v-status" role="status"></p>
+  </main>
+
+  <footer class="v-foot">
+    <button type="button" id="v-hype" class="v-hype" aria-label="Hype the crowd">🔥 HYPE</button>
+  </footer>
+
+  <script type="module" src="/src/js/voteApp.js"></script>
+</body>
+</html>

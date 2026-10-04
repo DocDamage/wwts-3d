@@ -164,8 +164,29 @@ class JudgeLink {
         break;
       }
       default:
+        this.onExtra?.(msg);   // audience polls / hype (crowd vote panel)
         break;
     }
+  }
+
+  /** Make sure we know a LAN address phones can reach (fetched once from the hub) */
+  async ensureAddress() {
+    if (this.selectedAddress) return this.selectedAddress;
+    try {
+      const info = await (await fetch('/judge-info', { cache: 'no-store' })).json();
+      this.addresses = info.addresses || [];
+      this.port = info.port || location.port;
+    } catch {
+      this.addresses = this.addresses || [];
+    }
+    this.selectedAddress = this.addresses[0]?.address || location.hostname;
+    return this.selectedAddress;
+  }
+
+  /** Base URL phones can reach (LAN address + port) */
+  baseUrl() {
+    const host = this.selectedAddress || location.hostname;
+    return `${location.protocol}//${host}${this.port ? `:${this.port}` : ''}`;
   }
 
   /** After restoring a saved panel, re-seat phones that are still connected */

@@ -444,6 +444,7 @@
               Export Card
             </button>
             <button id="btn-battle-rules" class="control-btn secondary" type="button" title="Overtime and tie-break rules for this league">⚖ Rules</button>
+            <button id="btn-crowd-vote" class="control-btn secondary crowd-btn" type="button" title="Let the crowd vote from their phones">📣 Crowd</button>
             <label class="blind-toggle" title="Judges, stage and stream see Beat A / Beat B until the reveal"><input type="checkbox" id="chk-blind" /> 🙈 Blind</label>
             <button id="btn-view-report" class="control-btn secondary" type="button" style="display:none;" title="Open Certified Post-Battle Producer Report">
               📊 Producer Report
@@ -1337,6 +1338,39 @@
         <div class="backup-body">
           <label class="rules-ot-len">Show <select id="judge-stats-scope" class="form-input"><option value="league">this league</option><option value="all">all leagues</option></select></label>
           <div id="judge-stats-body"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CROWD VOTE ===== -->
+    <div id="crowd-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="crowd-title">
+      <div class="modal-content crowd-content">
+        <div class="modal-header">
+          <h2 id="crowd-title">📣 Crowd Vote</h2>
+          <button class="modal-close" data-close="crowd-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="crowd-body">
+          <div class="crowd-join">
+            <canvas id="crowd-qr" width="200" height="200" aria-label="QR code to the crowd vote page"></canvas>
+            <div>
+              <p>Phones on the venue Wi-Fi scan this (or open the link) to vote and hype the crowd.</p>
+              <p class="crowd-room">Room <b id="crowd-room">----</b></p>
+              <p class="crowd-url" id="crowd-url"></p>
+              <button type="button" id="crowd-copy" class="fs-small">Copy link</button>
+            </div>
+          </div>
+          <div class="crowd-bars">
+            <div class="crowd-row p1"><span id="crowd-name-1">Beat A</span><span class="crowd-bar"><i id="crowd-bar-1"></i></span><b id="crowd-num-1">0</b></div>
+            <div class="crowd-row p2"><span id="crowd-name-2">Beat B</span><span class="crowd-bar"><i id="crowd-bar-2"></i></span><b id="crowd-num-2">0</b></div>
+            <p class="crowd-meta" id="crowd-meta" role="status"></p>
+          </div>
+          <div class="crowd-actions">
+            <button type="button" id="crowd-open" class="control-btn primary">Open vote</button>
+            <button type="button" id="crowd-close" class="control-btn secondary">Close vote</button>
+            <label class="inline-check"><input type="checkbox" id="crowd-live" /> show live results on phones</label>
+          </div>
+          <ul id="crowd-history" class="crowd-history"></ul>
+          <p class="profile-muted">Votes add up across the battle's rounds as the "People's Choice", shown at the reveal. Add "Audience vote" to the tie-break rules to let the crowd settle a tie.</p>
         </div>
       </div>
     </div>

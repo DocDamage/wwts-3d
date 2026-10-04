@@ -14,6 +14,14 @@
  *   judge → hub   { t:'note', text, contestant, visibility }      (lands in the host's notepad)
  *   hub   → host  { t:'judge-join' | 'judge-left' | 'judge-scores', deviceId, ... }
  *   hub   → judge { t:'joined' } then { t:'state', state }, or { t:'error', code }
+ *
+ * Audience (vote.html — anyone on the Wi-Fi with the room code):
+ *   aud   → hub   { t:'aud-join', room, deviceId }
+ *   aud   → hub   { t:'vote', pollId, choice }            one vote per phone per poll (can change it)
+ *   aud   → hub   { t:'aud-hype' }                         🔥 taps (throttled), feed the crowd meter
+ *   host  → hub   { t:'poll', poll }                       { id, open, options:[a,b], title, showResults }
+ *   hub   → host  { t:'vote-tally', pollId, counts:[a,b], voters } · { t:'aud-count', n } · { t:'aud-hype', n }
+ *   hub   → aud   { t:'aud-joined' } · { t:'poll', poll, myVote, counts? }
  */
 
 import os from 'os';
@@ -24,7 +32,7 @@ const PATH = '/judge-ws';
 /** Room bookkeeping, independent of sockets so it can be unit-tested */
 class JudgeRooms {
   constructor() {
-    this.rooms = new Map(); // code -> { token, host, state, judges: Map(deviceId -> { send, name }) }
+    this.rooms = new Map(); // code -> { token, host, state, judges: Map(deviceId -> { send, name }), audience, poll }
   }
 
   claimHost(room, token, send) {
@@ -33,10 +41,12 @@ class JudgeRooms {
     let r = this.rooms.get(code);
     if (r && r.token !== token) return { ok: false, code: 'room-taken' };
     if (!r) {
-      r = { token, host: null, state: null, judges: new Map() };
+      r = { token, host: null, state: null, judges: new Map(), audience: new Map(), poll: null };
       this.rooms.set(code, r);
     }
     r.host = send;
+    send({ t: 'aud-count', n: r.audience.size });
+    if (r.poll) send({ t: 'vote-tally', pollId: r.poll.id, counts: this.tally(r), voters: r.poll.votes.size });
     // Tell the (re)connected host who is already here
     r.judges.forEach((j, deviceId) => send({ t: 'judge-join', deviceId, name: j.name }));
     return { ok: true, room: code };
@@ -100,6 +110,79 @@ class JudgeRooms {
     return true;
   }
 
+  /* ---- audience ---- */
+
+  tally(r) {
+    const counts = [0, 0];
+    r.poll?.votes.forEach(c => { if (c === 1 || c === 2) counts[c - 1]++; });
+    return counts;
+  }
+
+  pollFor(r, deviceId) {
+    if (!r.poll) return { t: 'poll', poll: null };
+    const { id, open, options, title, showResults } = r.poll;
+    const msg = { t: 'poll', poll: { id, open, options, title, showResults }, myVote: r.poll.votes.get(deviceId) || null };
+    if (showResults || !open) msg.counts = this.tally(r);
+    return msg;
+  }
+
+  joinAudience(room, deviceId, send) {
+    const code = String(room || '').toUpperCase();
+    const r = this.rooms.get(code);
+    if (!r) return { ok: false, code: 'no-room' };
+    if (!deviceId || String(deviceId).length > 64) return { ok: false, code: 'bad-device' };
+    r.audience.set(deviceId, { send, lastHype: 0 });
+    send({ t: 'aud-joined', room: code });
+    send(this.pollFor(r, deviceId));
+    r.host?.({ t: 'aud-count', n: r.audience.size });
+    return { ok: true, room: code };
+  }
+
+  setPoll(room, poll) {
+    const r = this.rooms.get(room);
+    if (!r || !poll) return;
+    const id = String(poll.id || '').slice(0, 40);
+    const fresh = !r.poll || r.poll.id !== id;
+    r.poll = {
+      id,
+      open: !!poll.open,
+      options: (poll.options || []).slice(0, 2).map(o => String(o).slice(0, 30)),
+      title: String(poll.title || 'Who won?').slice(0, 60),
+      showResults: !!poll.showResults,
+      votes: fresh ? new Map() : r.poll.votes
+    };
+    r.audience.forEach((a, deviceId) => a.send(this.pollFor(r, deviceId)));
+    r.host?.({ t: 'vote-tally', pollId: id, counts: this.tally(r), voters: r.poll.votes.size });
+  }
+
+  vote(room, deviceId, pollId, choice) {
+    const r = this.rooms.get(room);
+    if (!r?.poll || !r.poll.open || r.poll.id !== pollId || !r.audience.has(deviceId)) return false;
+    if (choice !== 1 && choice !== 2) return false;
+    r.poll.votes.set(deviceId, choice);
+    const counts = this.tally(r);
+    r.host?.({ t: 'vote-tally', pollId, counts, voters: r.poll.votes.size });
+    if (r.poll.showResults) r.audience.forEach((a, id) => a.send(this.pollFor(r, id)));
+    else r.audience.get(deviceId)?.send(this.pollFor(r, deviceId));
+    return true;
+  }
+
+  hype(room, deviceId) {
+    const r = this.rooms.get(room);
+    const a = r?.audience.get(deviceId);
+    if (!a) return false;
+    const now = Date.now();
+    if (now - a.lastHype < 700) return false;   // one tap counts per 0.7 s per phone
+    a.lastHype = now;
+    r.host?.({ t: 'aud-hype', n: 1 });
+    return true;
+  }
+
+  leaveAudience(room, deviceId) {
+    const r = this.rooms.get(room);
+    if (r?.audience.delete(deviceId)) r.host?.({ t: 'aud-count', n: r.audience.size });
+  }
+
   leave(room, deviceId) {
     const r = this.rooms.get(room);
     if (!r) return;
@@ -151,6 +234,18 @@ function attachJudgeHub(httpServer) {
         role = 'judge';
         room = res.room;
         deviceId = msg.deviceId;
+      } else if (msg.t === 'aud-join') {
+        const res = rooms.joinAudience(msg.room, msg.deviceId, send);
+        if (!res.ok) return send({ t: 'error', code: res.code });
+        role = 'audience';
+        room = res.room;
+        deviceId = msg.deviceId;
+      } else if (role === 'audience' && msg.t === 'vote') {
+        rooms.vote(room, deviceId, msg.pollId, Number(msg.choice));
+      } else if (role === 'audience' && msg.t === 'aud-hype') {
+        rooms.hype(room, deviceId);
+      } else if (role === 'host' && msg.t === 'poll') {
+        rooms.setPoll(room, msg.poll);
       } else if (role === 'host' && msg.t === 'state') {
         rooms.setState(room, msg.state);
       } else if (role === 'host' && msg.t === 'to-judge') {
@@ -166,6 +261,7 @@ function attachJudgeHub(httpServer) {
 
     ws.on('close', () => {
       if (role === 'judge') rooms.leave(room, deviceId);
+      if (role === 'audience') rooms.leaveAudience(room, deviceId);
       if (role === 'host') rooms.hostGone(room, send);
     });
   });
