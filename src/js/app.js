@@ -52,6 +52,11 @@ import { PlayOrder, showCoinFlip } from './playOrder.js';
 import { CorrectionsLog, askReason } from './corrections.js';
 import { Calibration, CalibrationPanel } from './calibration.js';
 import { guidesFor } from './rubrics.js';
+import { RunOfShow, RunOfShowPanel, fmtDelay } from './runOfShow.js';
+import { EventTemplates, EventTemplatesPanel } from './eventTemplates.js';
+import { Signups, SignupsPanel } from './signups.js';
+import { BeatInbox } from './beatInbox.js';
+import { CohostLink } from './cohostLink.js';
 
 // ============================================================
 // Initialize all modules
@@ -106,6 +111,9 @@ battleExtras.push(() => ({
   playOrder: playOrder.flipped ? playOrder.exportState() : undefined
 }));
 window.eventSettings = settings;
+const ros = new RunOfShow();
+const signups = new Signups();
+window.ros = ros;
 window.playOrder = playOrder;
 window.corrections = corrections;
 
@@ -1222,6 +1230,7 @@ async function handleFinalizeBattle() {
   }
   const finalResult = res.result;
   audio.refreshTitles();   // decks show the producers' names now
+  ros.complete({ c1Id: finalResult.contestant1.id, c2Id: finalResult.contestant2.id, winnerId: finalResult.winnerId, winnerName: finalResult.winnerName, resultId: finalResult.id });
   storage.clearActiveSession();
   postBroadcast('BATTLE_FINALIZED', finalResult);
   updateBattleFlowUI();
@@ -1391,10 +1400,14 @@ function showWinner(finalResult, unlocks = []) {
       + (unlocks.length ? `<div class="wst-badges">${unlocks.map(u => `<span class="wst-badge" title="${esc(u.name)}: ${esc(u.badge.desc)}">${u.badge.icon} ${esc(u.badge.name)}${u.badge.tierLabel ? ` · ${esc(u.badge.tierLabel)}` : ''}</span>`).join('')}</div>` : '');
 
   const next = tournament.bracket && !tournament.isTournamentComplete() ? tournament.getNextPlayableMatch() : null;
+  const rosNext = !next ? ros.next() : null;
+  const kothNext = !next && !rosNext && ros.data.mode === 'koth' && ros.data.koth.kingId && ros.data.koth.challengers.length
+    ? { c1Name: roster.getById(ros.data.koth.kingId)?.name, c2Name: roster.getById(ros.data.koth.challengers[0])?.name } : null;
   const nextBtn = document.getElementById('btn-winner-next-match');
   if (nextBtn) {
-    nextBtn.style.display = next ? '' : 'none';
-    nextBtn.textContent = next ? `⏩ Next: ${next.p1Name} vs ${next.p2Name}` : '⏩ Next Match';
+    const n = next ? { a: next.p1Name, b: next.p2Name } : rosNext ? { a: rosNext.c1Name, b: rosNext.c2Name } : kothNext ? { a: kothNext.c1Name, b: kothNext.c2Name } : null;
+    nextBtn.style.display = n ? '' : 'none';
+    nextBtn.textContent = n ? `⏩ Next: ${n.a} vs ${n.b}` : '⏩ Next Match';
   }
   overlay.style.display = 'flex';
 }
@@ -1449,6 +1462,7 @@ document.getElementById('btn-winner-next-match')?.addEventListener('click', () =
   const next = tournament.bracket && !tournament.isTournamentComplete() ? tournament.getNextPlayableMatch() : null;
   closeReveal();
   if (next) tournament.selectMatch(next.matchId);
+  else loadNextMatchup();
 });
 
 document.getElementById('btn-winner-report')?.addEventListener('click', () => {
@@ -1516,8 +1530,16 @@ function updateTournamentButton() {
 
 tournament.onMatchSelect = (player1Id, player2Id, match) => {
   if (match) setTimeout(() => showToast(`🏆 ${tournament.bracket?.name} · ${tournament.matchLabel(match)}`), 300);
+  loadMatchup(player1Id, player2Id);
+};
+
+/** Put two producers on the decks for a fresh battle (bracket, run of show, draw) */
+function loadMatchup(player1Id, player2Id, { label = '' } = {}) {
   // Complete battle session reset so prior match state cannot carry forward
   battleEngine.resetBattleSession();
+  window.crowdVote?.reset();
+  window.recorder?.reset();
+  closeReveal();
 
   selectedContestant1Id = player1Id;
   selectedContestant2Id = player2Id;
@@ -1538,7 +1560,21 @@ tournament.onMatchSelect = (player1Id, player2Id, match) => {
   updatePickerPreviews();
   broadcastContestants();
   updateBattleFlowUI();
-};
+  if (label) showToast(`📋 ${label}: ${realName(1)} vs ${realName(2)}`);
+  window.beatInbox?.autoLoadFor(player1Id, player2Id, 1);
+  window.predictions?.openFor?.();
+  autosaveActiveSession();
+}
+
+/** The run of show's next matchup (or the next King of the Hill challenge) */
+function loadNextMatchup() {
+  let next = ros.next();
+  if (!next && ros.data.mode === 'koth') next = ros.nextChallenge(id => roster.getById(id)?.name || 'Producer');
+  if (!next) { showToast('No matchups left in the run of show'); return false; }
+  ros.setLive(next.id);
+  loadMatchup(next.c1Id, next.c2Id, { label: next.label || 'Run of show' });
+  return true;
+}
 
 // ============================================================
 // Timer integration
@@ -1974,6 +2010,7 @@ function init() {
 
   rounds.onRoundChange = (roundNum, isOvertime) => {
     finishOverrun();
+    if (selectedContestant1Id && selectedContestant2Id) window.beatInbox?.autoLoadFor(selectedContestant1Id, selectedContestant2Id, roundNum);
     scoring.setRoundLocked(rounds.isLocked(roundNum));
     renderPenalties();
     judges.setCurrentRound(roundNum);
@@ -2235,6 +2272,21 @@ function init() {
     audio.refreshTitles();
   };
 
+  // Run of show, sign-ups + draw, beat inbox, templates
+  const rosPanel = new RunOfShowPanel({ ros, roster, leagues, loadMatchup, toast: showToast, tournament });
+  rosPanel.init();
+  window.rosPanel = rosPanel;
+  const signupsPanel = new SignupsPanel({ signups, judgeLink, roster, leagues, ros, toast: showToast, onDraw: () => { refreshRoster(); refreshBattle(); } });
+  signupsPanel.init();
+  const beatInbox = new BeatInbox({ judgeLink, signups, audio, roster, toast: showToast });
+  beatInbox.init();
+  window.beatInbox = beatInbox;
+  const templates = new EventTemplates({
+    settings, scoring, judges, leagues, rulesFor,
+    onApplied: () => { window.rulesPanel?.apply?.(); judges.recomputeTotals(); judgeLink.pushState(); updateBattleFlowUI(); }
+  });
+  new EventTemplatesPanel(templates, { toast: showToast, download: downloadBlob }).init();
+
   // Judge calibration (reference beat → common scale)
   const calPanel = new CalibrationPanel({ calibration, judges, judgeLink, scoring, audio, settings, toast: showToast });
   calPanel.init();
@@ -2297,7 +2349,10 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
       crowd: crowdVote.poll ? { title: crowdVote.poll.title, open: crowdVote.poll.open, options: crowdVote.poll.options, counts: crowdVote.counts, url: crowdVote.link.selectedAddress ? `${crowdVote.link.selectedAddress}${crowdVote.link.port ? ':' + crowdVote.link.port : ''}/vote.html` : null } : null,
       fight: fightSummary(),
       chat: chatHype.overlayState(),
-      result: window.lastOverlayResult || null
+      result: window.lastOverlayResult || null,
+      show: rosPanel.summary(),
+      coin: window.lastOverlayCoin || null,
+      predictions: window.predictions?.overlayState?.() || null
     })
   });
   overlayFeed.start();
@@ -2315,7 +2370,10 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
     smoke: () => { djController.triggerSmokeBlast(2.8, 0x00e5ff); soundboard.play('airhorn'); },
     hype: () => { announcer.announceHype?.(); djController.arena?.boost(0.4); djController.triggerSmokeBlast(1.6, 0xff2d2d); },
     camera: (v) => document.querySelector(`.cam-btn[data-cam-view="${v}"]`)?.click() || djController.setCameraView(v),
-    stageView: () => document.getElementById('btn-stage-view')?.click()
+    stageView: () => document.getElementById('btn-stage-view')?.click(),
+    primaryFlow: () => handlePrimaryFlowAction(),
+    nextMatchup: () => loadNextMatchup(),
+    recordToggle: () => window.streamRecorder?.toggle()
   });
   window.controlActions = actions;
   const midi = new MidiMapper(actions, { toast: showToast });
@@ -2323,6 +2381,35 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
   // reconnect saved mappings silently when MIDI was used before
   if (Object.keys(midi.map).length && navigator.requestMIDIAccess) midi.connect();
   startCommandRelay(actions);
+
+  // Co-host tablet: decks, timer, flow and crowd from a second device (PIN-protected)
+  const cohost = new CohostLink({
+    judgeLink,
+    actions,
+    toast: showToast,
+    getState: () => {
+      const deck = (n) => {
+        const st = audio.getDeckState(n);
+        return { loaded: st.loaded, playing: st.playing, title: st.title, time: Math.round(st.time), duration: Math.round(st.duration || 0), volume: audio.players[n].mix.channel };
+      };
+      const r = rounds.currentRound || 1;
+      const sum = rosPanel.summary();
+      return {
+        names: { 1: shownName(1), 2: shownName(2) },
+        roundTitle: r === 4 ? 'Overtime' : r === 3 ? 'Final Round' : `Round ${r}`,
+        phase: battleEngine.phase,
+        flowLabel: document.getElementById('flow-primary-label')?.textContent || '',
+        flowDisabled: !!document.getElementById('btn-primary-flow')?.disabled,
+        timer: document.getElementById('timer-value')?.textContent || timer.getFormattedTime(),
+        timerCritical: timer.running && timer.remaining <= 10,
+        decks: { 1: deck(1), 2: deck(2) },
+        crossfade: audio.crossfade,
+        nextUp: sum.nextUp,
+        delay: sum.delay !== null ? fmtDelay(sum.delay) : ''
+      };
+    }
+  });
+  cohost.init();
 
   // Deck waveforms, BPM / key, hot cues
   const deckWaves = new DeckWaveforms(audio);

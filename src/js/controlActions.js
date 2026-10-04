@@ -33,6 +33,9 @@ function buildActions(h) {
   add('blind.toggle', 'Blind judging on / off', 'Battle', () => h.toggleBlind());
   add('crowd.open', 'Open crowd vote', 'Battle', () => h.crowdVote?.openPoll());
   add('crowd.close', 'Close crowd vote', 'Battle', () => h.crowdVote?.closePoll());
+  if (h.primaryFlow) add('flow.primary', 'Battle flow: next step', 'Battle', () => h.primaryFlow());
+  if (h.nextMatchup) add('ros.next', 'Load the next matchup', 'Battle', () => h.nextMatchup());
+  if (h.recordToggle) add('rec.toggle', 'Start / stop recording', 'Stage', () => h.recordToggle());
   // stage
   add('fx.smoke', 'Smoke blast', 'Stage', () => h.smoke());
   add('fx.hype', 'Hype the crowd', 'Stage', () => h.hype());

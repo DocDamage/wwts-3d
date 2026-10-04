@@ -116,6 +116,7 @@ class JudgeLink {
         this.failures = 0;
         this.setStatus('online');
         this.pushState(true);
+        this.onOnline?.();
         break;
       case 'error':
         if (msg.code === 'room-taken') {

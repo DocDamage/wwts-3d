@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#050507" />
+  <meta name="description" content="Sign up for tonight's beat battle and send in your beats" />
+  <title>Battle Sign-up</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/vote.css" />
+  <link rel="stylesheet" href="/src/styles/entry.css" />
+</head>
+<body>
+  <header class="v-top">
+    <span class="v-brand" id="e-brand">WHO WANT THAT SMOKE</span>
+    <span class="v-conn" id="v-conn" data-status="offline" role="status" aria-label="Connection status"></span>
+  </header>
+
+  <main class="v-screen" id="e-room" hidden>
+    <h1>Battle sign-up</h1>
+    <p>Enter the room code on the screen.</p>
+    <label for="e-room-code">Room code</label>
+    <input id="e-room-code" maxlength="8" autocapitalize="characters" placeholder="ABCD" />
+    <button id="e-room-go" type="button" class="v-btn primary">Continue</button>
+    <p class="v-error" id="e-room-error" role="alert" hidden></p>
+  </main>
+
+  <main class="v-screen" id="e-wait" hidden>
+    <div class="v-spinner" aria-hidden="true"></div>
+    <p id="e-wait-text" class="e-center">Connecting…</p>
+  </main>
+
+  <main class="v-screen" id="e-form" hidden>
+    <h1 id="e-event">Tonight's battle</h1>
+    <p id="e-closed" hidden>Sign-ups are closed right now. Ask the host.</p>
+    <div id="e-form-fields">
+      <label for="e-name">Producer name</label>
+      <input id="e-name" class="e-text" maxlength="32" autocomplete="nickname" placeholder="Your producer name" />
+      <label for="e-social">Instagram / socials (optional)</label>
+      <input id="e-social" class="e-text" maxlength="60" placeholder="@yourname" />
+      <button id="e-register" type="button" class="v-btn primary">Sign me up</button>
+    </div>
+    <p class="v-error" id="e-form-error" role="alert" hidden></p>
+  </main>
+
+  <main class="v-screen" id="e-me" hidden>
+    <div class="e-card">
+      <span class="e-kicker">You're signed up as</span>
+      <span class="e-me-name" id="e-me-name"></span>
+      <span class="e-status" id="e-status" data-status="registered">Signed up</span>
+      <p id="e-status-text" role="status"></p>
+      <button type="button" class="e-link" id="e-edit">Change my name</button>
+    </div>
+
+    <section class="e-card" id="e-uploads" hidden>
+      <h2 class="e-h2">Your beats</h2>
+      <p>Upload one beat per round. Your file name stays private — the stage shows "Beat A / Beat B".</p>
+      <div id="e-rounds"></div>
+    </section>
+  </main>
+
+  <script type="module" src="/src/js/entryApp.js"></script>
+</body>
+</html>

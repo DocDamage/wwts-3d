@@ -5743,3 +5743,44 @@ body.reduced-motion .coin { animation-duration: 0.01s; }
 .cal-name { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flip-current { font-weight: 600; margin: 4px 0 10px; }
 .es-num { width: 90px; display: inline-block; }
+
+/* ===== Run of show, sign-ups, inbox, templates, co-host ===== */
+.ros-chip { font-size: 0.74rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-subtle); background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+.ros-chip.behind { color: #ffb03a; border-color: rgba(255, 176, 58, 0.5); }
+.ros-content, .su-content { max-width: 860px; }
+.ros-list, .ros-chal-list, .su-list, .inbox-list, .tpl-list, .ros-reigns { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ros-item { display: grid; grid-template-columns: 56px 1fr auto auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
+.ros-item.live { background: rgba(255, 45, 45, 0.1); box-shadow: inset 3px 0 0 var(--ember-red); }
+.ros-item.done { opacity: 0.6; }
+.ros-time { font-size: 0.74rem; color: var(--text-muted); }
+.ros-match small { color: var(--text-muted); margin-left: 4px; }
+.ros-res { display: block; color: var(--text-secondary) !important; margin-left: 0 !important; }
+.ros-res.live { color: var(--ember-red) !important; font-weight: 700; }
+.ros-est { display: inline-flex; align-items: center; gap: 4px; font-size: 0.74rem; color: var(--text-muted); }
+.ros-est input { width: 58px; padding: 3px 5px; background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: 6px; }
+.ros-actions { display: flex; gap: 3px; }
+.ros-actions button:not(.fs-small) { background: none; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 6px; width: 26px; height: 26px; cursor: pointer; }
+.ros-add select, .ros-add input:not([type=number]) { flex: 1 1 140px; }
+.ros-koth { border-top: 1px solid var(--border-subtle); margin-top: 10px; padding-top: 8px; }
+.ros-reign { font-weight: 700; color: #ffd21a; }
+.ros-chal-list li, .ros-reigns li { font-size: 0.82rem; }
+.ros-chal-list button { background: none; border: none; color: var(--text-muted); cursor: pointer; }
+.su-body { display: flex; gap: 18px; flex-wrap: wrap; }
+.su-qr-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 0 0 200px; }
+.su-qr-col canvas { background: #fff; border-radius: 10px; }
+.su-main { flex: 1 1 360px; min-width: 0; }
+.su-list li { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
+.su-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.su-name small { color: var(--text-muted); }
+.su-status { font-size: 0.74rem; color: var(--text-secondary); }
+.su-checked-in .su-status { color: var(--success-green); }
+.su-waitlist .su-status { color: #ffd21a; }
+.su-out { opacity: 0.5; }
+.inbox-list li { padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
+.inbox-beats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.inbox-beat { display: inline-flex; gap: 4px; align-items: center; font-size: 0.78rem; font-weight: 700; padding: 3px 6px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); }
+.inbox-btn[data-count]:not([data-count=""])::after, .crowd-btn[data-count]:not([data-count=""])::after { content: attr(data-count); margin-left: 5px; font-size: 0.65rem; padding: 0 5px; border-radius: 8px; background: var(--ember-red); color: #fff; }
+.tpl-list li { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
+.tpl-list li small { display: block; color: var(--text-muted); font-size: 0.72rem; }
+.tpl-list li span { display: flex; gap: 6px; flex-shrink: 0; }
+.co-pin { font-family: 'Orbitron', monospace; font-size: 1.8rem; letter-spacing: 0.2em; color: #ffd21a; margin: 0 8px; }

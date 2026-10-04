@@ -56,6 +56,9 @@
           <button id="btn-tools" class="icon-toggle-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="tools-menu" title="Tools: backups, overlays, MIDI, chat, accessibility, help">⚙ Tools</button>
           <div id="tools-menu" class="tools-menu" role="menu" hidden>
             <button type="button" role="menuitem" data-open="event-settings-modal">🎚 Event settings</button>
+            <button type="button" role="menuitem" data-open="templates-modal">🗂 Event templates</button>
+            <button type="button" role="menuitem" data-open="signup-modal">📝 Open sign-ups</button>
+            <button type="button" role="menuitem" data-open="cohost-modal">📱 Co-host tablet</button>
             <button type="button" role="menuitem" data-open="calibration-modal">🎯 Judge calibration</button>
             <button type="button" role="menuitem" data-open="backup-modal" id="btn-backup">💾 Backup &amp; restore</button>
             <button type="button" role="menuitem" data-open="judge-stats-modal">📈 Judge consistency</button>
@@ -273,6 +276,7 @@
       <!-- Title row (sketch: big red "Who Want That Smoke") + host flow desk -->
       <div class="wwts-topbar" data-overlay-panel="topbar" data-min-label="Host Desk">
         <h2 class="wwts-title panel-keep" id="battle-league-title">Who Want That Smoke</h2>
+        <button type="button" class="ros-chip panel-keep" id="ros-chip" hidden title="Run of show"></button>
         <!-- Host Battle Flow & Readiness Desk -->
         <div class="host-battle-flow-bar" id="host-battle-flow-bar">
           <div class="flow-readiness-checklist">
@@ -449,6 +453,8 @@
               Export Card
             </button>
             <button id="btn-battle-rules" class="control-btn secondary" type="button" title="Overtime and tie-break rules for this league">⚖ Rules</button>
+            <button id="btn-run-of-show" class="control-btn secondary" type="button" title="Tonight's matchups, timing and King of the Hill">📋 Show</button>
+            <button id="btn-beat-inbox" class="control-btn secondary inbox-btn" type="button" title="Beats producers uploaded from their phones">📥 Beats</button>
             <button id="btn-crowd-vote" class="control-btn secondary crowd-btn" type="button" title="Let the crowd vote from their phones">📣 Crowd</button>
             <label class="blind-toggle" title="Judges, stage and stream see Beat A / Beat B until the reveal"><input type="checkbox" id="chk-blind" /> 🙈 Blind</label>
             <button id="btn-view-report" class="control-btn secondary" type="button" style="display:none;" title="Open Certified Post-Battle Producer Report">
@@ -1448,6 +1454,134 @@
 
     <!-- ===== LIVE CHAT HYPE ===== -->
 
+
+    <!-- ===== RUN OF SHOW ===== -->
+    <div id="ros-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="ros-title">
+      <div class="modal-content backup-content ros-content">
+        <div class="modal-header">
+          <h2 id="ros-title">📋 Run of show</h2>
+          <button class="modal-close" data-close="ros-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <div class="chat-row">
+            <label for="ros-event-name">Event</label><input id="ros-event-name" class="form-input" maxlength="60" placeholder="Tonight's event name" />
+            <label for="ros-start">Starts</label><input id="ros-start" class="form-input" type="time" />
+          </div>
+          <div class="chat-row ros-modes" role="radiogroup" aria-label="Format">
+            <label class="inline-check"><input type="radio" name="ros-mode" value="list" /> Matchup list</label>
+            <label class="inline-check"><input type="radio" name="ros-mode" value="koth" /> 👑 King of the Hill (winner stays on)</label>
+          </div>
+          <p class="chat-status" id="ros-status" role="status"></p>
+          <ol class="ros-list" id="ros-list"></ol>
+          <div class="chat-row ros-add">
+            <select id="ros-p1" class="form-input" aria-label="Producer 1"></select><span>vs</span>
+            <select id="ros-p2" class="form-input" aria-label="Producer 2"></select>
+            <input id="ros-label" class="form-input" maxlength="40" placeholder="Label (optional)" />
+            <label class="ros-est"><input id="ros-est" type="number" class="form-input" min="1" max="120" value="12" aria-label="Estimated minutes" /> min</label>
+            <button type="button" class="control-btn primary" id="ros-add">Add</button>
+          </div>
+          <div class="ros-koth" id="ros-koth" hidden>
+            <h3>King of the Hill</h3>
+            <p class="ros-reign" id="ros-reign"></p>
+            <div class="chat-row"><label for="ros-king">King</label><select id="ros-king" class="form-input"></select></div>
+            <div class="chat-row"><select id="ros-chal" class="form-input" aria-label="Challenger"></select><button type="button" class="control-btn secondary" id="ros-chal-add">Add challenger</button><button type="button" class="control-btn primary" id="ros-next-challenge">▶ Next challenge</button></div>
+            <ol class="ros-chal-list" id="ros-chal-list"></ol>
+            <h4>Reigns</h4><ul class="ros-reigns" id="ros-reigns"></ul>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="fs-small" id="ros-bracket">+ Next bracket match</button>
+            <button type="button" class="fs-small" id="btn-open-signups">📝 Sign-ups &amp; draw</button>
+            <button type="button" class="fs-small" id="ros-clear">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SIGN-UPS ===== -->
+    <div id="signup-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="su-title">
+      <div class="modal-content backup-content su-content">
+        <div class="modal-header">
+          <h2 id="su-title">📝 Open-battle sign-ups</h2>
+          <button class="modal-close" data-close="signup-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body su-body">
+          <div class="su-qr-col">
+            <canvas id="su-qr" width="190" height="190" aria-label="QR code for the sign-up page"></canvas>
+            <p class="profile-muted">Room <b id="su-room"></b></p>
+            <p class="judge-link-url" id="su-url"></p>
+            <button type="button" class="fs-small" id="su-copy">Copy link</button>
+          </div>
+          <div class="su-main">
+            <div class="chat-row">
+              <label class="inline-check"><input type="checkbox" id="su-open" /> Sign-ups open</label>
+              <label class="inline-check"><input type="checkbox" id="su-uploads" /> Beat uploads</label>
+              <label>Spots <input type="number" id="su-capacity" class="form-input es-num" min="0" max="512" /></label>
+            </div>
+            <div class="chat-row"><input id="su-event" class="form-input" maxlength="60" placeholder="Event name on their phones" /></div>
+            <p class="chat-status" id="su-counts" role="status"></p>
+            <ul class="su-list" id="su-list"></ul>
+            <div class="form-actions">
+              <button type="button" class="control-btn secondary" id="su-checkin-all">Check in everyone signed up</button>
+              <button type="button" class="control-btn primary" id="su-draw">🎲 Draw battles</button>
+              <button type="button" class="fs-small" id="su-clear">Clear list</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BEAT INBOX ===== -->
+    <div id="inbox-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="inbox-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="inbox-title">📥 Uploaded beats</h2>
+          <button class="modal-close" data-close="inbox-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <label class="inline-check"><input type="checkbox" id="inbox-auto" /> Put each producer's beat on their deck when a matchup or round starts</label>
+          <ul class="inbox-list" id="inbox-list"></ul>
+          <button type="button" class="fs-small" id="inbox-refresh">↻ Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== EVENT TEMPLATES ===== -->
+    <div id="templates-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="tpl-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="tpl-title">🗂 Event templates</h2>
+          <button class="modal-close" data-close="templates-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <p class="backup-lead">A template saves the scoring preset and weights, the league's overtime and tie-break rules, the judge panel and the event settings.</p>
+          <div class="chat-row"><input id="tpl-name" class="form-input" maxlength="40" placeholder='e.g. "Monthly Smoke"' /><button type="button" class="control-btn primary" id="tpl-save">Save current setup</button></div>
+          <ul class="tpl-list" id="tpl-list"></ul>
+          <label class="control-btn secondary">⬆ Import template<input type="file" id="tpl-import" accept="application/json,.json" hidden /></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CO-HOST TABLET ===== -->
+    <div id="cohost-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="co-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="co-title">📱 Co-host tablet</h2>
+          <button class="modal-close" data-close="cohost-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body su-body">
+          <div class="su-qr-col">
+            <canvas id="co-qr" width="180" height="180" aria-label="QR code for the co-host page"></canvas>
+            <p class="judge-link-url" id="co-url"></p>
+            <button type="button" class="fs-small" id="co-copy">Copy link</button>
+          </div>
+          <div class="su-main">
+            <p class="backup-lead">A second device runs the decks, timer, battle flow and crowd vote while you handle the mic and scoring.</p>
+            <p class="co-pin-row">PIN <b class="co-pin" id="co-pin">0000</b> <button type="button" class="fs-small" id="co-new-pin">New PIN (signs tablets out)</button></p>
+            <ul class="su-list" id="co-list"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- ===== EVENT SETTINGS ===== -->
     <div id="event-settings-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="es-title">
       <div class="modal-content backup-content">

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#050507" />
+  <meta name="description" content="Co-host controls for the beat battle: decks, timer and flow" />
+  <title>WWTS Co-host</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/cohost.css" />
+</head>
+<body>
+  <header class="c-top">
+    <span class="c-brand">CO-HOST</span>
+    <span class="c-round" id="c-round"></span>
+    <span class="c-conn" id="c-conn" data-status="offline" role="status" aria-label="Connection status"></span>
+  </header>
+
+  <main class="c-screen" id="c-join">
+    <h1>Co-host controls</h1>
+    <p>Enter the room code and the PIN from the host screen (Tools → Co-host tablet).</p>
+    <label for="c-room">Room code</label>
+    <input id="c-room" maxlength="8" autocapitalize="characters" placeholder="ABCD" />
+    <label for="c-pin">PIN</label>
+    <input id="c-pin" maxlength="4" inputmode="numeric" placeholder="0000" />
+    <button id="c-go" type="button" class="c-btn primary">Connect</button>
+    <p class="c-error" id="c-error" role="alert" hidden></p>
+  </main>
+
+  <main class="c-screen" id="c-wait" hidden>
+    <p class="c-center" id="c-wait-text">Waiting for the host…</p>
+  </main>
+
+  <main class="c-screen c-panel" id="c-panel" hidden>
+    <section class="c-flow">
+      <div class="c-names"><span class="p1" id="c-n1">—</span><span class="c-vs">vs</span><span class="p2" id="c-n2">—</span></div>
+      <button type="button" class="c-btn primary c-big" data-act="flow.primary" id="c-flow">▶</button>
+      <div class="c-row">
+        <button type="button" class="c-btn" data-act="round.lock">🔒 Lock round</button>
+        <button type="button" class="c-btn" data-act="round.next">⏩ Next round</button>
+        <button type="button" class="c-btn" data-act="battle.submit">🏆 Reveal</button>
+      </div>
+    </section>
+
+    <section class="c-timer">
+      <span class="c-time" id="c-time">3:00</span>
+      <div class="c-row">
+        <button type="button" class="c-btn" data-act="timer.toggle">⏯ Timer</button>
+        <button type="button" class="c-btn" data-act="timer.reset">↺ Reset</button>
+      </div>
+    </section>
+
+    <section class="c-decks">
+      <div class="c-deck p1" data-deck="1">
+        <div class="c-deck-head"><b>Deck 1</b><span class="c-deck-title" id="c-t1">—</span></div>
+        <div class="c-prog"><i id="c-p1"></i></div>
+        <div class="c-row">
+          <button type="button" class="c-btn" data-act="deck1.play" id="c-play1">▶</button>
+          <button type="button" class="c-btn" data-act="deck1.cue">⏮ Cue</button>
+        </div>
+        <label class="c-fader">Volume <input type="range" min="0" max="1" step="0.05" data-range="deck1.volume" /></label>
+      </div>
+      <div class="c-deck p2" data-deck="2">
+        <div class="c-deck-head"><b>Deck 2</b><span class="c-deck-title" id="c-t2">—</span></div>
+        <div class="c-prog"><i id="c-p2"></i></div>
+        <div class="c-row">
+          <button type="button" class="c-btn" data-act="deck2.play" id="c-play2">▶</button>
+          <button type="button" class="c-btn" data-act="deck2.cue">⏮ Cue</button>
+        </div>
+        <label class="c-fader">Volume <input type="range" min="0" max="1" step="0.05" data-range="deck2.volume" /></label>
+      </div>
+    </section>
+    <label class="c-fader c-xfade">Crossfader <input type="range" min="0" max="1" step="0.01" data-range="mix.crossfade" /></label>
+
+    <section class="c-extra">
+      <div class="c-row">
+        <button type="button" class="c-btn" data-act="crowd.open">📣 Open vote</button>
+        <button type="button" class="c-btn" data-act="crowd.close">Close vote</button>
+        <button type="button" class="c-btn" data-act="ros.next">📋 Next matchup</button>
+      </div>
+      <div class="c-row">
+        <button type="button" class="c-btn" data-act="fx.smoke">💨 Smoke</button>
+        <button type="button" class="c-btn" data-act="fx.hype">🔥 Hype</button>
+        <button type="button" class="c-btn" data-act="fx.airhorn">📯 Air horn</button>
+        <button type="button" class="c-btn" data-act="reveal.close">✕ Close reveal</button>
+      </div>
+      <p class="c-next" id="c-next"></p>
+    </section>
+  </main>
+
+  <script type="module" src="/src/js/cohostApp.js"></script>
+</body>
+</html>

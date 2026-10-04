@@ -1,0 +1,21 @@
+/* Producer sign-up page (entry.html) — builds on vote.css */
+.e-text { font: 600 1.1rem 'Inter', sans-serif; letter-spacing: normal; text-transform: none; }
+.e-center { text-align: center; }
+.e-card { display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 18px; background: #12141d; border: 1px solid #23263a; }
+.e-kicker { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.e-me-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.6rem; line-height: 1; letter-spacing: 0.04em; }
+.e-status { align-self: flex-start; font-weight: 800; font-size: 0.85rem; padding: 4px 12px; border-radius: 999px; background: #2a2d3a; }
+.e-status[data-status=checked-in] { background: rgba(46, 204, 113, 0.2); color: #6ee7a0; }
+.e-status[data-status=drawn] { background: rgba(255, 59, 48, 0.22); color: #ff8a80; }
+.e-status[data-status=waitlist] { background: rgba(255, 210, 26, 0.18); color: #ffd21a; }
+.e-status[data-status=out] { background: rgba(255, 255, 255, 0.06); color: var(--muted); }
+.e-link { align-self: flex-start; background: none; border: none; color: var(--muted); text-decoration: underline; font: inherit; font-size: 0.85rem; padding: 0; cursor: pointer; }
+.e-h2 { text-align: left; font-size: 1.8rem; margin: 0; }
+.e-round { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid #23263a; }
+.e-round:first-child { border-top: 0; }
+.e-round-label { font-weight: 800; min-width: 80px; }
+.e-round-state { flex: 1; font-size: 0.85rem; color: var(--muted); }
+.e-round-state.done { color: #6ee7a0; }
+.e-pick { font: 700 0.95rem 'Inter', sans-serif; padding: 12px 16px; border-radius: 12px; background: #23263a; color: var(--text); cursor: pointer; }
+.e-progress { flex: 1 1 100%; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.e-progress i { display: block; height: 100%; width: 0; background: var(--p1); transition: width 0.2s; }
