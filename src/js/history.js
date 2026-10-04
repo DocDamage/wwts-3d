@@ -120,11 +120,17 @@ class HistoryManager {
     const emptyEl = document.getElementById(emptyId);
     if (!container) return;
 
-    const battles = this.getForLeague(leagueId);
+    const all = this.getForLeague(leagueId);
+    const battles = typeof this.filter === 'function' ? this.filter(all) : all;
     container.innerHTML = '';
+    const countEl = document.getElementById('hf-count');
+    if (countEl) countEl.textContent = battles.length === all.length ? `${all.length} battle${all.length === 1 ? '' : 's'}` : `${battles.length} of ${all.length}`;
 
     if (battles.length === 0) {
-      if (emptyEl) emptyEl.style.display = '';
+      if (emptyEl) {
+        emptyEl.style.display = '';
+        emptyEl.textContent = all.length ? 'No battles match these filters.' : 'No battles recorded yet. Submit scores to start tracking!';
+      }
       return;
     }
 

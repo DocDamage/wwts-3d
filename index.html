@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="BeatBattle Scoring App — Score beat battles live with 10 categories, league management, tournament brackets, and 3D visuals." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0c0c10" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <title>BeatBattle Scoring App</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -59,6 +63,7 @@
             <button type="button" role="menuitem" data-open="templates-modal">🗂 Event templates</button>
             <button type="button" role="menuitem" data-open="signup-modal">📝 Open sign-ups</button>
             <button type="button" role="menuitem" data-open="cohost-modal">📱 Co-host tablet</button>
+            <button type="button" role="menuitem" data-open="public-modal">🌐 Public league page</button>
             <button type="button" role="menuitem" data-open="calibration-modal">🎯 Judge calibration</button>
             <button type="button" role="menuitem" data-open="backup-modal" id="btn-backup">💾 Backup &amp; restore</button>
             <button type="button" role="menuitem" data-open="judge-stats-modal">📈 Judge consistency</button>
@@ -143,6 +148,10 @@
     <section id="screen-roster" class="app-screen">
       <div class="screen-header">
         <h2>Roster <span id="roster-league-name" class="screen-header-sub"></span></h2>
+        <span class="roster-io">
+          <label class="control-btn secondary" title="Import producers from a CSV file (name, bio, social, photo, avatar, color)">⬆ Import CSV<input type="file" id="roster-import" accept=".csv,text/csv" hidden /></label>
+          <button type="button" class="control-btn secondary" id="roster-export" title="Download the roster as CSV">⬇ Export CSV</button>
+        </span>
         <button id="btn-add-contestant" class="control-btn primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add Contestant
@@ -304,6 +313,8 @@
             <button type="button" id="btn-flow-stop-all" class="flow-action-btn" title="Stop listening period and reset cue">⏹ Stop Beat</button>
             <button type="button" id="btn-flow-lock-round" class="flow-action-btn primary" title="Lock scorecards for current round">🔒 Lock Round</button>
             <button type="button" id="btn-reopen-round" class="flow-action-btn" title="Reopen this locked round (needs a reason, kept in the record)" hidden>🔓 Reopen</button>
+            <button type="button" id="btn-record" class="flow-action-btn rec-btn" title="Record the stage and audio to a video file">⏺ Rec</button>
+            <button type="button" id="btn-recordings" class="flow-action-btn" title="Recordings and highlight clips">🎞</button>
           </div>
         </div>
       </div>
@@ -529,7 +540,19 @@
           <h3>Producer Badges</h3>
           <div id="badge-producer-chips" class="badge-producer-chips"></div>
           <div id="badge-grid" class="badge-grid"></div>
-          <h3>Battle History</h3>
+          <div class="standings-head"><h3>Battle History</h3>
+            <button type="button" class="fs-small" id="hist-export-csv">⬇ CSV</button>
+            <button type="button" class="fs-small" id="hist-export-json">⬇ JSON</button>
+          </div>
+          <div class="hist-filters" role="search" aria-label="Filter battles">
+            <input type="search" id="hf-text" class="form-input" placeholder="Producer" aria-label="Filter by producer" />
+            <input type="search" id="hf-judge" class="form-input" placeholder="Judge" aria-label="Filter by judge" />
+            <input type="date" id="hf-from" class="form-input" aria-label="From date" />
+            <input type="date" id="hf-to" class="form-input" aria-label="To date" />
+            <input type="number" id="hf-min" class="form-input" placeholder="Min margin" step="0.5" min="0" aria-label="Minimum margin" />
+            <input type="number" id="hf-max" class="form-input" placeholder="Max margin" step="0.5" min="0" aria-label="Maximum margin" />
+            <span class="hf-count" id="hf-count" role="status"></span>
+          </div>
           <div id="history-list" class="history-entries"></div>
           <p class="empty-state" id="history-empty">No battles recorded yet. Submit scores to start tracking!</p>
         </div>
@@ -1406,6 +1429,17 @@
           </div>
           <ul id="crowd-history" class="crowd-history"></ul>
           <p class="profile-muted">Votes add up across the battle's rounds as the "People's Choice", shown at the reveal. Add "Audience vote" to the tie-break rules to let the crowd settle a tie.</p>
+          <section class="pred-section">
+            <h3>🔮 Prediction game</h3>
+            <p class="profile-muted">Phones call the winner before the reveal; a point for every right call. The leaderboard runs all night.</p>
+            <div class="crowd-actions">
+              <button type="button" id="pred-open" class="control-btn primary">Open predictions</button>
+              <button type="button" id="pred-close" class="control-btn secondary">Close</button>
+              <label class="inline-check"><input type="checkbox" id="pred-auto" /> open automatically for every battle</label>
+            </div>
+            <p class="crowd-meta" id="pred-status" role="status"></p>
+            <ol class="pred-board" id="pred-board"></ol>
+          </section>
         </div>
       </div>
     </div>
@@ -1640,6 +1674,75 @@
           </div>
           <h3>Past seasons</h3>
           <ul class="tpl-list" id="season-past"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== RECORDINGS ===== -->
+    <div id="rec-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="rec-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="rec-title">🎞 Recordings</h2>
+          <button class="modal-close" data-close="rec-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <p class="backup-lead">⏺ Rec on the host desk records the stage and the music to a video file. Highlights are 30-second clips cut automatically from each beat, just after the intro.</p>
+          <label class="inline-check"><input type="checkbox" id="rec-highlights" /> Auto-cut a 30 s highlight of every beat</label>
+          <ul class="tpl-list" id="rec-list"></ul>
+          <div class="form-actions"><button type="button" class="control-btn secondary" id="rec-all">⬇ Download all</button></div>
+          <p class="profile-muted">Recordings stay in this window until you download them. Announcer and soundboard voices aren't in the recording.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== LEAGUE STATS ===== -->
+    <div id="stats-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="stats-title">
+      <div class="modal-content backup-content stats-content">
+        <div class="modal-header">
+          <h2 id="stats-title">📊 League stats</h2>
+          <button class="modal-close" data-close="stats-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <div class="chat-row">
+            <div class="stats-tabs" role="tablist">
+              <button type="button" class="fs-small" data-stab="h2h">Head-to-head</button>
+              <button type="button" class="fs-small" data-stab="strengths">Strengths</button>
+              <button type="button" class="fs-small" data-stab="streaks">Streaks</button>
+              <button type="button" class="fs-small" data-stab="upsets">Upsets</button>
+              <button type="button" class="fs-small" data-stab="judges">Producer vs judge</button>
+            </div>
+            <select id="stats-scope" class="form-input es-num" aria-label="Scope"><option value="season">This season</option><option value="all">All-time</option></select>
+          </div>
+          <div id="stats-body"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PUBLIC LEAGUE PAGE ===== -->
+    <div id="public-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="pub-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="pub-title">🌐 Public league page</h2>
+          <button class="modal-close" data-close="public-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body su-body">
+          <div class="su-qr-col">
+            <canvas id="pub-qr" width="170" height="170" aria-label="QR code for the live league page"></canvas>
+            <p class="judge-link-url" id="pub-url"></p>
+          </div>
+          <div class="su-main">
+            <p class="backup-lead">A read-only page with the standings, results and what's up next. Share it on the venue Wi-Fi, or download one HTML file and upload it anywhere.</p>
+            <label class="inline-check"><input type="checkbox" id="pub-auto" /> Update the Wi-Fi page after every battle</label>
+            <div class="form-actions">
+              <button type="button" class="control-btn primary" id="pub-publish">📡 Publish on Wi-Fi now</button>
+              <button type="button" class="control-btn secondary" id="pub-download">⬇ Download page (.html)</button>
+              <button type="button" class="control-btn secondary" id="pub-preview">👁 Preview</button>
+            </div>
+            <p class="chat-status" id="pub-status" role="status"></p>
+            <h3>Offline mode</h3>
+            <p class="profile-muted" id="pwa-status">When served with "npm start", the app installs as a web app and keeps working without internet (everything runs on this computer).</p>
+            <button type="button" class="control-btn secondary" id="pwa-install" hidden>⬇ Install app</button>
+          </div>
         </div>
       </div>
     </div>

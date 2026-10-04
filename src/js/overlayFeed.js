@@ -60,7 +60,10 @@ const OVERLAY_WIDGETS = [
   { w: 'bracket', name: 'Bracket', size: '1920 × 600', desc: 'The current tournament bracket' },
   { w: 'fight', name: 'Fight HUD', size: '1920 × 160', desc: 'Health bars, timer, round pips and combos' },
   { w: 'result', name: 'Winner card', size: '1920 × 400', desc: 'Pops up after the reveal for 15 s' },
-  { w: 'chat', name: 'Live chat', size: '600 × 400', desc: 'Latest Twitch / YouTube messages (needs Live Chat Hype connected)' }
+  { w: 'chat', name: 'Live chat', size: '600 × 400', desc: 'Latest Twitch / YouTube messages (needs Live Chat Hype connected)' },
+  { w: 'next', name: 'Next up', size: '1920 × 180', desc: 'Next matchup from the run of show, schedule and the King of the Hill' },
+  { w: 'coin', name: 'Coin flip', size: '800 × 300', desc: 'Who plays first — pops up after the coin flip' },
+  { w: 'predict', name: 'Prediction game', size: '600 × 420', desc: 'Prediction split and the "best ears tonight" leaderboard' }
 ];
 
 class OverlaysPanel {

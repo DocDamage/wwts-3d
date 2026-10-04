@@ -85,3 +85,19 @@ body[data-w=chat] #ov-root { align-items: flex-end; }
 .ov-chat { display: flex; flex-direction: column; gap: 6px; width: 520px; }
 .ov-chat-msg { background: var(--panel); padding: 7px 12px; border-radius: 10px; font: 600 17px 'Inter', sans-serif; animation: rise 0.3s ease; }
 .ov-chat-msg b { margin-right: 6px; } .ov-chat-msg b.twitch { color: #b48cff; } .ov-chat-msg b.youtube { color: #ff5a5a; }
+
+/* next up, coin flip, prediction game */
+.ov-next { display: inline-flex; flex-direction: column; gap: 6px; padding: 16px 28px; border-radius: 16px; background: rgba(8, 8, 14, 0.82); border: 1px solid rgba(255, 255, 255, 0.12); }
+.ov-next-tag { font-size: 0.85rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: #ffd21a; }
+.ov-next-main { font-family: 'Bebas Neue', sans-serif; font-size: 3rem; letter-spacing: 0.04em; display: flex; gap: 18px; align-items: baseline; }
+.ov-next-main .p1 { color: #ff4d4d; } .ov-next-main .p2 { color: #26d4ff; }
+.ov-next-sub { color: #cfd3e0; font-weight: 600; }
+.ov-coin { display: inline-flex; gap: 18px; align-items: center; padding: 18px 28px; border-radius: 18px; background: rgba(8, 8, 14, 0.85); border: 2px solid #ffd21a; animation: ovPop 0.4s ease-out; }
+.ov-coin-disc { font-size: 3.4rem; }
+.ov-coin-kicker { font-size: 0.85rem; font-weight: 800; letter-spacing: 0.16em; color: #ffd21a; }
+.ov-coin-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; letter-spacing: 0.04em; color: #fff; }
+.ov-predict { display: inline-flex; flex-direction: column; gap: 10px; min-width: 420px; padding: 14px 18px; border-radius: 16px; background: rgba(8, 8, 14, 0.82); }
+.ov-board { margin: 0; padding-left: 26px; color: #fff; font-size: 1.15rem; }
+.ov-board li { padding: 2px 0; } .ov-board span { float: right; color: #ffd21a; font-weight: 800; }
+@keyframes ovPop { from { transform: scale(0.9); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ov-coin { animation: none; } }

@@ -8,6 +8,9 @@
  *                         &w=crowd        live crowd-vote bars
  *                         &w=result       winner card after the reveal (auto-hides)
  *                         &w=chat         latest live-chat messages
+ *                         &w=next         next matchup / schedule / King of the Hill
+ *                         &w=coin         coin flip result (who plays first)
+ *                         &w=predict      prediction split + leaderboard
  * Optional: &scale=1.5  &align=left|right|center  &demo=1 (sample data for layout)
  *
  * State arrives over the local hub (works in OBS, which is a separate browser),
@@ -87,6 +90,32 @@ const W = {
     if (!c || !c.recent?.length) return '';
     return `<div class="ov-chat">${c.recent.map(m => `<div class="ov-chat-msg"><b class="${m.platform}">${esc(m.user)}</b> ${esc(m.text)}</div>`).join('')}</div>`;
   },
+  next(s) {
+    const sh = s.show;
+    if (!sh || (!sh.nextUp && !sh.king)) return '';
+    const delay = sh.delay === null || sh.delay === undefined ? '' : Math.abs(sh.delay) < 2 ? 'On schedule' : sh.delay > 0 ? `${sh.delay} min behind` : `${-sh.delay} min ahead`;
+    return `<div class="ov-next">
+      <div class="ov-next-tag">${esc(sh.eventName || 'UP NEXT')}${delay ? ` · ${esc(delay)}` : ''}</div>
+      ${sh.nextUp ? `<div class="ov-next-main"><span class="p1">${esc(sh.nextUp.c1)}</span><span class="ov-vs">VS</span><span class="p2">${esc(sh.nextUp.c2)}</span></div>` : ''}
+      ${sh.king ? `<div class="ov-next-sub">👑 ${esc(sh.king.name)} · ${sh.king.defenses} defense${sh.king.defenses === 1 ? '' : 's'}</div>` : (sh.nextUp?.label ? `<div class="ov-next-sub">${esc(sh.nextUp.label)}</div>` : '')}
+    </div>`;
+  },
+  coin(s) {
+    const c = s.coin;
+    if (!c || Date.now() - (c.at || 0) > 12000) return '';
+    return `<div class="ov-coin"><span class="ov-coin-disc">🪙</span><div><div class="ov-coin-kicker">COIN FLIP</div><div class="ov-coin-name">${esc(c.first)} plays first</div></div></div>`;
+  },
+  predict(s) {
+    const p = s.predictions;
+    if (!p) return '';
+    const total = (p.counts?.[0] || 0) + (p.counts?.[1] || 0);
+    const pct = (i) => (total ? Math.round(((p.counts[i] || 0) / total) * 100) : 50);
+    return `<div class="ov-predict">
+      ${p.options ? `<div class="ov-crowd-title">🔮 ${esc(p.title || 'Predictions')} ${p.open ? '<span class="live">LIVE</span>' : ''}</div>
+      <div class="ov-crowd-bar"><i class="p1" style="width:${pct(0)}%"><span>${esc(p.options[0])} ${total ? pct(0) + '%' : ''}</span></i><i class="p2" style="width:${pct(1)}%"><span>${total ? pct(1) + '% ' : ''}${esc(p.options[1])}</span></i></div>` : ''}
+      ${p.board?.length ? `<ol class="ov-board">${p.board.map(b => `<li><b>${esc(b.name)}</b><span>${b.points}</span></li>`).join('')}</ol>` : ''}
+    </div>`;
+  },
   result(s) {
     const r = s.result;
     if (!r || Date.now() - lastResultAt > 15000) return '';
@@ -146,7 +175,10 @@ if (demo) {
     fight: { names: { 1: 'Marcus', 2: 'Ninja' }, hp: { 1: 64, 2: 38 }, wins: { 1: 1, 2: 0 }, need: 2, clock: 47, combo: { 1: 4, 2: 0 } },
     crowd: { title: 'Who won round 3?', open: true, options: ['808 Smoke', 'Vinyl Vixen'], counts: [23, 31] },
     result: { winnerName: 'Vinyl Vixen', decision: 'Split Decision · 2-1', at: 1 },
-    chat: { recent: [{ user: 'beatnerd', text: 'that flip was crazy 🔥', platform: 'twitch' }, { user: 'kickqueen', text: '2 all day', platform: 'youtube' }, { user: 'sp1200', text: 'W', platform: 'twitch' }], votes: [12, 19], rate: 80 }
+    chat: { recent: [{ user: 'beatnerd', text: 'that flip was crazy 🔥', platform: 'twitch' }, { user: 'kickqueen', text: '2 all day', platform: 'youtube' }, { user: 'sp1200', text: 'W', platform: 'twitch' }], votes: [12, 19], rate: 80 },
+    show: { eventName: 'Summer Smoke', nextUp: { c1: 'Kick Master', c2: 'Queen Poly', label: 'Semi-final' }, delay: 6, king: null },
+    coin: { first: 'Vinyl Vixen', at: Date.now() + 1e9 },
+    predictions: { open: true, title: 'Who takes this battle?', options: ['808 Smoke', 'Vinyl Vixen'], counts: [41, 29], board: [{ name: 'beatnerd', points: 4 }, { name: 'kickqueen', points: 3 }, { name: 'sp1200', points: 3 }] }
   });
 } else {
   status(room ? `Connecting to room ${room}…` : null);

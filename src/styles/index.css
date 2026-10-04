@@ -5819,3 +5819,32 @@ body.reduced-motion .coin { animation-duration: 0.01s; }
 .st-note { font-size: 0.74rem; color: var(--text-muted); margin: 4px 0 0; }
 .history-cypher .he-cypher { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
 .history-cypher small { color: var(--text-muted); }
+.pred-section { border-top: 1px solid var(--border-subtle); margin-top: 12px; padding-top: 8px; }
+.pred-board { margin: 6px 0 0 18px; padding: 0; font-size: 0.85rem; }
+.pred-board span { color: var(--text-muted); margin-left: 6px; }
+
+/* ===== Recording, stats, history filters, data, public page ===== */
+.rec-btn.recording { background: rgba(255, 45, 45, 0.25) !important; color: #fff; border-color: var(--ember-red) !important; animation: recPulse 1.4s ease-in-out infinite; }
+@keyframes recPulse { 50% { box-shadow: 0 0 0 4px rgba(255, 45, 45, 0.25); } }
+body.reduced-motion .rec-btn.recording { animation: none; }
+#btn-recordings[data-count]:not([data-count=""])::after { content: attr(data-count); margin-left: 4px; font-size: 0.62rem; padding: 0 5px; border-radius: 8px; background: var(--ember-red); color: #fff; }
+.stats-content { max-width: 880px; }
+.stats-tabs { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.stats-tabs .active { border-color: #ffd21a; color: #ffd21a; }
+.h2h-table th, .h2h-table td { text-align: center; white-space: nowrap; }
+.h2h-table tbody th { text-align: left; }
+.h-up { color: #4ade80; font-weight: 700; }
+.h-down { color: #f87171; }
+.stats-radar { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; color: var(--text-primary); }
+.stats-cats { list-style: none; padding: 0; margin: 0; min-width: 200px; flex: 1; }
+.stats-cats li { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--border-subtle); font-size: 0.85rem; }
+.stats-upsets li { margin: 6px 0; }
+.stats-upsets span { color: var(--text-secondary); margin: 0 6px; }
+.stats-upsets small, .stats-judge small { color: var(--text-muted); }
+.stats-judge ul { list-style: none; padding: 0; margin: 0 0 12px; }
+.stats-judge li { display: grid; grid-template-columns: 1fr 70px 80px; gap: 8px; padding: 3px 0; font-size: 0.85rem; }
+.hist-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; align-items: center; }
+.hist-filters .form-input { flex: 1 1 110px; min-width: 0; padding: 5px 8px; font-size: 0.8rem; }
+.hf-count { font-size: 0.74rem; color: var(--text-muted); }
+.roster-io { display: inline-flex; gap: 6px; margin-left: auto; margin-right: 8px; flex-wrap: wrap; }
+.roster-io .control-btn { width: auto; }

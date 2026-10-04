@@ -59,6 +59,12 @@ import { BeatInbox } from './beatInbox.js';
 import { CohostLink } from './cohostLink.js';
 import { Seasons, SeasonsPanel } from './seasons.js';
 import { Cypher } from './cypher.js';
+import { Predictions } from './predictions.js';
+import { StreamRecorder } from './streamRecorder.js';
+import { LeagueStatsPanel } from './leagueStats.js';
+import { rosterFromCsv, rosterToCsv, historyToCsv, filterHistory } from './dataIO.js';
+import { buildPublicData, renderPublicPage } from './publicPage.js';
+import QRCode from 'qrcode';
 
 // ============================================================
 // Initialize all modules
@@ -1045,6 +1051,137 @@ async function reopenCurrentRound() {
 }
 
 // ============================================================
+// Data in and out: roster CSV, history CSV / JSON, history filters
+// ============================================================
+function initDataIO() {
+  document.getElementById('roster-import')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!leagues.activeLeagueId) { showToast('Pick a league first'); return; }
+    const { people, errors } = rosterFromCsv(await file.text());
+    let added = 0;
+    let updated = 0;
+    people.forEach(p => {
+      const existing = roster.getAll().find(c => c.name.trim().toLowerCase() === p.name.toLowerCase());
+      if (existing) {
+        roster.update(existing.id, Object.fromEntries(Object.entries(p).filter(([k, v]) => v && k !== 'name')));
+        leagues.addContestant(leagues.activeLeagueId, existing.id);
+        updated++;
+      } else {
+        roster.add({ ...p, leagueId: leagues.activeLeagueId });
+        added++;
+      }
+    });
+    showToast(`Roster import: ${added} added, ${updated} updated${errors.length ? ` · ${errors.length} skipped` : ''}`);
+    refreshRoster();
+    refreshBattle();
+  });
+  document.getElementById('roster-export')?.addEventListener('click', () => {
+    const league = leagues.getActive();
+    const list = league ? roster.getForLeague(league.id) : roster.getAll();
+    downloadBlob(new Blob([rosterToCsv(list)], { type: 'text/csv' }), `${(league?.name || 'roster').replace(/[^a-z0-9]+/gi, '_')}_roster.csv`);
+  });
+  const filtered = () => (history.filter ? history.filter(history.getForLeague(leagues.activeLeagueId)) : history.getForLeague(leagues.activeLeagueId));
+  document.getElementById('hist-export-csv')?.addEventListener('click', () => {
+    const league = leagues.getActive();
+    downloadBlob(new Blob([historyToCsv(filtered(), league?.name || '')], { type: 'text/csv' }), `${(league?.name || 'battles').replace(/[^a-z0-9]+/gi, '_')}_results.csv`);
+  });
+  document.getElementById('hist-export-json')?.addEventListener('click', () => {
+    const league = leagues.getActive();
+    const data = { app: 'wwts', kind: 'battle-history', league: league?.name, exportedAt: new Date().toISOString(), battles: filtered().map(b => ({ ...b, timeline: undefined })) };
+    downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `${(league?.name || 'battles').replace(/[^a-z0-9]+/gi, '_')}_history.json`);
+  });
+  const ids = ['hf-text', 'hf-judge', 'hf-from', 'hf-to', 'hf-min', 'hf-max'];
+  const apply = () => {
+    const v = Object.fromEntries(ids.map(id => [id, document.getElementById(id)?.value || '']));
+    const any = Object.values(v).some(Boolean);
+    history.filter = any ? (list) => filterHistory(list, { text: v['hf-text'], judge: v['hf-judge'], from: v['hf-from'], to: v['hf-to'], minMargin: v['hf-min'], maxMargin: v['hf-max'] }) : null;
+    history.renderHistory('history-list', 'history-empty', leagues.activeLeagueId);
+  };
+  ids.forEach(id => document.getElementById(id)?.addEventListener('input', apply));
+}
+
+// ============================================================
+// Public league page (Wi-Fi + downloadable) and offline / install
+// ============================================================
+function initPublicPage() {
+  const modal = document.getElementById('public-modal');
+  let auto = false;
+  try { auto = localStorage.getItem('wwts_public_auto') === 'on'; } catch { /* default off */ }
+  const data = () => {
+    const league = leagues.getActive();
+    const season = seasons.current();
+    const standings = seasonsPanel ? seasonsPanel.standings(season?.id || null) : roster.getStandings(league?.id);
+    const sum = window.rosPanel?.summary();
+    return buildPublicData({
+      league, season, standings,
+      battles: history.getForLeague(league?.id),
+      queue: ros.items,
+      nextUp: sum?.nextUp || null
+    });
+  };
+  const status = (t) => { const el = document.getElementById('pub-status'); if (el) el.textContent = t; };
+  const publish = async (quiet = false) => {
+    try {
+      const res = await fetch('/api/public', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data()) });
+      if (!res.ok) throw new Error(res.status);
+      status(`Published ${new Date().toLocaleTimeString()}`);
+      if (!quiet) showToast('🌐 League page updated on the Wi-Fi');
+      return true;
+    } catch {
+      status('Couldn\'t publish — the live page needs the app served by "npm run dev" or "npm start".');
+      return false;
+    }
+  };
+  modal?.addEventListener('tool-open', async () => {
+    await judgeLink.ensureAddress?.();
+    const url = `${judgeLink.baseUrl()}/league`;
+    document.getElementById('pub-url').textContent = url;
+    try { await QRCode.toCanvas(document.getElementById('pub-qr'), url, { width: 170, margin: 1, color: { dark: '#0a0a0e', light: '#ffffff' } }); } catch { /* no canvas */ }
+    document.getElementById('pub-auto').checked = auto;
+  });
+  document.getElementById('pub-auto')?.addEventListener('change', (e) => {
+    auto = e.target.checked;
+    try { localStorage.setItem('wwts_public_auto', auto ? 'on' : 'off'); } catch { /* ignore */ }
+    if (auto) publish();
+  });
+  document.getElementById('pub-publish')?.addEventListener('click', () => publish());
+  document.getElementById('pub-download')?.addEventListener('click', () => {
+    const d = data();
+    downloadBlob(new Blob([renderPublicPage(d)], { type: 'text/html' }), `${d.league.name.replace(/[^a-z0-9]+/gi, '_')}_standings.html`);
+  });
+  document.getElementById('pub-preview')?.addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([renderPublicPage(data())], { type: 'text/html' }));
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  });
+
+  // Install / offline: the service worker only runs in the built app (npm start)
+  let deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstall = e;
+    const b = document.getElementById('pwa-install');
+    if (b) b.hidden = false;
+  });
+  document.getElementById('pwa-install')?.addEventListener('click', async () => {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    await deferredInstall.userChoice;
+    deferredInstall = null;
+    document.getElementById('pwa-install').hidden = true;
+  });
+  if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('/sw.js').then(() => {
+      const el = document.getElementById('pwa-status');
+      if (el) el.textContent = '✓ Offline mode is on: the app, models and sounds are cached on this computer and keep working without internet.';
+    }).catch(() => { /* not available */ });
+  }
+  return { autoPublish: () => { if (auto) publish(true); }, publish, data };
+}
+
+// ============================================================
 // Flip rounds: one sample, both producers flip it; the original plays first
 // ============================================================
 function initFlipRounds() {
@@ -1260,6 +1397,8 @@ async function handleFinalizeBattle() {
   const finalResult = res.result;
   audio.refreshTitles();   // decks show the producers' names now
   ros.complete({ c1Id: finalResult.contestant1.id, c2Id: finalResult.contestant2.id, winnerId: finalResult.winnerId, winnerName: finalResult.winnerName, resultId: finalResult.id });
+  window.predictions?.resolve(finalResult.winnerId === selectedContestant1Id ? 1 : finalResult.winnerId === selectedContestant2Id ? 2 : 0);
+  setTimeout(() => window.publicPage?.autoPublish(), 1500);
   storage.clearActiveSession();
   postBroadcast('BATTLE_FINALIZED', finalResult);
   updateBattleFlowUI();
@@ -1284,6 +1423,7 @@ async function handleFinalizeBattle() {
 /** Lights down, face-off, drumroll… then the winner */
 async function runWinnerReveal(finalResult, unlocks = []) {
   const winNum = finalResult.winnerId === selectedContestant1Id ? 1 : finalResult.winnerId === selectedContestant2Id ? 2 : null;
+  window.predictions?.close();
   if (blind.on) setBlind(false);   // the reveal shows who's who
   document.body.classList.add('reveal-mode');
   closeTabDrawer();
@@ -1923,6 +2063,7 @@ function init() {
   // Connect Audio Player state changes to 3D DJ Stage
   audio.onStateChange((playerNum, isPlaying) => {
     syncTimerToDeck(playerNum, isPlaying);
+    window.streamRecorder?.onDeck(playerNum, isPlaying);
     djController.setAudioPlaying(playerNum, isPlaying);
     // Center record spins while either deck plays, tinted to the deck that's live
     const record = document.getElementById('speaker-icon');
@@ -2337,6 +2478,21 @@ function init() {
   cypher.init();
   window.cypher = cypher;
   window.seasons = seasons;
+
+  // Prediction game, recording, league stats, data in/out, public page, offline mode
+  const predictions = new Predictions({ judgeLink, getOptions: () => [shownName(1), shownName(2)], toast: showToast });
+  predictions.init();
+  window.predictions = predictions;
+  const streamRecorder = new StreamRecorder({
+    djController, audio, toast: showToast,
+    getRound: () => rounds.currentRound || 1,
+    getName: (n) => (cypher?.active ? cypher.label(cypher.playing ?? 0) : (battleEngine.isFinalized ? realName(n) : shownName(n)))
+  });
+  streamRecorder.init();
+  window.streamRecorder = streamRecorder;
+  new LeagueStatsPanel({ history, leagues, roster, seasonsPanel }).init();
+  initDataIO();
+  window.publicPage = initPublicPage();
 
   // Judge calibration (reference beat → common scale)
   const calPanel = new CalibrationPanel({ calibration, judges, judgeLink, scoring, audio, settings, toast: showToast });

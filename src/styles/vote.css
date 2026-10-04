@@ -41,3 +41,23 @@ input:focus-visible, button:focus-visible { outline: 3px solid #ffd21a; outline-
 .v-hype.pop { animation: pop 0.35s ease; }
 @keyframes pop { 40% { transform: scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .v-hype.pop, .v-spinner { animation: none; } .v-bar i { transition: none; } }
+
+/* Prediction game */
+.v-pred, .v-board { max-width: 520px; width: 100%; margin: 6px auto 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.v-pred[hidden], .v-board[hidden] { display: none; }
+.v-pred h2 { font-size: 1.7rem; }
+.v-pred-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.v-pred-opt { font: 700 1.1rem 'Inter', sans-serif; padding: 18px 10px; border-radius: 14px; border: 2px solid #2a2d3a; background: #12141d; color: var(--text); cursor: pointer; }
+.v-pred-opt.p1.picked { border-color: var(--p1); background: rgba(255, 59, 48, 0.2); }
+.v-pred-opt.p2.picked { border-color: var(--p2); background: rgba(18, 184, 230, 0.2); }
+.v-pred-opt.right { box-shadow: 0 0 0 3px #2ecc71; }
+.v-pred-opt:disabled { opacity: 0.8; cursor: default; }
+.v-board { background: #0c0d14; border-radius: 16px; border: 1px solid #23263a; }
+.v-board-head { display: flex; justify-content: space-between; align-items: baseline; }
+.v-board h3 { margin: 0; font-size: 1.05rem; }
+#v-me-pts { color: #ffd21a; font-weight: 800; }
+.v-nick-row { display: flex; gap: 8px; }
+.v-nick-row input { flex: 1; font: 600 1rem 'Inter', sans-serif; letter-spacing: normal; text-transform: none; padding: 10px 12px; }
+.v-nick-row .v-btn { padding: 10px 16px; background: #23263a; color: var(--text); }
+#v-board-list { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+#v-board-list li span { color: var(--muted); margin-left: 6px; }

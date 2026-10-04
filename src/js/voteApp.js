@@ -20,7 +20,12 @@ const state = {
   poll: null,
   myVote: null,
   joined: false,
-  retry: 0
+  retry: 0,
+  pred: null,
+  myPick: null,
+  points: 0,
+  board: [],
+  nick: (() => { try { return localStorage.getItem('wwts_vote_nick') || ''; } catch { return ''; } })()
 };
 
 function show(id) {
@@ -42,7 +47,10 @@ function connect() {
   ws.onopen = () => {
     state.retry = 0;
     setConn('online');
-    if (state.room) send({ t: 'aud-join', room: state.room, deviceId: state.deviceId });
+    if (state.room) {
+      send({ t: 'aud-join', room: state.room, deviceId: state.deviceId });
+      if (state.nick) send({ t: 'aud-name', name: state.nick });
+    }
   };
   ws.onmessage = (e) => {
     let msg;
@@ -74,7 +82,65 @@ function handle(msg) {
     state.myVote = msg.myVote;
     render(msg.counts || null);
   }
+  if (msg.t === 'pred') {
+    state.pred = msg.pred;
+    state.myPick = msg.myPick ?? state.myPick;
+    if (typeof msg.points === 'number') state.points = msg.points;
+    if (state.pred && state.pred.id !== state._predId) { state._predId = state.pred.id; state.myPick = msg.myPick || null; }
+    renderPred();
+  }
+  if (msg.t === 'pred-board') {
+    state.board = msg.board || [];
+    if (typeof msg.me === 'number') state.points = msg.me;
+    renderPred();
+  }
 }
+
+function renderPred() {
+  const p = state.pred;
+  $('v-pred').hidden = !p;
+  if (p) {
+    $('v-pred-title').textContent = p.open ? (p.title || 'Who takes it?') : (p.result !== null && p.result !== undefined ? 'Prediction result' : 'Predictions closed');
+    [1, 2].forEach(n => {
+      $(`v-pred-${n}`).textContent = p.options?.[n - 1] || `Beat ${n === 1 ? 'A' : 'B'}`;
+      const b = document.querySelector(`.v-pred-opt[data-pick="${n}"]`);
+      b.classList.toggle('picked', state.myPick === n);
+      b.classList.toggle('right', p.result === n);
+      b.disabled = !p.open;
+      b.setAttribute('aria-pressed', state.myPick === n ? 'true' : 'false');
+    });
+    $('v-pred-status').textContent = p.open
+      ? (state.myPick ? 'Locked in — you can switch until the reveal.' : 'Call it before the reveal for a point.')
+      : p.result ? (state.myPick === p.result ? '✓ You called it! +1' : state.myPick ? 'Not this time.' : 'You didn’t predict this one.')
+        : p.result === 0 ? 'It was a draw — no points.' : 'Waiting for the reveal…';
+  }
+  $('v-board').hidden = !p && !state.board.length;
+  $('v-me-pts').textContent = `${state.points} pt${state.points === 1 ? '' : 's'}`;
+  $('v-board-list').innerHTML = state.board.map(b => `<li>${escapeHtml(b.name)}<span>${b.points}</span></li>`).join('') || '<li>No points yet — be first!</li>';
+  if (document.activeElement !== $('v-nick')) $('v-nick').value = state.nick;
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+document.querySelectorAll('.v-pred-opt').forEach(btn => btn.addEventListener('click', () => {
+  if (!state.pred?.open) return;
+  state.myPick = Number(btn.dataset.pick);
+  send({ t: 'predict', predId: state.pred.id, choice: state.myPick });
+  renderPred();
+  navigator.vibrate?.(25);
+}));
+
+$('v-nick-save').addEventListener('click', () => {
+  const name = $('v-nick').value.trim().slice(0, 20);
+  if (!name) return;
+  state.nick = name;
+  try { localStorage.setItem('wwts_vote_nick', name); } catch { /* ignore */ }
+  send({ t: 'aud-name', name });
+  $('v-nick-save').textContent = 'Saved ✓';
+  setTimeout(() => { $('v-nick-save').textContent = 'Save'; }, 1500);
+});
 
 function render(counts) {
   const p = state.poll;

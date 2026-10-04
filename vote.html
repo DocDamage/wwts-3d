@@ -40,6 +40,21 @@
     <p class="v-status" id="v-status" role="status"></p>
   </main>
 
+  <section class="v-pred" id="v-pred" hidden>
+    <h2 id="v-pred-title">Who takes it?</h2>
+    <div class="v-pred-opts" role="group" aria-labelledby="v-pred-title">
+      <button type="button" class="v-pred-opt p1" data-pick="1"><span id="v-pred-1">Beat A</span></button>
+      <button type="button" class="v-pred-opt p2" data-pick="2"><span id="v-pred-2">Beat B</span></button>
+    </div>
+    <p class="v-status" id="v-pred-status" role="status"></p>
+  </section>
+
+  <section class="v-board" id="v-board" hidden>
+    <div class="v-board-head"><h3>🔮 Best ears tonight</h3><span id="v-me-pts"></span></div>
+    <div class="v-nick-row"><input id="v-nick" maxlength="20" placeholder="Your name for the leaderboard" aria-label="Your name for the leaderboard" /><button type="button" id="v-nick-save" class="v-btn">Save</button></div>
+    <ol id="v-board-list"></ol>
+  </section>
+
   <footer class="v-foot">
     <button type="button" id="v-hype" class="v-hype" aria-label="Hype the crowd">🔥 HYPE</button>
   </footer>
