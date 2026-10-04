@@ -347,6 +347,8 @@ const MOVE_CATEGORIES = [
   { id: 'dance', label: 'Dance' },
   { id: 'breaking', label: 'Breaking' },
   { id: 'fight', label: 'Attacks' },
+  { id: 'air', label: 'Aerials' },
+  { id: 'spec', label: 'Specials' },
   { id: 'defend', label: 'Block & Dodge' },
   { id: 'react', label: 'Hit Reactions' },
   { id: 'falls', label: 'Falls & Get Up' },

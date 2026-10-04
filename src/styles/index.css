@@ -5394,3 +5394,14 @@ body.fight-screen-on #app-header .header-right { display: none !important; }
   .fs-center { grid-column: 1 / -1; grid-row: 2; }
   .fs-start { font-size: 1.8rem; padding: 4px 30px; }
 }
+
+/* Fight Club: combo counter + generated move list */
+.fight-combo { position: absolute; top: 120px; font-family: 'Bebas Neue', sans-serif; color: #ffd23a; text-shadow: 2px 2px 0 #000, 0 0 14px rgba(255,170,0,0.6); opacity: 0; transform: scale(0.8); transition: opacity 0.15s, transform 0.15s; pointer-events: none; text-align: center; line-height: 1; }
+.fight-combo.p1 { left: 4%; }
+.fight-combo.p2 { right: 4%; }
+.fight-combo.show { opacity: 1; transform: scale(1); }
+.fight-combo b { display: block; font-size: 3rem; }
+.fight-combo small { display: block; font-size: 1rem; color: #fff; letter-spacing: 0.08em; }
+#fs-moves { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 4px 16px; }
+.fs-move-group p { margin: 1px 0; }
+.fs-move-group b { color: #fff; font-weight: 600; margin-right: 4px; }

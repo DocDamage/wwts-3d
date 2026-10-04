@@ -3,9 +3,9 @@
  * mode / difficulty / rounds / timer, then hands off to FightGame.
  */
 import { CAST, CAST_BY_KEY } from './fightCast.js';
-import { FightGame } from './fightGame.js';
+import { FightGame, COMMAND_HELP, ARENA } from './fightGame.js';
 
-const LINE_Z = 2.0;
+const LINE_Z = ARENA.cz;
 const STORE = 'wwts_fight_setup_v1';
 
 class FightScreen {
@@ -63,7 +63,16 @@ class FightScreen {
       this.el.result.hidden = false;
     };
     this.game.onQuit = () => this.showSelect();
+    this.buildHelp();
     this.updateLabels();
+  }
+
+  /** Move list straight from the game's command table */
+  buildHelp() {
+    const box = document.getElementById('fs-moves');
+    if (!box) return;
+    const esc = (t) => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    box.innerHTML = COMMAND_HELP.map(g => `<div class="fs-move-group"><h4>${esc(g.group)}</h4>${g.items.map(([k, v]) => `<p><b>${esc(k)}</b> ${esc(v)}</p>`).join('')}</div>`).join('');
   }
 
   buildGrid(p) {
@@ -177,7 +186,8 @@ class FightScreen {
       st.noFace = true;
       st.emote = null;
       st.state = 'IDLE_STATION';
-      char.position.set(p === 1 ? -1.3 : 1.3, char.position.y, LINE_Z);
+      char.position.set(ARENA.cx + (p === 1 ? -1.3 : 1.3), char.position.y, LINE_Z);
+      st.fightLift = 0;
       st.facing = p === 1 ? Math.PI / 2 : -Math.PI / 2;
       dj.rigs[p]?.setFightMode(true);
       dj.rigs[p]?.setLocomotion(0);

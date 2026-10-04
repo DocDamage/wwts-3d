@@ -47,8 +47,166 @@ function sample(times, values, t) {
   return values[lo] + (values[hi] - values[lo]) * u;
 }
 
+/* ---------- skeleton analysis (forward kinematics on the source skeleton) ---------- */
+
+const PARENT = {
+  Spine: 'Hips', Spine1: 'Spine', Spine2: 'Spine1', Neck: 'Spine2', Head: 'Neck', HeadTop_End: 'Head',
+  LeftShoulder: 'Spine2', LeftArm: 'LeftShoulder', LeftForeArm: 'LeftArm', LeftHand: 'LeftForeArm', LeftHandMiddle1: 'LeftHand',
+  RightShoulder: 'Spine2', RightArm: 'RightShoulder', RightForeArm: 'RightArm', RightHand: 'RightForeArm', RightHandMiddle1: 'RightHand',
+  LeftUpLeg: 'Hips', LeftLeg: 'LeftUpLeg', LeftFoot: 'LeftLeg', LeftToeBase: 'LeftFoot',
+  RightUpLeg: 'Hips', RightLeg: 'RightUpLeg', RightFoot: 'RightLeg', RightToeBase: 'RightFoot'
+};
+const FK_ORDER = ['Hips', ...Object.keys(PARENT)];
+// Body parts that can land a blow (fist knuckles, elbows, balls of the feet, knees, head)
+const STRIKERS = ['LeftHandMiddle1', 'RightHandMiddle1', 'LeftForeArm', 'RightForeArm', 'LeftToeBase', 'RightToeBase', 'LeftLeg', 'RightLeg', 'Head'];
+
+/**
+ * Posable view of a processed clip on the source skeleton. pose(t) returns world positions
+ * (source units, root at the origin facing +Z, root travel included) of every tracked joint.
+ */
+function makeSkeletonSampler(clip, rm, bones) {
+  const tracks = {};
+  clip.tracks.forEach(t => {
+    const [bone, prop] = t.name.split('.');
+    (tracks[bone] = tracks[bone] || {})[prop] = t.createInterpolant();
+  });
+  const rest = {};
+  bones.forEach(b => {
+    const name = b.name.replace(/^mixamorig\d*:?/, '');
+    if (name === 'Hips' || PARENT[name]) rest[name] = { p: b.position.clone(), q: b.quaternion.clone() };
+  });
+  if (!rest.Hips) return null;
+  const wq = {};
+  const wp = {};
+  FK_ORDER.forEach(n => { wq[n] = new THREE.Quaternion(); wp[n] = new THREE.Vector3(); });
+  const lq = new THREE.Quaternion();
+  const lp = new THREE.Vector3();
+  return (t) => {
+    for (const n of FK_ORDER) {
+      const r = rest[n];
+      if (!r) continue;
+      const tr = tracks[n];
+      if (tr?.quaternion) lq.fromArray(tr.quaternion.evaluate(t)); else lq.copy(r.q);
+      if (n === 'Hips') {
+        if (tr?.position) lp.fromArray(tr.position.evaluate(t)); else lp.copy(r.p);
+        lp.x = sample(rm.pt, rm.px, t);
+        lp.z = sample(rm.pt, rm.pz, t);
+        wq.Hips.copy(lq);
+        wp.Hips.copy(lp);
+        continue;
+      }
+      const par = PARENT[n];
+      if (!rest[par]) continue;
+      wp[n].copy(r.p).applyQuaternion(wq[par]).add(wp[par]);
+      wq[n].copy(wq[par]).multiply(lq);
+    }
+    return wp;
+  };
+}
+
+/** Heading of a left->right joint pair (0 = facing +Z), like headingAt */
+function pairHeading(l, r) {
+  return Math.atan2(-(l.z - r.z), l.x - r.x);
+}
+
+/**
+ * Read a clip's body mechanics: chest heading, reaction onset, and for attacks which
+ * body part lands each blow and where (relative to the start position).
+ */
+function analyzeClip(clip, rm, bones, entry) {
+  const pose = makeSkeletonSampler(clip, rm, bones);
+  if (!pose) return;
+  const dur = clip.duration;
+  const p0 = pose(0);
+  const hip0 = p0.Hips.y;
+  rm.hip0 = hip0;
+  rm.chest0 = pairHeading(p0.LeftArm, p0.RightArm);
+  // (pose() reuses one buffer: take what we need from the first frame now)
+  const rest0 = {};
+  STRIKERS.forEach(n => { rest0[n] = Math.hypot(p0[n].x - p0.Hips.x, p0[n].z - p0.Hips.z); });
+
+  // Reaction onset: when the head starts to move (hit clips have a beat of idle first)
+  const head0 = p0.Head.clone();
+  rm.onset = 0;
+  for (let t = 0; t < Math.min(dur, 1.2); t += 1 / 60) {
+    if (pose(t).Head.distanceTo(head0) > hip0 * 0.035) { rm.onset = Math.max(0, t - 0.04); break; }
+  }
+
+  const cat = entry?.category;
+  if (!['fight', 'air', 'spec'].includes(cat)) return;
+
+  // How far each striking part reaches out from the hips, beyond where it sits in guard.
+  // (Speed misleads: a stepping foot moves fast but strikes nothing.)
+  // Heads, knees and elbows only strike in moves built around them
+  const name = entry.clip || '';
+  const punch = /hook|jab|cross|uppercut|punch|elbow|palm|combo|hadouken|spec_|slam/.test(name);
+  const kick = /kick|sweep|martelo|meia|armada|chapa|queshada|pontera|bencao|knee/.test(name);
+  const strikers = STRIKERS.filter(n => {
+    if (punch && !kick && /Toe|Leg$/.test(n)) return false;
+    if (kick && !punch && /Hand|ForeArm/.test(n)) return false;
+    if (n === 'Head') return /headbutt/.test(name);
+    if (/Leg$/.test(n)) return /knee/.test(name);
+    if (/ForeArm$/.test(n)) return /elbow/.test(name);
+    return true;
+  });
+  const bias = (n) => (/ForeArm$/.test(n) && /elbow/.test(name)) || (/Leg$/.test(n) && /knee/.test(name)) || n === 'Head' ? hip0 * 0.25 : 0;
+  const reachOf = (p, n) => {
+    const q = p[n];
+    const d = Math.hypot(q.x - p.Hips.x, q.z - p.Hips.z);
+    let out = d - rest0[n] + bias(n);
+    // a foot on the floor only counts when it sweeps far out (sweeps), not when stepping
+    if (/Toe/.test(n) && q.y < hip0 * 0.15 && out < hip0 * 0.3) out -= hip0;
+    return { d, out };
+  };
+  const ext = (t) => {
+    const p = pose(t);
+    let best = null;
+    strikers.forEach(n => {
+      const r = reachOf(p, n);
+      if (!best || r.out > best.out) best = { n, out: r.out, d: r.d };
+    });
+    return best;
+  };
+  let hits = entry.hits;
+  if (!hits || !hits.length) {
+    // Auto-detect: moments a limb is thrown well out past its guard position
+    const step = 1 / 30;
+    const curve = [];
+    for (let t = 0; t <= dur; t += step) curve.push({ t, out: ext(t).out });
+    const thresh = hip0 * 0.3;
+    hits = [];
+    for (let i = 1; i < curve.length - 1; i++) {
+      const c = curve[i];
+      if (c.out > thresh && c.out >= curve[i - 1].out && c.out > curve[i + 1].out) {
+        if (hits.length && c.t - hits[hits.length - 1] < 0.22) {
+          const lastI = Math.round(hits[hits.length - 1] / step);
+          if (c.out > curve[lastI].out) hits[hits.length - 1] = c.t;
+        } else hits.push(c.t);
+      }
+    }
+    if (!hits.length) hits = [curve.reduce((a, b) => (b.out > a.out ? b : a), curve[0]).t];
+    hits = hits.map(t => Math.round(t * 100) / 100);
+    rm.autoHits = hits;
+  }
+  rm.strikes = hits.map(t => {
+    const e = ext(t);
+    const p = pose(t);
+    const s = p[e.n];
+    return {
+      t,
+      bone: e.n,
+      // strike point relative to the clip's start position (source units, +Z forward)
+      x: s.x, y: s.y, z: s.z,
+      // ...and relative to the hips at that moment
+      hx: s.x - p.Hips.x, hz: s.z - p.Hips.z,
+      side: e.n.startsWith('Left') ? 'l' : e.n.startsWith('Right') ? 'r' : 'c',
+      height: s.y / hip0
+    };
+  });
+}
+
 /** Strip a raw clip down to a rig-independent form and extract its root motion */
-function processClip(clip) {
+function processClip(clip, { perFrameYaw = true, bones = null, entry = null } = {}) {
   clip.tracks.forEach(t => { t.name = t.name.replace(/^mixamorig\d*:?/, ''); });
   // Keep rotations everywhere, positions only on the hips, never scales
   clip.tracks = clip.tracks.filter(t => /\.quaternion$/.test(t.name) || t.name === 'Hips.position');
@@ -70,9 +228,12 @@ function processClip(clip) {
       unwrapped += d;
       prev = h;
       rm.rt.push(rot.times[i]);
-      rm.yaw.push(unwrapped);
+      // Fight clips keep their in-move body rotation (a spin kick spins the body, not
+      // the character); everything else turns the character with the hips
+      const turn = perFrameYaw ? unwrapped : 0;
+      rm.yaw.push(turn);
       // Remove the absolute heading so every clip starts facing the character's forward
-      _qy.setFromAxisAngle(_up, -(rm.h0 + unwrapped));
+      _qy.setFromAxisAngle(_up, -(rm.h0 + turn));
       _q.fromArray(v, i * 4).premultiply(_qy).toArray(v, i * 4);
     }
   }
@@ -98,7 +259,19 @@ function processClip(clip) {
   }
   rm.distance = rm.pt.length ? Math.hypot(rm.px[rm.px.length - 1], rm.pz[rm.pz.length - 1]) : 0;
   rm.turn = rm.yaw.length ? rm.yaw[rm.yaw.length - 1] : 0;
+  if (pos) { rm.ht = pos.times; rm.hy = Array.from({ length: pos.times.length }, (_, i) => pos.values[i * 3 + 1]); }
+  if (bones) {
+    try { analyzeClip(clip, rm, bones, entry); } catch (e) { console.warn('analyzeClip', entry?.id, e); }
+  }
   return rm;
+}
+
+// Clips whose hip rotation turns the whole character (locomotion turns, dances, falls, paired moves)
+function turnsCharacter(entry) {
+  if (!entry) return true;
+  if (['fight', 'react', 'defend', 'jumps', 'air', 'spec', 'taunt'].includes(entry.category)) return false;
+  if (entry.category === 'base' && /^fight_|^crouch/.test(entry.clip)) return false;
+  return true;
 }
 
 class MocapLibrary {
@@ -142,7 +315,9 @@ class MocapLibrary {
         const clip = obj.animations?.[0];
         if (!clip) return resolve(null);
         clip.name = id;
-        const rm = processClip(clip);
+        const bones = [];
+        obj.traverse(n => { if (n.isBone) bones.push(n); });
+        const rm = processClip(clip, { perFrameYaw: turnsCharacter(entry), bones, entry });
         this.data[id] = { clip, rm, entry };
         this.listeners.forEach(fn => fn(id));
         resolve(this.data[id]);

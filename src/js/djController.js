@@ -2310,7 +2310,7 @@ class DJControllerRenderer {
 
     // ---- 3. Root transform ----
     char.rotation.y = cState.facing + anim.rootYaw;
-    char.position.y = baseY + anim.rootLift;
+    char.position.y = baseY + anim.rootLift + (cState.fightLift || 0);
     // Weight shifts slide the body a few cm; undo last frame's slide so it never accumulates
     const f = cState.facing;
     const sx = anim.rootShiftX * Math.cos(f) + anim.rootShiftZ * Math.sin(f);
