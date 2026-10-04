@@ -30,3 +30,7 @@ yarn-error.log*
 
 # Local backups written by the app server
 data/
+
+# Playwright
+test-results/
+playwright-report/

@@ -22,6 +22,9 @@ export default defineConfig({
   root: '.',
   publicDir: 'public',
   plugins: [judgeHubPlugin()],
+  test: {
+    include: ['tests/**/*.test.js']   // e2e/ is Playwright's (npm run e2e)
+  },
   server: {
     port: 3000,
     host: true, // listen on the LAN so judges' phones can connect
