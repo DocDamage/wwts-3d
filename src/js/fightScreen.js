@@ -4,6 +4,7 @@
  */
 import { CAST, CAST_BY_KEY } from './fightCast.js';
 import { FightGame, COMMAND_HELP, ARENA } from './fightGame.js';
+import { styleFor } from './fightStyles.js';
 
 const LINE_Z = ARENA.cz;
 const STORE = 'wwts_fight_setup_v1';
@@ -72,7 +73,10 @@ class FightScreen {
     const box = document.getElementById('fs-moves');
     if (!box) return;
     const esc = (t) => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-    box.innerHTML = COMMAND_HELP.map(g => `<div class="fs-move-group"><h4>${esc(g.group)}</h4>${g.items.map(([k, v]) => `<p><b>${esc(k)}</b> ${esc(v)}</p>`).join('')}</div>`).join('');
+    const st = styleFor(CAST_BY_KEY[this.sel[1]]);
+    const groups = [...COMMAND_HELP];
+    if (st.specials?.length) groups.unshift({ group: `P1 style: ${st.name}`, items: st.specials.map(sp => [sp.label, this.game.moveName(sp.move)]) });
+    box.innerHTML = groups.map(g => `<div class="fs-move-group"><h4>${esc(g.group)}</h4>${g.items.map(([k, v]) => `<p><b>${esc(k)}</b> ${esc(v)}</p>`).join('')}</div>`).join('');
   }
 
   buildGrid(p) {
@@ -95,7 +99,10 @@ class FightScreen {
     [1, 2].forEach(p => {
       const c = CAST_BY_KEY[this.sel[p]];
       document.getElementById(`fs-name-${p}`).textContent = c?.name || '—';
-      document.getElementById(`fs-style-${p}`).textContent = c?.style || '';
+      const st = c ? styleFor(c) : null;
+      const styleEl = document.getElementById(`fs-style-${p}`);
+      styleEl.textContent = st ? `${st.name} · ${st.blurb}` : '';
+      styleEl.title = c?.style || '';
       document.querySelectorAll(`#fs-grid-${p} .fs-tile`).forEach(t => t.classList.toggle('picked', t.dataset.key === this.sel[p]));
     });
     const tag2 = document.querySelector('.fs-side.p2 .fs-tag');
@@ -112,6 +119,7 @@ class FightScreen {
   pick(p, key) {
     this.sel[p] = key;
     this.updateLabels();
+    if (p === 1) this.buildHelp();
     this.save();
     if (this.open && !this.game.matchActive) {
       this.el.loading.hidden = false;
@@ -138,6 +146,7 @@ class FightScreen {
     const help = this.el.root.querySelector('.fs-help');
     if (help) help.open = window.innerWidth > 900 && window.innerHeight > 700;
     this.showSelect();
+    window.announcer?.playFile?.(Math.random() < 0.5 ? 'selectyourfighter.wav' : 'chooseyourcharacter.wav');
     this.el.loading.hidden = false;
     Promise.all([this.dj.setPlayerAvatar(1, this.sel[1]), this.dj.setPlayerAvatar(2, this.sel[2])]).then(() => {
       this.el.loading.hidden = true;

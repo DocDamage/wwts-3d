@@ -25,6 +25,7 @@ import * as THREE from 'three';
 import { FightDirector } from './fightDirector.js';
 import { CAST_BY_KEY } from './fightCast.js';
 import { sample } from './mocap.js';
+import { STYLE_MOVES, styleFor } from './fightStyles.js';
 
 const ARENA = { cx: 0, cz: 2.45, rx: 3.3, rz: 1.45 };
 const MAX_HP = 100;
@@ -115,6 +116,9 @@ const MOVES = {
   // reversal counter (after a parry)
   reversal: { id: 'fight_elbow_uppercut', name: 'Reversal', power: 3, level: 'mid', launch: true }
 };
+
+// Style-specific moves share the same table
+Object.assign(MOVES, STYLE_MOVES);
 
 // Normal moves by button and held direction
 const NORMALS = {
@@ -247,6 +251,12 @@ class FightGame extends FightDirector {
     this.wins = { 1: 0, 2: 0 };
     this.f = { 1: this.makeFighter(1), 2: this.makeFighter(2) };
     this.f[2].cpu = this.opts.mode === 'cpu';
+    [1, 2].forEach(p => {
+      const f = this.f[p];
+      f.style = styleFor(CAST_BY_KEY[this.opts[`p${p}`]]);
+      const idleClip = this.dj.mocap.get('mx_' + f.style.idle) || this.dj.mocap.get('mx_fight_idle');
+      f.idleYaw = idleClip?.rm.chest0 !== undefined ? -idleClip.rm.chest0 * 0.75 : 0;
+    });
     // Fight stances are bladed: turn the idle so the chest faces the opponent
     const idle = this.dj.mocap.get('mx_fight_idle');
     this.idleYaw = idle?.rm.chest0 !== undefined ? -idle.rm.chest0 * 0.75 : 0;
@@ -263,6 +273,7 @@ class FightGame extends FightDirector {
       if (runId !== this.runId) return false;
       const champ = this.wins[1] >= this.need ? 1 : 2;
       this.banner(`${names[champ].toUpperCase()} WINS!`, 4, 'win');
+      this.say(this.f[champ].cpu ? 'youlose.wav' : this.opts.mode === 'cpu' ? 'youwin.wav' : 'winner.wav', true);
       this.dj.arena?.cheer(6);
       this.dj.burstConfetti?.(champ === 1 ? [0xff2d2d, 0xffd21a, 0xffffff] : [0x00e5ff, 0xffd21a, 0xffffff]);
       await this.wait(3.5);
@@ -274,10 +285,14 @@ class FightGame extends FightDirector {
     return true;
   }
 
+  moveName(key) {
+    return MOVES[key]?.name || key;
+  }
+
   clipList() {
     const ids = new Set(Object.values(MOVES).map(m => 'mx_' + m.id));
     THROWS.flat().forEach(id => ids.add('mx_' + id));
-    ['fight_idle', 'fight_step_forward', 'fight_step_back', 'fight_sidestep_left', 'fight_sidestep_right', 'strafe_left', 'strafe_right',
+    ['fight_idle', 'fight_idle_bounce', 'fight_idle_ninja', 'fight_ginga', 'fight_mma_idle', 'fight_stance', 'fight_step_forward', 'fight_step_back', 'fight_sidestep_left', 'fight_sidestep_right', 'strafe_left', 'strafe_right',
       'walk', 'walk_back', 'crouch_idle', 'crouch_down', 'fblock_center', 'fblock_low', 'fblock_react', 'fight_block_high', 'fight_block_inward',
       'jump_stand', 'jump_forward', 'jump_backward', 'jump', 'falling_landing', 'roll_land', 'getup_kip', 'getup_back', 'getup_stomach', 'getup_knockdown',
       'fhit_head_light_l', 'fhit_head_light_r', 'fhit_head_light_c', 'fhit_head_med_l', 'fhit_head_med_r', 'fhit_head_med_c', 'fhit_head_big_l', 'fhit_head_big_r', 'fhit_head_big_c',
@@ -306,7 +321,11 @@ class FightGame extends FightDirector {
     this.keys.clear();
     this.shots.forEach(s => this.killShot(s));
     this.shots = [];
-    [1, 2].forEach(p => { const st = this.dj.characterStates[p]; if (st) st.fightLift = 0; });
+    [1, 2].forEach(p => {
+      const st = this.dj.characterStates[p];
+      if (st) st.fightLift = 0;
+      if (this.dj.rigs[p]) this.dj.rigs[p].fightIdle = null;
+    });
     super.stop(silent);
   }
 
@@ -382,6 +401,7 @@ class FightGame extends FightDirector {
       st.fightLift = 0;
       dj.rigs[p]?.setFightMode(true);
       dj.rigs[p]?.setLocomotion(0);
+      if (dj.rigs[p] && this.f?.[p]?.style) dj.rigs[p].fightIdle = 'mx_' + this.f[p].style.idle;
     });
     if (dj.drivenPlayer) dj.setDrivenPlayer(null);
   }
@@ -391,7 +411,7 @@ class FightGame extends FightDirector {
       const f = this.f[p];
       Object.assign(f, {
         hp: MAX_HP, state: 'intro', until: 0, buf: [], combo: 0, comboDmg: 0, juggle: 0, mv: null, invulnUntil: 0,
-        air: null, yawOff: this.idleYaw, yawTarget: this.idleYaw, lockAim: false, crouching: false, grabbedBy: null
+        air: null, yawOff: f.idleYaw ?? this.idleYaw, yawTarget: f.idleYaw ?? this.idleYaw, lockAim: false, crouching: false, grabbedBy: null
       });
       f.vel.set(0, 0);
       f.ai.hold = null;
@@ -417,18 +437,32 @@ class FightGame extends FightDirector {
     this.clockLeft = this.opts.roundTime;
     this.roundLive = false;
     this.banner(`ROUND ${round}`, 1.2);
+    const last = this.wins[1] === this.need - 1 && this.wins[2] === this.need - 1;
+    this.say(last && round > 1 ? 'finalround.wav' : `round${Math.min(7, round)}.wav`, true);
+    this.firstBlood = false;
+    this.danger = { 1: false, 2: false };
     this.sound('bell');
     [1, 2].forEach(p => this.dj.rigs[p].play(round === 1 ? 'mx_fight_ready_jump' : (this.rng() < 0.5 ? 'mx_fight_taunt' : 'mx_fight_taunt_arms'), { rootMotion: false, fadeIn: 0.15, fadeOut: 0.3, timeScale: 1.3 }));
     await this.wait(1.6);
     if (runId !== this.runId) return;
     [1, 2].forEach(p => { this.dj.rigs[p].stop(0.2); this.setState(this.f[p], 'idle'); });
     this.banner('FIGHT!', 0.9, 'fight');
+    this.say(['fight.wav', 'fight2.wav', 'fight3.wav'][Math.floor(this.rng() * 3)], true);
     this.sound('fight');
     this.roundLive = true;
     const result = await new Promise(resolve => { this._roundResolve = resolve; });
     this.roundLive = false;
     if (runId !== this.runId) return;
     await this.wait(result === 'time' ? 2.6 : 3.4);
+  }
+
+  /** Announcer line (skips if one played very recently, unless it matters) */
+  say(file, priority = false) {
+    if (this.opts?.announcer === false) return;
+    const now = performance.now();
+    if (!priority && now - (this._lastSay || 0) < 900) return;
+    this._lastSay = now;
+    window.announcer?.playFile?.(file);
   }
 
   /* ================= input ================= */
@@ -688,7 +722,7 @@ class FightGame extends FightDirector {
           break;
         }
         if (rel !== 0) {
-          speed = rel > 0 ? WALK_FWD : WALK_BACK;
+          speed = (rel > 0 ? WALK_FWD : WALK_BACK) * (f.style?.speed || 1);
           back = rel < 0 ? 1 : 0;
           P.x += opp.x * rel * speed * gdt;
           P.z += opp.y * rel * speed * gdt;
@@ -799,7 +833,7 @@ class FightGame extends FightDirector {
     f.lockAim = false;
     f.crouching = false;
     f.guardPose = false;
-    f.yawTarget = this.idleYaw;
+    f.yawTarget = f.idleYaw ?? this.idleYaw;
     f.airAttacked = false;
     // the opponent's combo ends once we're free again
     const o = this.other(f);
@@ -970,7 +1004,7 @@ class FightGame extends FightDirector {
     this.setState(f, 'land', this.time + (f.state === 'airattack' ? 0.22 : 0.1));
     f.mv = null;
     f.lockAim = false;
-    f.yawTarget = this.idleYaw;
+    f.yawTarget = f.idleYaw ?? this.idleYaw;
     this.sound('thud', 0.25);
   }
 
@@ -1011,7 +1045,7 @@ class FightGame extends FightDirector {
     // Motion specials
     const punch = has('lp') || has('hp');
     const kick = has('lk') || has('hk');
-    for (const sp of SPECIALS) {
+    for (const sp of [...(f.style?.specials || []), ...SPECIALS]) {
       const ok = sp.button === 'p' ? punch : sp.button === 'k' ? kick : has(sp.button);
       if (ok && this.matchMotion(f, sp.motion)) {
         f.buf = [];
@@ -1025,7 +1059,8 @@ class FightGame extends FightDirector {
     if (this.time < f.dashUntil && dir.includes('f')) return this.doMove(f, o, DASH_MOVES[btn]);
     if (f.state === 'dash') return this.doMove(f, o, DASH_MOVES[btn]);
     const v = dir.replace('u', '') || 'n';
-    const key = NORMALS[btn][v] || NORMALS[btn][v.includes('d') ? 'd' : 'n'];
+    const own = f.style?.normals?.[btn] || {};
+    const key = own[v] || NORMALS[btn][v] || own[v.includes('d') ? 'd' : 'n'] || NORMALS[btn][v.includes('d') ? 'd' : 'n'];
     return this.doMove(f, o, key);
   }
 
@@ -1057,7 +1092,7 @@ class FightGame extends FightDirector {
     const strikes = data.rm.strikes?.length ? data.rm.strikes : (e.hits || [0.5]).map(t => ({ t, x: 0, z: u * 0.85, hx: 0, hz: u * 0.85, y: u * 1.2, bone: 'RightHandMiddle1', side: 'c', height: 1.2 }));
     const S = rig.hipScale * rig.unitToWorld;
     const power = def.power || e.power || 2;
-    const ts = def.speed || (def.super ? 1.1 : def.special ? 1.1 : [1, 1.25, 1.15, 1.05][power]);
+    const ts = (def.speed || (def.super ? 1.1 : def.special ? 1.1 : [1, 1.25, 1.15, 1.05][power])) * (f.style?.speed || 1);
     const startup = def.startup ?? (def.super ? 0.45 : def.special ? 0.36 : [0.2, 0.18, 0.24, 0.3][power]);
     const t0 = strikes[0].t;
     const from = Math.max(0, t0 - startup);
@@ -1094,7 +1129,7 @@ class FightGame extends FightDirector {
     this.setState(f, def.air ? 'airattack' : 'attack', this.time + (last - from + recover) / ts);
     f.mv = {
       key, def, id, e, power, ts, from, strikes,
-      hits: strikes.map(s => ({ t: s.t, s, done: false })),
+      hits: def.evade ? [] : strikes.map(s => ({ t: s.t, s, done: false })),
       reach, start: this.time,
       ch: this.time + (t0 + 0.05 - from) / ts,           // counter-hit window ends
       lastHitAt: this.time + (last - from) / ts,
@@ -1293,6 +1328,7 @@ class FightGame extends FightDirector {
     if (juggled) dmg *= 0.75 * Math.pow(0.88, o.juggle);
     if (onGround) dmg *= 0.5;
     if (f.combo > 0 && !juggled) dmg *= Math.pow(0.9, f.combo);
+    dmg *= (f.style?.power || 1) / (o.style?.toughness || 1);
     dmg = Math.max(1, Math.round(dmg));
     o.hp = Math.max(0, o.hp - dmg);
     f.combo++;
@@ -1309,9 +1345,20 @@ class FightGame extends FightDirector {
     this.shake = Math.max(this.shake, 0.03 + power * 0.03 + (counter ? 0.04 : 0));
     this.hitstopUntil = (this.realTime || 0) + 0.045 + power * 0.025 + (counter ? 0.04 : 0);
     if (counter) this.popText(f.p, 'COUNTER HIT', '#ff5a4a', true);
+    // the voice of the arena
+    if (!this.firstBlood) { this.firstBlood = true; this.say('firstblood.wav'); }
+    const comboCall = { 3: 'combo.wav', 5: 'combosuper.wav', 7: 'combohyper.wav', 10: 'comboultra.wav' }[f.combo];
+    if (comboCall) this.say(comboCall);
+    if (o.hp > 0 && o.hp < 25 && this.danger && !this.danger[o.p]) { this.danger[o.p] = true; this.say('danger.wav'); }
     else if (whiffPunish && power >= 2) this.popText(f.p, 'PUNISH', '#ffb03a');
 
+    if (def.drain) { f.hp = Math.min(MAX_HP, f.hp + dmg * def.drain); this.syncHp(); this.popText(f.p, `+${Math.round(dmg * def.drain)} HP`, '#ff3b5c'); }
     if (o.hp <= 0) return this.knockOut(o, f, mv, away);
+    // armour: heavy styles shrug off light hits while winding up a big swing
+    if (o.style?.armor && o.state === 'attack' && o.mv?.power >= 3 && power <= 2 && !def.launch) {
+      this.popText(o.p, 'ARMOR', '#9aa3b8');
+      return;
+    }
 
     // ---- what the hit does
     if (onGround) {
@@ -1508,6 +1555,7 @@ class FightGame extends FightDirector {
     this.shake = 0.22;
     this.sound('ko');
     this.banner('K.O.', 2.2, 'ko');
+    this.say(f.hp >= MAX_HP ? 'perfect.wav' : this.rng() < 0.5 ? 'ko.wav' : 'knockout.wav', true);
     this.dj.arena?.cheer(5);
     this.dj.triggerCameraFlashes?.(8);
     this.wins[f.p]++;
@@ -1528,6 +1576,7 @@ class FightGame extends FightDirector {
     const a = this.f[1].hp;
     const b = this.f[2].hp;
     this.banner('TIME!', 1.8, 'ko');
+    this.say('timesover.wav', true);
     this.sound('bell');
     if (a !== b) {
       const w = a > b ? 1 : 2;

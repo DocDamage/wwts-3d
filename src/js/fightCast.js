@@ -20,7 +20,17 @@ const CAST = [
   { key: 'big_vegas', name: 'Big Vegas', file: '/models/characters/cast/big_vegas.glb', color: '#ffd23a', style: 'Showman' },
   { key: 'arissa', name: 'Arissa', file: '/models/characters/cast/arissa.glb', color: '#e05a8a', style: 'Duelist' },
   { key: 'exo_red', name: 'Exo Red', file: '/models/characters/cast/exo_red.glb', color: '#ff3b3b', style: 'Cyborg' },
-  { key: 'kaya', name: 'Kaya', file: '/models/characters/cast/kaya.glb', color: '#3ddbb1', style: 'Agile' }
+  { key: 'kaya', name: 'Kaya', file: '/models/characters/cast/kaya.glb', color: '#3ddbb1', style: 'Agile' },
+  { key: 'akai', name: 'Akai', file: '/models/characters/cast/akai.glb', color: '#ff5f5f', style: 'Martial Artist' },
+  { key: 'nightshade', name: 'Nightshade', file: '/models/characters/cast/nightshade.glb', color: '#8f6bff', style: 'Assassin' },
+  { key: 'warrok', name: 'Warrok', file: '/models/characters/cast/warrok.glb', color: '#9c7b4f', style: 'Monster' },
+  { key: 'mutant', name: 'Mutant', file: '/models/characters/cast/mutant.glb', color: '#6fbf4a', style: 'Beast' },
+  { key: 'vampire', name: 'Vampire', file: '/models/characters/cast/vampire.glb', color: '#c2163c', style: 'Vampire' },
+  { key: 'medea', name: 'Medea', file: '/models/characters/cast/medea.glb', color: '#33c6c6', style: 'Sorceress' },
+  { key: 'alien', name: 'Alien', file: '/models/characters/cast/alien.glb', color: '#9cff3a', style: 'Alien' },
+  { key: 'pirate', name: 'Pirate', file: '/models/characters/cast/pirate.glb', color: '#d9a441', style: 'Pirate' },
+  { key: 'heraklios', name: 'Heraklios', file: '/models/characters/cast/heraklios.glb', color: '#e0b04a', style: 'Gladiator' },
+  { key: 'granny', name: 'Granny', file: '/models/characters/cast/granny.glb', color: '#ff8fd0', style: 'Granny' }
 ];
 
 const CAST_BY_KEY = Object.fromEntries(CAST.map(c => [c.key, c]));

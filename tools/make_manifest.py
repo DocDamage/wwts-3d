@@ -324,6 +324,29 @@ T = {
   'getup_stomach2': ('Get Up (Front 2)', '⬆️', 'falls', False, {}),
   'getup_back2': ('Get Up (Back 2)', '⬆️', 'falls', False, {}),
   'fight_taunt_mutant': ('Monster Flex', '💪', 'taunt', False, {}),
+
+  # ---- fourth wave: style moves, stances, blocks, results
+  'fight_fistfight_a': ('Fist Fight A', '👊', 'fight', False, {'power': 2}),
+  'fight_fistfight_b': ('Fist Fight B', '👊', 'fight', False, {'power': 2}),
+  'fight_body_jab_cross': ('Body Jab Cross', '🥊', 'fight', False, {'power': 2, 'body': True}),
+  'fight_mutant_swipe': ('Claw Swipes', '🐾', 'fight', False, {'power': 3}),
+  'fight_vampire_bite': ('Vampire Bite', '🧛', 'fight', False, {'power': 3}),
+  'fight_stomp': ('Stomping', '🦶', 'fight', False, {'power': 2, 'low': True}),
+  'fight_stomp2': ('Stomp', '🦶', 'fight', False, {'power': 2, 'low': True}),
+  'fight_slide_tackle': ('Slide Tackle', '⚽', 'fight', False, {'power': 2, 'low': True, 'sweep': True}),
+  'fblock_inward2': ('Inward Parry', '🛡️', 'defend', False, {}),
+  'fblock_outward': ('Outward Parry', '🛡️', 'defend', False, {}),
+  'fblock_left': ('Left Block', '🛡️', 'defend', False, {}),
+  'fight_victory_idle': ('Victory Pose', '🏆', 'taunt', True, {}),
+  'fight_defeat_idle': ('Defeated Slump', '😞', 'taunt', True, {}),
+  'fight_defeated': ('Defeated', '😞', 'taunt', False, {}),
+  'fight_cartwheel': ('Cartwheel Dodge', '🤸', 'defend', False, {}),
+  'fdodge_threat': ('Evade', '↩️', 'defend', False, {}),
+  'fight_warmup': ('Warm Up', '🔥', 'taunt', False, {}),
+  'fight_idle_bounce': ('Bouncing Stance', '🥊', 'base', True, {}),
+  'fight_idle_ninja': ('Ninja Stance', '🥷', 'base', True, {}),
+  'fight_ginga': ('Ginga', '🌀', 'base', True, {}),
+  'fight_zombie_punch': ('Wild Swings', '🧟', 'fight', False, {'power': 2}),
 }
 
 missing = [f for f in files if f not in T]

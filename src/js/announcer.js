@@ -90,6 +90,25 @@ class AnnouncerManager {
     }
   }
 
+  /** Play any line from the pack by file name (e.g. 'combosuper.wav') */
+  playFile(file, callback) {
+    if (!this.enabled || !/^[a-z0-9_-]+\.wav$/i.test(file)) return;
+    try {
+      let audio = this.cache['file:' + file];
+      if (!audio) {
+        audio = new Audio(this.basePath + file);
+        this.cache['file:' + file] = audio;
+      }
+      audio.currentTime = 0;
+      audio.volume = this.volume;
+      this.currentAudio = audio;
+      audio.onended = callback ? () => callback() : null;
+      audio.play()?.catch?.(() => {});
+    } catch {
+      // playback blocked
+    }
+  }
+
   stop() {
     if (this.currentAudio) {
       try {

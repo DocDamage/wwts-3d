@@ -562,7 +562,7 @@ class MocapRig {
     const t = {};
     const { speed, run, strafe, back } = this.loco;
     const pick = (id, fallback) => (this.ready(id) ? id : fallback);
-    const idle = this.fightMode ? pick('mx_fight_idle', pick(this.baseIdle, null)) : pick(this.baseIdle, pick('mx_idle', null));
+    const idle = this.fightMode ? pick(this.fightIdle || 'mx_fight_idle', pick('mx_fight_idle', pick(this.baseIdle, null))) : pick(this.baseIdle, pick('mx_idle', null));
     const walkId = back > 0.5 ? pick('mx_walk_back', 'mx_walk') : strafe < -0.5 ? pick('mx_strafe_left', 'mx_walk') : strafe > 0.5 ? pick('mx_strafe_right', 'mx_walk') : 'mx_walk';
     const runId = back > 0.5 ? pick('mx_run_back', 'mx_run') : 'mx_run';
     const moving = Math.min(1, speed / 0.35);
