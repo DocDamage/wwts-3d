@@ -45,6 +45,7 @@ import { OverlayFeed, OverlaysPanel, bracketSummary } from './overlayFeed.js';
 import { buildActions, startCommandRelay } from './controlActions.js';
 import { MidiMapper, MidiPanel } from './midiMap.js';
 import { ChatHype, ChatPanel } from './chatHype.js';
+import { sfx } from './sfx.js';
 
 // ============================================================
 // Initialize all modules
@@ -2033,6 +2034,14 @@ Head judge's call — OK for ${names[1]}, Cancel for ${names[2]}.`) ? 1 : 2)
   const replayViewer = new ReplayViewer();
   replayViewer.init();
   history.onReplay = (battle) => replayViewer.open(battle);
+
+  // Interface sounds (recorded clicks / toggles; off in Accessibility)
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button, [role=menuitem]');
+    if (b && !b.disabled && !window.__fightInputActive) sfx.uiSound(b.closest('.modal-close, [data-close]') ? 'close' : 'click');
+  }, true);
+  document.addEventListener('change', (e) => { if (e.target.matches('input[type=checkbox]')) sfx.uiSound('toggle'); }, true);
+  window.sfx = sfx;
 
   // Tools menu, backups
   const tools = new ToolsMenu({ onAction: (act) => document.dispatchEvent(new CustomEvent('wwts-tool-action', { detail: act })) });

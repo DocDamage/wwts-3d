@@ -9,6 +9,7 @@
  * Same seed => same fight, so the OBS popout can replay it in sync.
  */
 import * as THREE from 'three';
+import { sfx } from './sfx.js';
 
 const FACEOFF = { x: 0.55, z: 1.95 };
 const MAX_HP = 100;
@@ -849,6 +850,12 @@ class FightDirector {
   }
 
   sound(kind, vol = 1) {
+    // recorded hits first (Kenney CC0), with the synth layered quietly underneath for body
+    const sample = { punch: 'punch', heavy: 'heavy', block: 'block', thud: 'thud', ko: 'bodyHeavy' }[kind];
+    let synthVol = vol;
+    if (sample && sfx.play(sample, { volume: Math.min(1.2, vol) })) synthVol = vol * 0.35;
+    if (kind === 'heavy') sfx.play('bodyHeavy', { volume: vol * 0.6 });
+    vol = synthVol;
     const ctx = this.audio;
     if (!ctx) return;
     const now = ctx.currentTime;
