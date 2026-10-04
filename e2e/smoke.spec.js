@@ -116,3 +116,76 @@ test.describe('small screens', () => {
     });
   }
 });
+
+test('a producer signs up from their phone and the host sees them', async ({ page, context }) => {
+  const errors = watchErrors(page);
+  await skipTour(page);
+  await page.goto('/');
+  await page.click('#btn-tools');
+  await page.click('#tools-menu [data-open="signup-modal"]');
+  await page.locator('#su-open').check();
+  const room = await page.locator('#su-room').textContent();
+  const phone = await context.newPage();
+  await phone.goto(`/entry.html?room=${room}`);
+  await phone.fill('#e-name', 'E2E Producer');
+  await phone.click('#e-register');
+  await expect(phone.locator('#e-me-name')).toHaveText('E2E Producer');
+  await expect(page.locator('#su-list')).toContainText('E2E Producer');
+  await page.locator('#su-list [data-su="in"]').first().click();
+  await expect(phone.locator('#e-status')).toHaveText('✓ Checked in');
+  await phone.close();
+  expect(errors).toEqual([]);
+});
+
+test('coin flip decides the order and the run of show loads a matchup', async ({ page }) => {
+  const errors = watchErrors(page);
+  await skipTour(page);
+  await page.addInitScript(() => { try { localStorage.setItem('wwts_a11y_v1', JSON.stringify({ reducedMotion: true })); } catch { /* */ } });
+  await page.goto('/');
+  await page.click('.main-nav-btn[data-screen="battle"]');
+  await page.click('#btn-run-of-show');
+  const p1 = page.locator('#ros-p1');
+  const p2 = page.locator('#ros-p2');
+  await p1.selectOption({ index: 1 });
+  await p2.selectOption({ index: 2 });
+  await page.click('#ros-add');
+  await expect(page.locator('#ros-list .ros-item')).toHaveCount(1);
+  await page.locator('#ros-list [data-act="load"]').click();
+  await expect(page.locator('#flow-primary-label')).toContainText('Flip for Order');
+  await page.click('#btn-primary-flow');
+  await expect(page.locator('.coin-flip')).toBeVisible();
+  await expect(page.locator('#flow-primary-label')).toContainText('▶ Play', { timeout: 8000 });
+  await expect(page.locator('#ros-chip')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('event settings, calibration and the new tool panels open', async ({ page }) => {
+  const errors = watchErrors(page);
+  await skipTour(page);
+  await page.goto('/');
+  for (const id of ['event-settings-modal', 'templates-modal', 'calibration-modal', 'cohost-modal', 'public-modal']) {
+    await page.click('#btn-tools');
+    await page.click(`#tools-menu [data-open="${id}"]`);
+    await expect(page.locator(`#${id}`)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator(`#${id}`)).toBeHidden();
+  }
+  await page.click('#btn-tools');
+  await page.click('#tools-menu [data-open="event-settings-modal"]');
+  await page.selectOption('[data-setting="timeLimit"]', 'overrun');
+  await expect(page.locator('.es-penalty')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('phone pages for co-hosts and the crowd load', async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto('/cohost.html?room=ABCD');
+  await expect(page.locator('#c-pin')).toBeVisible();
+  await page.goto('/entry.html');
+  await expect(page.locator('#e-room-code')).toBeVisible();
+  for (const w of ['next', 'coin', 'predict']) {
+    await page.goto(`/overlay.html?w=${w}&demo=1`);
+    await expect(page.locator('#ov-root')).not.toBeEmpty();
+  }
+  expect(errors).toEqual([]);
+});
