@@ -11,7 +11,6 @@ import { AudioPlayerManager } from './audioPlayer.js';
 import { TournamentManager } from './tournament.js';
 import { HistoryManager } from './history.js';
 import { NotesManager } from './notes.js';
-import { FightScreen } from './fightScreen.js';
 import { DJControllerRenderer } from './djController.js';
 import { SoundboardManager } from './soundboard.js';
 import { GamepadManager } from './gamepad.js';
@@ -231,9 +230,9 @@ function switchScreen(screenId) {
   if (screen) screen.classList.add('active');
   if (screenId !== 'battle') overlayPanels.setStageView(false);
   if (screenId === 'fight') {
-    fightScreen.enter();
+    loadFightClub().then(fs => { if (document.querySelector('.main-nav-btn[data-screen="fight"]')?.classList.contains('active')) fs.enter(); });
     setTimeout(() => djController.onResize(), 80);
-  } else if (fightScreen.open) {
+  } else if (fightScreen?.open) {
     fightScreen.leave();
   }
 
@@ -253,11 +252,22 @@ document.querySelectorAll('.main-nav-btn').forEach(btn => {
   btn.addEventListener('click', () => switchScreen(btn.dataset.screen));
 });
 
-// Fight Club (player-controlled fighting game)
-const fightScreen = new FightScreen(djController);
-fightScreen.init();
-fightScreen.onExit = () => switchScreen('battle');
-window.fightScreen = fightScreen;
+// Fight Club (player-controlled fighting game): its code loads the first time it's opened
+let fightScreen = null;
+let fightLoading = null;
+function loadFightClub() {
+  if (fightScreen) return Promise.resolve(fightScreen);
+  fightLoading = fightLoading || import('./fightScreen.js').then(({ FightScreen }) => {
+    fightScreen = new FightScreen(djController);
+    fightScreen.init();
+    fightScreen.onExit = () => switchScreen('battle');
+    window.fightScreen = fightScreen;
+    return fightScreen;
+  });
+  return fightLoading;
+}
+// warm it up once the page is idle so the first visit is instant
+(window.requestIdleCallback || ((fn) => setTimeout(fn, 4000)))(() => loadFightClub());
 
 // ============================================================
 // League Selector (header dropdown)

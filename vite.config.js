@@ -36,6 +36,10 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      output: {
+        // three.js changes far less often than the app: its own long-cached chunk
+        manualChunks: (id) => (id.includes('node_modules/three/') ? 'three' : undefined)
+      },
       input: {
         main: path.resolve(__dirname, 'index.html'),
         broadcast: path.resolve(__dirname, 'broadcast.html'),

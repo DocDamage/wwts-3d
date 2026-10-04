@@ -73,6 +73,23 @@ test('fight club select screen lists the whole cast', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('a training match starts and runs without errors', async ({ page }) => {
+  const errors = watchErrors(page);
+  await skipTour(page);
+  await page.goto('/');
+  await page.click('.main-nav-btn[data-screen="fight"]');
+  await page.selectOption('#fs-mode', 'training');
+  await page.click('#fs-start');
+  await expect(page.locator('.fight-training')).toBeVisible({ timeout: 45_000 });
+  // hold a few inputs so movement, attacks and contact code all run
+  await page.keyboard.down('KeyD');
+  await page.waitForTimeout(600);
+  await page.keyboard.up('KeyD');
+  for (const k of ['KeyF', 'KeyG', 'KeyV', 'KeyB']) { await page.keyboard.press(k); await page.waitForTimeout(450); }
+  await page.waitForTimeout(1000);
+  expect(errors).toEqual([]);
+});
+
 test('audience vote page and overlays load', async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto('/vote.html');
