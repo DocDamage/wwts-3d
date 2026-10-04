@@ -45,7 +45,7 @@ class JudgeRooms {
       this.rooms.set(code, r);
     }
     r.host = send;
-    send({ t: 'aud-count', n: r.audience.size });
+    if (r.audience.size) send({ t: 'aud-count', n: r.audience.size });
     if (r.poll) send({ t: 'vote-tally', pollId: r.poll.id, counts: this.tally(r), voters: r.poll.votes.size });
     // Tell the (re)connected host who is already here
     r.judges.forEach((j, deviceId) => send({ t: 'judge-join', deviceId, name: j.name }));
