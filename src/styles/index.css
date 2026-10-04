@@ -5701,3 +5701,45 @@ body.reduced-motion .tour-spot, body.reduced-motion .tour-card { transition: non
   .fs-center { grid-column: 1; grid-row: auto; }
   .fs-controls-box { max-width: calc(100vw - 20px); overflow-x: auto; }
 }
+
+/* ===== Fairness: coin flip, guides, comments, penalties, locks ===== */
+.coin-flip { position: fixed; inset: 0; z-index: 10060; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: rgba(5, 5, 8, 0.72); backdrop-filter: blur(4px); transition: opacity 0.4s; }
+.coin-flip.leaving { opacity: 0; }
+.coin-stage { perspective: 900px; }
+.coin { width: 190px; height: 190px; position: relative; transform-style: preserve-3d; animation: coinSpin 2.3s cubic-bezier(0.22, 0.9, 0.3, 1) forwards; }
+.coin.land-tails { animation-name: coinSpinTails; }
+.coin.still { animation-duration: 0.01s; }
+.coin-face { position: absolute; inset: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; padding: 18px; backface-visibility: hidden; font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.05em; color: #111; box-shadow: inset 0 0 0 8px rgba(0, 0, 0, 0.18), 0 10px 40px rgba(0, 0, 0, 0.6); }
+.coin-face.heads { background: radial-gradient(circle at 35% 30%, #ffe9a8, #f5b72a 60%, #b07a0c); }
+.coin-face.tails { background: radial-gradient(circle at 35% 30%, #e8faff, #8fd6ff 60%, #2d7fb0); transform: rotateY(180deg); }
+.coin-face span { max-width: 140px; overflow-wrap: anywhere; }
+@keyframes coinSpin { 0% { transform: rotateY(0) translateY(0); } 50% { transform: rotateY(1800deg) translateY(-90px); } 100% { transform: rotateY(3600deg) translateY(0); } }
+@keyframes coinSpinTails { 0% { transform: rotateY(0) translateY(0); } 50% { transform: rotateY(1800deg) translateY(-90px); } 100% { transform: rotateY(3780deg) translateY(0); } }
+.coin-caption { font-size: 1.4rem; color: #fff; text-shadow: 0 2px 12px #000; }
+.coin-flip.landed .coin-caption { color: #ffd21a; }
+body.reduced-motion .coin { animation-duration: 0.01s; }
+
+.guide-line { margin: 6px 4px 0; font-size: 0.72rem; color: var(--text-secondary); line-height: 1.35; min-height: 1.35em; }
+.cat-comment-btn { background: none; border: none; padding: 0 2px; font-size: 0.7rem; opacity: 0.45; cursor: pointer; }
+.slider-row.has-comment .cat-comment-btn { opacity: 1; }
+.slider-row { flex-wrap: wrap; }
+.slider-comment { flex: 1 1 100%; margin: 2px 0 4px; padding: 4px 8px !important; font-size: 0.74rem !important; }
+.contestant-panel.round-locked .score-slider { opacity: 0.55; }
+.contestant-panel.round-locked::after { content: '🔒 Round locked'; position: absolute; top: 8px; right: 38px; font-size: 0.66rem; color: var(--text-muted); }
+.penalty-chip { font-size: 0.7rem; font-weight: 700; color: #ffb03a; background: rgba(255, 176, 58, 0.14); border-radius: 999px; padding: 1px 7px; }
+.round-tab-btn.is-locked::after { content: ' 🔒'; font-size: 0.7em; }
+.round-tab-btn.is-flip::before { content: '🎼 '; }
+.flip-round-btn.active { background: rgba(255, 170, 0, 0.25); border-color: #ffaa00; }
+.timer-value.overrun { color: #ffb03a !important; }
+.deck-file { font-size: 0.66rem; color: var(--text-muted); margin-left: 6px; max-width: 140px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.deck-loud { font-size: 0.62rem; margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: rgba(0, 229, 255, 0.12); color: var(--neon-cyan); }
+.reason-content { max-width: 460px; }
+.reason-msg { color: var(--text-secondary); font-size: 0.85rem; }
+.reason-text { width: 100%; margin: 6px 0 12px; }
+.cal-steps { margin: 6px 0 10px 18px; color: var(--text-secondary); font-size: 0.85rem; }
+.cal-grid { display: grid; grid-template-columns: 110px repeat(var(--cols), minmax(38px, 1fr)); gap: 4px; align-items: center; margin: 8px 0; overflow-x: auto; }
+.cal-grid input { width: 100%; padding: 4px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 6px; }
+.cal-cat { font-size: 0.62rem; color: var(--text-muted); text-align: center; }
+.cal-name { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flip-current { font-weight: 600; margin: 4px 0 10px; }
+.es-num { width: 90px; display: inline-block; }

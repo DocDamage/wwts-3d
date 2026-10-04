@@ -2,14 +2,18 @@ import { defineConfig } from 'vite';
 import path from 'path';
 import { attachJudgeHub, judgeInfoMiddleware } from './server/judgeHub.js';
 import { dataApiMiddleware } from './server/dataApi.js';
+import { beatUploadsMiddleware } from './server/beatUploads.js';
+import { publicLeagueMiddleware } from './server/publicLeague.js';
 
 /** Runs the local judge hub inside Vite so phones on the same Wi-Fi can score */
 function judgeHubPlugin() {
   const wire = (server) => {
     if (!server.httpServer) return;
-    attachJudgeHub(server.httpServer);
+    const hub = attachJudgeHub(server.httpServer);
     server.middlewares.use(judgeInfoMiddleware(() => server.httpServer.address()?.port));
     server.middlewares.use(dataApiMiddleware(path.resolve(__dirname, 'data')));
+    server.middlewares.use(beatUploadsMiddleware(path.resolve(__dirname, 'data'), hub.rooms));
+    server.middlewares.use(publicLeagueMiddleware(path.resolve(__dirname, 'data')));
   };
   return {
     name: 'wwts-judge-hub',
@@ -45,7 +49,9 @@ export default defineConfig({
         broadcast: path.resolve(__dirname, 'broadcast.html'),
         judge: path.resolve(__dirname, 'judge.html'),
         vote: path.resolve(__dirname, 'vote.html'),
-        overlay: path.resolve(__dirname, 'overlay.html')
+        overlay: path.resolve(__dirname, 'overlay.html'),
+        entry: path.resolve(__dirname, 'entry.html'),
+        cohost: path.resolve(__dirname, 'cohost.html')
       }
     }
   },

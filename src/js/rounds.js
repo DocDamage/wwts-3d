@@ -25,7 +25,42 @@ class RoundManager {
     this.onRoundChange = null;
     this.scoreProvider = null;  // (round) => { scores1, scores2, total1, total2 } | null
     this.winnerProvider = null; // (round) => 1 | 2 | 'draw' | null  (panel vote decides rounds)
+
+    this.locked = new Set();    // rounds whose scorecards are locked (reopening needs a reason)
+    this.penalties = {};        // { round: { 1: { points, seconds }, 2: … } } — running over time
+    this.flips = {};            // { round: { name, url } } — flip rounds (both flip this sample)
   }
+
+  /* ---------------- locks, penalties, flip rounds ---------------- */
+
+  lock(r = this.currentRound) { this.locked.add(r); this.renderTabs(); }
+
+  unlock(r = this.currentRound) { this.locked.delete(r); this.renderTabs(); }
+
+  isLocked(r = this.currentRound) { return this.locked.has(r); }
+
+  /** Points taken off a producer's round total (time-limit overrun) */
+  penaltyFor(r, slot) { return this.penalties[r]?.[slot]?.points || 0; }
+
+  addPenalty(r, slot, points, seconds) {
+    this.penalties[r] = this.penalties[r] || {};
+    const prev = this.penalties[r][slot] || { points: 0, seconds: 0 };
+    this.penalties[r][slot] = { points: Number((prev.points + points).toFixed(2)), seconds: prev.seconds + seconds };
+    this.updateSeriesTotals();
+  }
+
+  clearPenalty(r, slot) {
+    if (this.penalties[r]) delete this.penalties[r][slot];
+    this.updateSeriesTotals();
+  }
+
+  setFlip(r, flip) {
+    if (flip) this.flips[r] = { name: flip.name || 'Sample', url: flip.url };
+    else delete this.flips[r];
+    this.renderTabs();
+  }
+
+  flipFor(r = this.currentRound) { return this.flips[r] || null; }
 
   /** Who took a round: the judges' vote when a panel decides it, otherwise the higher total */
   roundWinner(r) {
@@ -84,14 +119,29 @@ class RoundManager {
     // In panel mode the round score is the judges' average, not whichever card is on screen
     const provided = typeof this.scoreProvider === 'function' ? this.scoreProvider(this.currentRound) : null;
     const snap = provided || this.scoring.getSnapshot();
-    this.rounds[this.currentRound] = {
+    const r = this.currentRound;
+    const pen1 = this.penaltyFor(r, 1);
+    const pen2 = this.penaltyFor(r, 2);
+    const scored = snap.total1 > 0 || snap.total2 > 0;
+    this.rounds[r] = {
       scores1: [...snap.scores1],
       scores2: [...snap.scores2],
-      total1: snap.total1,
-      total2: snap.total2,
-      completed: snap.total1 > 0 || snap.total2 > 0,
-      isOvertime: this.currentRound === 4
+      // overtime penalties come off the round total (never below zero)
+      total1: scored ? Math.max(0, Number((snap.total1 - pen1).toFixed(2))) : 0,
+      total2: scored ? Math.max(0, Number((snap.total2 - pen2).toFixed(2))) : 0,
+      rawTotal1: snap.total1,
+      rawTotal2: snap.total2,
+      penalty1: pen1 || 0,
+      penalty2: pen2 || 0,
+      completed: scored,
+      isOvertime: r === 4,
+      isFlip: !!this.flips[r]
     };
+    // solo judging: the host's category comments belong to the round (panels keep them per judge)
+    if (!provided && (snap.comments1?.some(Boolean) || snap.comments2?.some(Boolean))) {
+      this.rounds[r].comments1 = [...snap.comments1];
+      this.rounds[r].comments2 = [...snap.comments2];
+    }
   }
 
   switchRound(newRound) {
@@ -107,6 +157,8 @@ class RoundManager {
     const target = this.rounds[this.currentRound];
     this.scoring.setScores(1, target.scores1);
     this.scoring.setScores(2, target.scores2);
+    this.scoring.setComments?.(1, target.comments1 || []);
+    this.scoring.setComments?.(2, target.comments2 || []);
 
     // 4. Trigger Announcer & Stage Smoke
     if (this.announcer) {
@@ -250,6 +302,8 @@ class RoundManager {
       } else {
         btn.classList.remove('has-scores');
       }
+      btn.classList.toggle('is-locked', this.locked.has(r));
+      btn.classList.toggle('is-flip', !!this.flips[r]);
     });
 
     const roundTitleEl = document.getElementById('current-round-title');
@@ -318,7 +372,13 @@ class RoundManager {
 
   exportState() {
     this.saveCurrentRoundState();
-    return { rounds: JSON.parse(JSON.stringify(this.rounds)), totalRounds: this.totalRounds, hasOvertime: this.hasOvertime };
+    const flips = {};
+    // object URLs don't survive a reload; keep the sample name so the host knows to reload it
+    Object.entries(this.flips).forEach(([r, f]) => { flips[r] = { name: f.name, url: /^blob:/.test(f.url) ? null : f.url }; });
+    return {
+      rounds: JSON.parse(JSON.stringify(this.rounds)), totalRounds: this.totalRounds, hasOvertime: this.hasOvertime,
+      locked: [...this.locked], penalties: JSON.parse(JSON.stringify(this.penalties)), flips
+    };
   }
 
   importState(saved) {
@@ -326,6 +386,10 @@ class RoundManager {
     this.rounds = saved.rounds;
     this.totalRounds = saved.totalRounds || 3;
     this.hasOvertime = !!saved.hasOvertime;
+    this.locked = new Set(saved.locked || []);
+    this.penalties = saved.penalties || {};
+    this.flips = {};
+    Object.entries(saved.flips || {}).forEach(([r, f]) => { if (f?.url) this.flips[r] = f; });
     this.renderTabs();
     this.updateSeriesTotals();
   }
@@ -334,6 +398,9 @@ class RoundManager {
     this.currentRound = 1;
     this.totalRounds = 3;
     this.hasOvertime = false;
+    this.locked = new Set();
+    this.penalties = {};
+    this.flips = {};
     this.rounds = {
       1: { scores1: new Array(10).fill(0), scores2: new Array(10).fill(0), total1: 0, total2: 0, completed: false },
       2: { scores1: new Array(10).fill(0), scores2: new Array(10).fill(0), total1: 0, total2: 0, completed: false },
@@ -347,7 +414,7 @@ class RoundManager {
     }
 
     if (this.timer) {
-      this.timer.setDuration(180, true);
+      this.timer.setDuration(this.roundSeconds || 180, true);
     }
 
     this.renderTabs();

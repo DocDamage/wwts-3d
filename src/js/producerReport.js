@@ -2,6 +2,7 @@
  * Producer Report Modal — Post-Battle Actionable Feedback & Performance Breakdown
  * Shows category comparisons, round tallies, judge notes, and timestamped track observations.
  */
+import { describeCorrection } from './corrections.js';
 
 class ProducerReportModal {
   constructor() {
@@ -39,15 +40,16 @@ class ProducerReportModal {
     // Build Round by Round table
     let roundRows = '';
     (finalResult.roundResults || []).forEach(r => {
-      const rTitle = r.isOvertime ? '⚡ Sudden Death OT' : `Round ${r.round}`;
+      const rTitle = (r.isOvertime ? '⚡ Sudden Death OT' : `Round ${r.round}`) + (r.isFlip ? ' · 🎼 Flip' : '');
+      const pen = (n) => (r[`penalty${n}`] ? ` <small title="Time-limit penalty">⏱ −${Number(r[`penalty${n}`]).toFixed(1)}</small>` : '');
       const winnerName = r.winner === 1 ? c1.name : (r.winner === 2 ? c2.name : 'Draw');
       const winClass = r.winner === 1 ? 'p1' : (r.winner === 2 ? 'p2' : 'draw');
 
       roundRows += `
         <tr>
           <td><strong>${rTitle}</strong></td>
-          <td style="color:#ff4d4d;">${r.total1.toFixed(2)}</td>
-          <td style="color:#00e5ff;">${r.total2.toFixed(2)}</td>
+          <td style="color:#ff4d4d;">${r.total1.toFixed(2)}${pen(1)}</td>
+          <td style="color:#00e5ff;">${r.total2.toFixed(2)}${pen(2)}</td>
           <td class="verdict-col ${winClass}">➔ ${winnerName}</td>
         </tr>
       `;
@@ -97,6 +99,31 @@ class ProducerReportModal {
       });
     } else {
       notesHtml = '<p class="report-empty-notes">No public notes from the judges for this battle.</p>';
+    }
+
+    // Judges' comments per category (and the reason they gave on close calls)
+    const catNames = (finalResult.scoringRules?.categories || []).map(c => c.name || c);
+    let commentsHtml = '';
+    (finalResult.roundResults || []).forEach(r => {
+      const rl = r.isOvertime ? 'OT' : `R${r.round}`;
+      const cards = r.panel?.judges?.length ? r.panel.judges : (r.comments1 || r.comments2 ? [{ name: 'Judge', comments1: r.comments1, comments2: r.comments2 }] : []);
+      cards.forEach(j => {
+        const lines = [];
+        [[1, c1.name, '#ff4d4d'], [2, c2.name, '#00e5ff']].forEach(([n, nm, color]) => {
+          (j[`comments${n}`] || []).forEach((txt, i) => {
+            if (txt) lines.push(`<div class="report-timestamp-item"><span class="ts-time" style="color:${color}">${this.escapeHtml(nm)} · ${this.escapeHtml(catNames[i] || '')}</span><span class="ts-text">${this.escapeHtml(txt)}</span></div>`);
+          });
+        });
+        if (j.overall) lines.push(`<div class="report-timestamp-item"><span class="ts-time">Why</span><span class="ts-text">${this.escapeHtml(j.overall)}</span></div>`);
+        if (lines.length) commentsHtml += `<div class="report-notes-group"><h4>${this.escapeHtml(j.name || 'Judge')} · ${rl}${j.normalized ? ' <small>(normalised)</small>' : ''}</h4>${lines.join('')}</div>`;
+      });
+    });
+    if (commentsHtml) notesHtml = `<div class="report-comments">${commentsHtml}</div>` + notesHtml;
+
+    // Corrections log: reopened rounds, penalties, the coin flip
+    if (finalResult.corrections?.length) {
+      const names = { 1: c1.name, 2: c2.name };
+      notesHtml += `<div class="report-judge-notes report-corrections"><strong>Corrections &amp; order log</strong>${finalResult.corrections.map(e => `<p>${this.escapeHtml(describeCorrection(e, names))}</p>`).join('')}</div>`;
     }
 
     if (finalResult.notes) {
@@ -212,6 +239,8 @@ Date: ${new Date(finalResult.timestamp).toLocaleString()}
 ${finalResult.notes ? `Notes: ${finalResult.notes}` : ''}
 ${publicNotes ? `Judges' notes:
 ${publicNotes}` : ''}
+${finalResult.corrections?.length ? `Corrections:
+${finalResult.corrections.map(e => '- ' + describeCorrection(e, { 1: c1, 2: c2 })).join('\n')}` : ''}
     `.trim();
 
     navigator.clipboard?.writeText(summary).then(() => {

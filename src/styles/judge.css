@@ -172,3 +172,22 @@ body.locked .j-step { pointer-events: none; }
 .j-seg button { flex: 1; padding: 10px 6px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); font-size: 0.82rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .j-seg button.active { border-color: var(--amber); color: var(--amber); }
 .j-note-card .j-btn { margin-top: 4px; }
+
+/* 3/4-way battles, calibration, flip rounds, guides, comments */
+.j-tabs[data-n="1"] { grid-template-columns: 1fr; }
+.j-tabs[data-n="3"] { grid-template-columns: repeat(3, 1fr); }
+.j-tabs[data-n="4"] { grid-template-columns: repeat(2, 1fr); }
+.j-tab.p3 .j-tab-total { color: #ffaa00; }
+.j-tab.p4 .j-tab-total { color: #b84dff; }
+.j-tab.p3.active { border-color: #ffaa00; background: rgba(255, 170, 0, 0.1); }
+.j-tab.p4.active { border-color: #b84dff; background: rgba(184, 77, 255, 0.1); }
+.j-tabs[data-n="1"] .j-tab .j-tab-total { color: #ffd21a; }
+.j-tabs[data-n="1"] .j-tab.active { border-color: #ffd21a; background: rgba(255, 210, 26, 0.08); }
+.j-flip { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(255, 170, 0, 0.18); color: #ffcc55; }
+.j-cal-note { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 210, 26, 0.1); border: 1px solid rgba(255, 210, 26, 0.35); font-size: 0.85rem; line-height: 1.4; }
+.j-guide { margin: 6px 2px 0; font-size: 0.78rem; color: var(--muted, #9898a8); line-height: 1.35; }
+.j-comment-btn { margin-left: auto; margin-right: 8px; background: none; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 2px 7px; font-size: 0.9rem; opacity: 0.6; cursor: pointer; }
+.j-comment-btn.has { opacity: 1; border-color: #ffd21a; }
+.j-comment { width: 100%; margin-top: 8px; padding: 9px 10px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.05); color: inherit; font: inherit; font-size: 0.88rem; }
+.j-why-row { display: flex; gap: 8px; margin-top: 8px; }
+.j-why-row .j-btn { flex: 1; }

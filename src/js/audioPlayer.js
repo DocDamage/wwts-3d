@@ -4,7 +4,7 @@ import { BeatGenerator } from './beatGenerator.js';
  * Audio Player — the two battle decks.
  *
  * Each deck runs a DJ channel strip in Web Audio:
- *   media → trim → low/mid/high EQ → low-pass → high-pass → channel fader → crossfader → master
+ *   media → loudness match → trim → low/mid/high EQ → low-pass → high-pass → channel fader → crossfader → master
  *                                         └→ echo send → delay (feedback) ┘
  * Decks play one at a time (battle rule), support cue points, pitch, and
  * vinyl scratching using the real beat (decoded into forward/reversed grains).
@@ -88,6 +88,12 @@ class AudioPlayerManager {
     this.onMixChange = null; // (playerNum|null, param, value) — keeps 2D + 3D controls in sync
     this._lastGrainAt = { 1: 0, 2: 0 };
     this._xfadeAnim = null;
+
+    // Loudness matching: each beat is brought to the same integrated loudness (LUFS)
+    this.loudness = { enabled: true, target: -14 };
+    // Anonymous decks: (num, fileTitle) => what the deck shows ("Beat A"), or null for the file name
+    this.titleProvider = null;
+    this.onLoudness = null;   // (num, { lufs, gainDb, applied }) — deck badge
   }
 
   init() {
@@ -201,7 +207,9 @@ class AudioPlayerManager {
     const ctx = this.audioContext;
     const player = this.players[num];
     const n = {};
+    n.norm = ctx.createGain();   // loudness match (separate from the DJ's trim knob)
     n.trim = ctx.createGain();
+    n.norm.connect(n.trim);
     n.low = ctx.createBiquadFilter();
     n.low.type = 'lowshelf';
     n.low.frequency.value = 250;
@@ -251,11 +259,123 @@ class AudioPlayerManager {
     player.nodes = n;
     try {
       player.sourceNode = ctx.createMediaElementSource(player.graphAudio);
-      player.sourceNode.connect(n.trim);
+      player.sourceNode.connect(n.norm);
     } catch (e) {
       console.warn(`Deck ${num}: could not attach to audio graph`, e);
     }
     Object.entries(player.mix).forEach(([param, value]) => this.applyMixParam(num, param, value));
+    this.applyLoudness(num);
+  }
+
+  /* ---------------- Loudness matching ---------------- */
+
+  setLoudness(enabled, target = this.loudness.target) {
+    this.loudness = { enabled: !!enabled, target: Number(target) || -14 };
+    [1, 2].forEach(n => this.applyLoudness(n));
+  }
+
+  /** dB the deck is being turned up/down to hit the target (0 when off or not measured) */
+  loudnessGainDb(num) {
+    const p = this.players[num];
+    if (!this.loudness.enabled || !Number.isFinite(p?.lufs) || p.lufs <= -69) return 0;
+    return Math.max(-12, Math.min(12, this.loudness.target - p.lufs));
+  }
+
+  applyLoudness(num) {
+    const p = this.players[num];
+    const db = this.loudnessGainDb(num);
+    if (p.nodes?.norm && this.audioContext) p.nodes.norm.gain.setTargetAtTime(Math.pow(10, db / 20), this.audioContext.currentTime, 0.05);
+    this.onLoudness?.(num, { lufs: p.lufs ?? null, gainDb: db, applied: this.loudness.enabled && !p.directMode && Number.isFinite(p.lufs) });
+  }
+
+  /* ---------------- Deck titles (anonymous beats) ---------------- */
+
+  refreshTitles() {
+    [1, 2].forEach(num => {
+      const p = this.players[num];
+      const shown = this.titleProvider?.(num, p.realTitle || p.title);
+      p.title = shown || p.realTitle || p.title;
+      const el = typeof document !== 'undefined' ? document.querySelector(`.audio-title[data-player="${num}"], #audio-title-${num}`) : null;
+      if (el) el.textContent = p.title;
+      if (typeof this.onMixChange === 'function') this.onMixChange(num, 'title', p.title);
+    });
+  }
+
+  /* ---------------- Fade out (time limit) ---------------- */
+
+  /** Fade a deck out over `seconds`, then pause it and restore its fader */
+  fadeOutAndPause(num, seconds = 3) {
+    const p = this.players[num];
+    if (!p?.playing) return;
+    clearTimeout(p._fadeTimer);
+    if (p.nodes && this.audioContext && !p.directMode) {
+      const g = p.nodes.channel.gain;
+      const t = this.audioContext.currentTime;
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(g.value, t);
+      g.linearRampToValueAtTime(0.0001, t + seconds);
+    } else {
+      const start = p.plainAudio.volume;
+      const t0 = performance.now();
+      p._fadeIv = setInterval(() => {
+        const u = Math.min(1, (performance.now() - t0) / (seconds * 1000));
+        p.plainAudio.volume = start * (1 - u);
+        if (u >= 1) clearInterval(p._fadeIv);
+      }, 50);
+    }
+    p._fadeTimer = setTimeout(() => {
+      clearInterval(p._fadeIv);
+      this.pause(num);
+      if (p.nodes && this.audioContext) p.nodes.channel.gain.cancelScheduledValues(this.audioContext.currentTime);
+      this.applyEffectiveVolumes();
+    }, seconds * 1000);
+  }
+
+  /* ---------------- Flip round: the original sample ---------------- */
+
+  /** Play the round's original sample through the master (both producers flip it) */
+  async playSample(src) {
+    this.ensureAudioContext();
+    this.pauseAll();
+    if (!this.sampleAudio) {
+      this.sampleAudio = new Audio();
+      this.sampleAudio.crossOrigin = 'anonymous';
+      this.sampleAudio.addEventListener('ended', () => this.onSampleEnded?.());
+      try {
+        if (this.audioContext) {
+          this.sampleNode = this.audioContext.createMediaElementSource(this.sampleAudio);
+          this.sampleNode.connect(this.masterIn);
+        }
+      } catch { /* plays outside the graph */ }
+    }
+    if (src && this.sampleAudio.src !== src) this.sampleAudio.src = src;
+    try {
+      await this.sampleAudio.play();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  stopSample() {
+    if (this.sampleAudio) { this.sampleAudio.pause(); this.sampleAudio.currentTime = 0; }
+  }
+
+  isSamplePlaying() {
+    return !!(this.sampleAudio && !this.sampleAudio.paused);
+  }
+
+  /* ---------------- Recording tap ---------------- */
+
+  /** A MediaStream of the master output (decks, pads, sample) for the stream recorder */
+  getRecordStream() {
+    this.ensureAudioContext();
+    if (!this.audioContext) return null;
+    if (!this.recordDest) {
+      this.recordDest = this.audioContext.createMediaStreamDestination();
+      this.masterGain.connect(this.recordDest);
+    }
+    return this.recordDest.stream;
   }
 
   /* ---------------- Mixer parameters ---------------- */
@@ -448,7 +568,10 @@ class AudioPlayerManager {
 
     const token = ++player.loadToken;
     const isLocal = /^(blob:|data:)/.test(src) || src.startsWith('/') || (typeof location !== 'undefined' && src.startsWith(location.origin));
-    player.title = title || `Contestant ${playerNum} Track`;
+    player.realTitle = title || `Contestant ${playerNum} Track`;
+    player.title = this.titleProvider?.(playerNum, player.realTitle) || player.realTitle;
+    player.lufs = null;
+    this.applyLoudness(playerNum);
     player.loaded = false;
     player.cuePoint = 0;
     player.scratchBuffers = null;
@@ -540,6 +663,8 @@ class AudioPlayerManager {
           delete this.beatJobs[e.data.id];
           if (!job || job.token !== this.players[job.num]?.loadToken || e.data.error) return;
           this.players[job.num].analysis = e.data;
+          this.players[job.num].lufs = e.data.lufs;
+          this.applyLoudness(job.num);
           this.onTrackAnalyzed?.(job.num, e.data);
         };
       }

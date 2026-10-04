@@ -152,12 +152,22 @@ class JudgeLink {
         const state = this.currentState();
         if (msg.battleId && state.battleId && msg.battleId !== state.battleId) return; // card from an earlier battle
         if (state.locked && msg.round === state.round) return; // round already locked
-        this.judges.receiveRemoteScores(seat, msg.round, msg.scores1, msg.scores2, msg.submitted);
+        // 3/4-way battles keep their own cards
+        if (state.mode === 'cypher') {
+          this.onCypherCard?.(seat, msg);
+          if (msg.submitted) this.toast(`✓ ${this.judges.judgeNames[seat]} submitted`);
+          this.renderSeatList();
+          break;
+        }
+        this.judges.receiveRemoteScores(seat, msg.round, msg.scores1, msg.scores2, msg.submitted, { comments1: msg.comments1, comments2: msg.comments2, overall: msg.overall });
         if (msg.submitted) this.toast(`✓ ${this.judges.judgeNames[seat]} submitted Round ${msg.round}`);
         this.onScoresUpdated?.(seat, msg.round);
         this.renderSeatList();
         break;
       }
+      case 'judge-cal':
+        this.onCalibrationCard?.(msg.deviceId, msg.calId, msg.scores);
+        break;
       case 'judge-note': {
         const seat = this.judges.seatForDevice(msg.deviceId);
         if (seat) this.onJudgeNote?.(seat, msg);
@@ -218,14 +228,21 @@ class JudgeLink {
 
   currentState() {
     const base = typeof this.stateProvider === 'function' ? this.stateProvider() : {};
+    const guides = base.guides || null;   // (category) => [5 strings] when scoring guides are on
     return {
       battleId: base.battleId || null,
+      mode: base.mode || 'battle',
       contestants: base.contestants || ['Contestant 1', 'Contestant 2'],
       round: base.round || 1,
       roundLabel: base.roundLabel || `Round ${base.round || 1}`,
       locked: !!base.locked,
       league: base.league || 'Who Want That Smoke',
-      categories: this.scoring.categories.map(c => ({ name: c.name, desc: c.desc || '', weight: c.weight, enabled: c.enabled })),
+      calibration: base.calibration || null,
+      flip: !!base.flip,
+      flipSample: base.flipSample || '',
+      commentsOn: !!base.commentsOn,
+      closeMargin: Number(base.closeMargin) || 0,
+      categories: this.scoring.categories.map(c => ({ name: c.name, desc: c.desc || '', weight: c.weight, enabled: c.enabled, guides: guides ? guides(c) : null })),
       step: this.scoring.step,
       seats: Array.from({ length: this.judges.totalJudges }, (_, i) => {
         const seat = i + 1;

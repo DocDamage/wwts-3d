@@ -82,6 +82,8 @@ const DEFAULT_CATEGORY_DEFS = [
   }
 ];
 
+import { guideText } from './rubrics.js';
+
 const CATEGORIES = DEFAULT_CATEGORY_DEFS.map(c => c.name);
 
 // Presets reshape the same 10 categories (order never changes, so scores stay aligned).
@@ -109,7 +111,43 @@ class ScoringEngine {
     };
 
     this.locked = false;
+    this.roundLocked = false;   // the current round's scorecard is locked (reopen needs a reason)
     this.onScoreChange = null;
+
+    // Scoring guides + per-category comments (host-screen seats)
+    this.showGuides = true;
+    this.customGuides = null;
+    this.commentsOn = true;
+    this.comments = { 1: new Array(this.categories.length).fill(''), 2: new Array(this.categories.length).fill('') };
+  }
+
+  /** Lock / unlock the sliders for the current round (separate from the final lock) */
+  setRoundLocked(on) {
+    this.roundLocked = !!on;
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('.score-slider').forEach(s => { s.disabled = this.readOnly || this.locked || this.roundLocked; });
+    document.querySelectorAll('.contestant-panel').forEach(p => p.classList.toggle('round-locked', this.roundLocked));
+  }
+
+  setComments(contestantNum, list) {
+    this.comments[contestantNum] = this.categories.map((_, i) => String(list?.[i] ?? ''));
+    if (typeof document !== 'undefined') {
+      this.categories.forEach((_, i) => {
+        const inp = document.getElementById(`comment-${contestantNum}-${i}`);
+        if (inp) { inp.value = this.comments[contestantNum][i]; inp.closest('.slider-row')?.classList.toggle('has-comment', !!inp.value); }
+      });
+    }
+  }
+
+  /** The guide line under a panel ("Creativity 8–9: Surprising choices…") */
+  showGuide(contestantNum, idx, value) {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById(`guide-line-${contestantNum}`);
+    if (!el) return;
+    if (!this.showGuides || idx === null) { el.textContent = ''; el.hidden = true; return; }
+    const cat = this.categories[idx];
+    el.hidden = false;
+    el.textContent = `${cat.name} · ${guideText(cat, value ?? 0, this.customGuides)}`;
   }
 
   getRulesSnapshot() {
@@ -222,7 +260,7 @@ class ScoringEngine {
   setReadOnly(readOnly) {
     this.readOnly = !!readOnly;
     if (typeof document === 'undefined') return;
-    document.querySelectorAll('.score-slider').forEach(s => { s.disabled = this.readOnly || this.locked; });
+    document.querySelectorAll('.score-slider').forEach(s => { s.disabled = this.readOnly || this.locked || this.roundLocked; });
     document.querySelectorAll('.contestant-panel').forEach(p => p.classList.toggle('read-only', this.readOnly));
   }
 
@@ -276,6 +314,30 @@ class ScoringEngine {
         weightTag.textContent = `${cat.weight}x`;
         labelWrap.appendChild(weightTag);
       }
+      let commentRow = null;
+      if (this.commentsOn) {
+        const cBtn = document.createElement('button');
+        cBtn.type = 'button';
+        cBtn.className = 'cat-comment-btn';
+        cBtn.textContent = '💬';
+        cBtn.title = `Comment on ${cat.name}`;
+        cBtn.setAttribute('aria-label', `Comment on ${cat.name} for contestant ${contestantNum}`);
+        labelWrap.appendChild(cBtn);
+        commentRow = document.createElement('input');
+        commentRow.type = 'text';
+        commentRow.className = 'form-input slider-comment';
+        commentRow.id = `comment-${contestantNum}-${idx}`;
+        commentRow.maxLength = 140;
+        commentRow.placeholder = `Why this ${cat.name} score?`;
+        commentRow.value = this.comments[contestantNum]?.[idx] || '';
+        commentRow.hidden = !commentRow.value;
+        cBtn.addEventListener('click', () => { commentRow.hidden = !commentRow.hidden; if (!commentRow.hidden) commentRow.focus(); });
+        commentRow.addEventListener('change', () => {
+          this.comments[contestantNum][idx] = commentRow.value.trim();
+          row.classList.toggle('has-comment', !!commentRow.value.trim());
+          this.onScoreChange?.(contestantNum, idx, this.scores[contestantNum][idx] ?? 0);
+        });
+      }
 
       const track = document.createElement('div');
       track.className = 'slider-track';
@@ -304,9 +366,13 @@ class ScoringEngine {
         valueDisplay.classList.add('unscored');
       }
 
-      slider.disabled = !!(this.readOnly || this.locked);
+      slider.disabled = !!(this.readOnly || this.locked || this.roundLocked);
+      const showGuide = () => this.showGuide(contestantNum, idx, this.scores[contestantNum][idx] ?? parseFloat(slider.value));
+      slider.addEventListener('pointerenter', showGuide);
+      slider.addEventListener('focus', showGuide);
       slider.addEventListener('input', (e) => {
-        if (this.locked || this.readOnly) {
+        this.showGuide(contestantNum, idx, parseFloat(e.target.value));
+        if (this.locked || this.readOnly || this.roundLocked) {
           e.target.value = (this.scores[contestantNum][idx] ?? 0).toString();
           return;
         }
@@ -336,6 +402,10 @@ class ScoringEngine {
       row.appendChild(labelWrap);
       row.appendChild(track);
       row.appendChild(valueDisplay);
+      if (commentRow) {
+        row.appendChild(commentRow);
+        row.classList.toggle('has-comment', !!commentRow.value);
+      }
       container.appendChild(row);
     });
   }
@@ -465,6 +535,8 @@ class ScoringEngine {
     return {
       scores1: this.getScores(1),
       scores2: this.getScores(2),
+      comments1: [...(this.comments[1] || [])],
+      comments2: [...(this.comments[2] || [])],
       total1: this.getTotal(1),
       total2: this.getTotal(2),
       rawSum1: this.getRawSum(1),
@@ -489,8 +561,10 @@ class ScoringEngine {
 
   reset() {
     this.locked = false;
+    this.roundLocked = false;
     for (const num of [1, 2]) {
       this.scores[num] = new Array(this.categories.length).fill(null);
+      this.setComments(num, []);
       this.categories.forEach((_, idx) => {
         const slider = typeof document !== 'undefined' ? document.getElementById(`slider-${num}-${idx}`) : null;
         const value = typeof document !== 'undefined' ? document.getElementById(`value-${num}-${idx}`) : null;

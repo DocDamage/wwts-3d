@@ -10,6 +10,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { attachJudgeHub, judgeInfoMiddleware, lanAddresses } from './judgeHub.js';
 import { dataApiMiddleware } from './dataApi.js';
+import { beatUploadsMiddleware } from './beatUploads.js';
+import { publicLeagueMiddleware } from './publicLeague.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const port = Number(process.env.PORT) || 3000;
@@ -19,7 +21,8 @@ const TYPES = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
   '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.fbx': 'application/octet-stream',
   '.obj': 'text/plain', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2',
-  '.glb': 'model/gltf-binary', '.webp': 'image/webp', '.webm': 'video/webm'
+  '.glb': 'model/gltf-binary', '.webp': 'image/webp', '.webm': 'video/webm',
+  '.webmanifest': 'application/manifest+json', '.m4a': 'audio/mp4', '.flac': 'audio/flac'
 };
 
 if (!fs.existsSync(path.join(root, 'index.html'))) {
@@ -27,11 +30,14 @@ if (!fs.existsSync(path.join(root, 'index.html'))) {
   process.exit(1);
 }
 
+const dataDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const info = judgeInfoMiddleware(() => port);
-const dataApi = dataApiMiddleware(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'data'));
+const dataApi = dataApiMiddleware(dataDir);
+const publicPage = publicLeagueMiddleware(dataDir);
+let beats = (req, res, next) => next();   // set once the hub exists (uploads check the room's producers)
 
 const server = http.createServer((req, res) => {
-  dataApi(req, res, () => info(req, res, () => {
+  dataApi(req, res, () => beats(req, res, () => publicPage(req, res, () => info(req, res, () => {
     let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
     if (urlPath.endsWith('/')) urlPath += 'index.html';
     const file = path.normalize(path.join(root, urlPath));
@@ -47,10 +53,11 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream' });
       fs.createReadStream(file).pipe(res);
     });
-  }));
+  }))));
 });
 
-attachJudgeHub(server);
+const hub = attachJudgeHub(server);
+beats = beatUploadsMiddleware(dataDir, hub.rooms);
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`\n  WWTS Beat Battle running`);

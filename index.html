@@ -55,6 +55,8 @@
         <div class="tools-menu-wrap">
           <button id="btn-tools" class="icon-toggle-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="tools-menu" title="Tools: backups, overlays, MIDI, chat, accessibility, help">⚙ Tools</button>
           <div id="tools-menu" class="tools-menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-open="event-settings-modal">🎚 Event settings</button>
+            <button type="button" role="menuitem" data-open="calibration-modal">🎯 Judge calibration</button>
             <button type="button" role="menuitem" data-open="backup-modal" id="btn-backup">💾 Backup &amp; restore</button>
             <button type="button" role="menuitem" data-open="judge-stats-modal">📈 Judge consistency</button>
             <button type="button" role="menuitem" data-open="overlays-modal">🎬 OBS overlays</button>
@@ -297,6 +299,7 @@
             <button type="button" id="btn-flow-pause-all" class="flow-action-btn" title="Pause all contestant decks and audio immediately">⏸ Pause All</button>
             <button type="button" id="btn-flow-stop-all" class="flow-action-btn" title="Stop listening period and reset cue">⏹ Stop Beat</button>
             <button type="button" id="btn-flow-lock-round" class="flow-action-btn primary" title="Lock scorecards for current round">🔒 Lock Round</button>
+            <button type="button" id="btn-reopen-round" class="flow-action-btn" title="Reopen this locked round (needs a reason, kept in the record)" hidden>🔓 Reopen</button>
           </div>
         </div>
       </div>
@@ -319,6 +322,7 @@
             <button type="button" class="round-tab-btn ot-round-btn" id="btn-ot-round" data-round="4" style="display:none;">⚡ Sudden Death OT</button>
             <button type="button" id="btn-next-round" class="round-next-btn" title="Save current round and advance to next round">Next ⏩</button>
             <button type="button" id="btn-trigger-ot" class="trigger-ot-btn" title="Trigger 60s Overtime Sudden Death Round">⚡ OT</button>
+            <button type="button" id="btn-flip-round" class="trigger-ot-btn flip-round-btn" title="Make this a flip round: both producers flip the same sample, which plays first">🎼 Flip</button>
           </div>
 
           <div class="series-tally-box p2">
@@ -404,6 +408,7 @@
             <label class="avatar-select-wrap" title="3D avatar on stage"><span class="sr-only">Player 1 avatar</span><select class="avatar-select picker-select" id="avatar-select-1" data-player="1" aria-label="Player 1 3D avatar"></select></label>
           </div>
           <div class="sliders-container" id="contestant-1-sliders"></div>
+          <p class="guide-line" id="guide-line-1" hidden aria-live="polite"></p>
         </section>
 
         <!-- Center Controls (sketch: Submit, Reset, record, 3:00 timer, Tournament) -->
@@ -465,6 +470,7 @@
             <label class="avatar-select-wrap" title="3D avatar on stage"><span class="sr-only">Player 2 avatar</span><select class="avatar-select picker-select" id="avatar-select-2" data-player="2" aria-label="Player 2 3D avatar"></select></label>
           </div>
           <div class="sliders-container" id="contestant-2-sliders"></div>
+          <p class="guide-line" id="guide-line-2" hidden aria-live="polite"></p>
         </section>
       </div>
 
@@ -473,6 +479,7 @@
         <div class="total-score-container p1">
           <span class="total-label">C1 TOTAL</span>
           <span class="total-value" id="contestant-1-total">0.00</span>
+          <span class="penalty-chip" id="penalty-chip-1" hidden></span>
         </div>
         <nav id="bottom-nav">
           <button class="nav-tab" data-tab="history">
@@ -495,6 +502,7 @@
         <div class="total-score-container p2">
           <span class="total-label">C2 TOTAL</span>
           <span class="total-value" id="contestant-2-total">0.00</span>
+          <span class="penalty-chip" id="penalty-chip-2" hidden></span>
         </div>
       </div>
 
@@ -594,7 +602,7 @@
       <!-- Deck strip: load each contestant's beat, soundboard pads, crossfader -->
       <div class="stage-deck-strip" data-overlay-panel="decks" data-min-label="Decks &amp; Soundboard">
         <div class="audio-player-slot" id="audio-slot-1">
-          <div class="audio-slot-label">🎵 P1 Audio</div>
+          <div class="audio-slot-label">🎵 P1 Audio <span class="deck-file" id="deck-file-1"></span><span class="deck-loud" id="deck-loud-1" hidden></span></div>
           <div class="audio-input-row">
             <label class="audio-file-btn" title="Upload audio file">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -656,7 +664,7 @@
           </div>
         </div>
         <div class="audio-player-slot" id="audio-slot-2">
-          <div class="audio-slot-label">🎵 P2 Audio</div>
+          <div class="audio-slot-label">🎵 P2 Audio <span class="deck-file" id="deck-file-2"></span><span class="deck-loud" id="deck-loud-2" hidden></span></div>
           <div class="audio-input-row">
             <label class="audio-file-btn" title="Upload audio file">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -1439,6 +1447,88 @@
     </div>
 
     <!-- ===== LIVE CHAT HYPE ===== -->
+
+    <!-- ===== EVENT SETTINGS ===== -->
+    <div id="event-settings-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="es-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="es-title">🎚 Event settings</h2>
+          <button class="modal-close" data-close="event-settings-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body a11y-body">
+          <fieldset><legend>Time</legend>
+            <label>Seconds per beat <input type="number" class="form-input es-num" min="15" max="900" step="5" data-setting="roundSeconds" /></label>
+            <label>At 0:00 <select class="form-input" data-setting="timeLimit">
+              <option value="stop">Stop the beat</option>
+              <option value="fade">Fade out over 3 seconds</option>
+              <option value="overrun">Let it play — penalty points</option>
+            </select></label>
+            <label class="es-penalty">Penalty per started 10 s over <input type="number" class="form-input es-num" min="0" max="20" step="0.5" data-setting="penaltyPer10s" /> pts</label>
+          </fieldset>
+          <fieldset><legend>Fairness</legend>
+            <label class="inline-check"><input type="checkbox" data-setting="coinFlip" /> Coin flip for who plays first (order alternates each round)</label>
+            <label class="inline-check"><input type="checkbox" data-setting="loudness" /> Match loudness of both beats</label>
+            <label>Loudness target <select class="form-input" data-setting="loudnessTarget" data-num="1">
+              <option value="-16">−16 LUFS (gentle)</option><option value="-14">−14 LUFS (streaming)</option><option value="-11">−11 LUFS (club)</option>
+            </select></label>
+            <label class="inline-check"><input type="checkbox" data-setting="anonymizeBeats" /> Hide beat file names on stage and stream ("Beat A / Beat B")</label>
+            <label class="inline-check"><input type="checkbox" data-setting="normalizeJudges" /> Normalise judges with the calibration round</label>
+          </fieldset>
+          <fieldset><legend>Judging</legend>
+            <label class="inline-check"><input type="checkbox" data-setting="showGuides" /> Show scoring guides (what each range means)</label>
+            <label class="inline-check"><input type="checkbox" data-setting="judgeComments" /> Judges can comment per category</label>
+            <label>Ask judges why when their margin is under <input type="number" class="form-input es-num" min="0" max="20" step="0.5" data-setting="closeMargin" /> pts</label>
+          </fieldset>
+          <p class="profile-muted">Saved in this browser. Event templates (Tools → Event templates) save these together with the scoring and rules.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== JUDGE CALIBRATION ===== -->
+    <div id="calibration-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="cal-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="cal-title">🎯 Judge calibration</h2>
+          <button class="modal-close" data-close="calibration-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <p class="backup-lead">Before the battles, every judge scores the same reference beat. That shows who scores harsh, who scores generous and who spreads scores wide, so their scores can be put on one common scale.</p>
+          <ol class="cal-steps"><li>Load a reference beat on deck 1.</li><li>Start the calibration round — judges' phones switch to the reference card.</li><li>Play it, let everyone score, then finish.</li></ol>
+          <div class="form-actions">
+            <button type="button" class="control-btn secondary" id="cal-play">▶ / ⏸ Deck 1</button>
+            <button type="button" class="control-btn primary" id="cal-start">Start calibration round</button>
+            <button type="button" class="control-btn primary" id="cal-finish" hidden>Finish &amp; save</button>
+            <button type="button" class="control-btn secondary" id="cal-cancel" hidden>Cancel</button>
+          </div>
+          <p class="chat-status" id="cal-status" role="status"></p>
+          <div id="cal-local" hidden></div>
+          <div id="cal-table" class="standings-table"></div>
+          <label class="inline-check"><input type="checkbox" id="cal-normalize" /> Normalise judges' scores with this calibration</label>
+          <button type="button" class="fs-small" id="cal-clear">Forget calibration</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== FLIP ROUND ===== -->
+    <div id="flip-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="flip-title">
+      <div class="modal-content backup-content">
+        <div class="modal-header">
+          <h2 id="flip-title">🎼 Flip round</h2>
+          <button class="modal-close" data-close="flip-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="backup-body">
+          <p class="backup-lead">Both producers flip the same sample in <b id="flip-round-label">round 1</b>. The original plays first, then each flip.</p>
+          <p class="flip-current" id="flip-current">Not a flip round</p>
+          <div class="chat-row"><label class="control-btn secondary">📂 Choose sample file<input type="file" id="flip-file" accept="audio/*" hidden /></label></div>
+          <div class="chat-row"><input id="flip-url" class="form-input" placeholder="…or a direct link to the sample" /><button type="button" class="control-btn secondary" id="flip-url-go">Use link</button></div>
+          <div class="form-actions">
+            <button type="button" class="control-btn secondary" id="flip-preview">▶ Preview</button>
+            <button type="button" class="control-btn primary" id="flip-save">Make it a flip round</button>
+            <button type="button" class="control-btn secondary" id="flip-clear" hidden>Not a flip round</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="a11y-modal" class="modal-overlay tool-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="a11y-title">
       <div class="modal-content backup-content">
         <div class="modal-header">

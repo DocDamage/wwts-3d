@@ -57,6 +57,10 @@ class HistoryManager {
       timeline: finalResult.timeline || null,
       timestamp: finalResult.timestamp || new Date().toISOString()
     };
+    // Extras kept with the record when present
+    ['corrections', 'seasonId', 'kind', 'placings', 'playOrder', 'judgeComments', 'kingOfTheHill', 'eventId'].forEach(k => {
+      if (finalResult[k] !== undefined && finalResult[k] !== null) battle[k] = finalResult[k];
+    });
 
     this.history.unshift(battle);
     this.save();

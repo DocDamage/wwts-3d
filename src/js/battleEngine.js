@@ -274,7 +274,7 @@ class BattleSessionEngine {
           if (rData.total1 > rData.total2) rWinner = 1;
           else if (rData.total2 > rData.total1) rWinner = 2;
 
-          roundResults.push({
+          const rr = {
             round: rNum,
             isOvertime: !!rData.isOvertime,
             total1: rData.total1 || 0,
@@ -282,7 +282,17 @@ class BattleSessionEngine {
             winner: rWinner,
             scores1: [...(rData.scores1 || [])],
             scores2: [...(rData.scores2 || [])]
-          });
+          };
+          if (rData.isFlip) rr.isFlip = true;
+          if (rData.comments1 || rData.comments2) {
+            rr.comments1 = [...(rData.comments1 || [])];
+            rr.comments2 = [...(rData.comments2 || [])];
+          }
+          if (rData.penalty1 || rData.penalty2) {
+            rr.penalty1 = rData.penalty1 || 0;
+            rr.penalty2 = rData.penalty2 || 0;
+          }
+          roundResults.push(rr);
         }
       });
     } else if (scoringSnapshot) {
@@ -405,7 +415,13 @@ class BattleSessionEngine {
           decisionType: c.decisionType,
           decisionTally: c.decisionTally,
           winner: c.consensusWinner,
-          judges: c.judges.map(j => ({ name: j.judgeName, total1: j.total1, total2: j.total2, winner: j.winner, scored: j.scored, phone: j.remote }))
+          judges: c.judges.map(j => {
+            const out = { name: j.judgeName, total1: j.total1, total2: j.total2, winner: j.winner, scored: j.scored, phone: j.remote };
+            if (j.comments1?.some(Boolean) || j.comments2?.some(Boolean)) { out.comments1 = j.comments1; out.comments2 = j.comments2; }
+            if (j.overall) out.overall = j.overall;
+            if (j.normalized) out.normalized = true;
+            return out;
+          })
         };
       });
     }
@@ -413,6 +429,10 @@ class BattleSessionEngine {
     // The battle's timeline (for replays)
     if (typeof this.timelineProvider === 'function') {
       try { officialResult.timeline = this.timelineProvider() || null; } catch { officialResult.timeline = null; }
+    }
+    // Anything else the app wants kept with the record (corrections log, season, order, judge comments…)
+    if (typeof this.extrasProvider === 'function') {
+      try { Object.assign(officialResult, this.extrasProvider(officialResult) || {}); } catch (e) { console.warn('extras', e); }
     }
 
     // Mark finalized
@@ -463,7 +483,7 @@ class BattleSessionEngine {
     if (this.judges) this.judges.reset();
     if (this.timer) {
       this.timer.stop();
-      this.timer.reset(180);
+      this.timer.reset(this.roundSeconds || 180);
     }
     if (this.audio) this.audio.pauseAll();
     if (this.notes) this.notes.clear();

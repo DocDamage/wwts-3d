@@ -40,19 +40,12 @@
     <div class="j-seat-row">
       <span class="j-seat" id="j-seat">JUDGE</span>
       <span class="j-round" id="j-round">ROUND 1</span>
+      <span class="j-flip" id="j-flip" hidden>🎼 FLIP</span>
       <span class="j-lock" id="j-lock" hidden>🔒 Locked</span>
     </div>
+    <p class="j-cal-note" id="j-cal-note" hidden>🎯 Calibration: score the reference beat the way you'd score a battle. It sets the panel's common scale.</p>
 
-    <div class="j-tabs" role="tablist">
-      <button type="button" class="j-tab p1 active" data-c="1" role="tab">
-        <span class="j-tab-name" id="j-name-1">Contestant 1</span>
-        <span class="j-tab-total" id="j-total-1">0.00</span>
-      </button>
-      <button type="button" class="j-tab p2" data-c="2" role="tab">
-        <span class="j-tab-name" id="j-name-2">Contestant 2</span>
-        <span class="j-tab-total" id="j-total-2">0.00</span>
-      </button>
-    </div>
+    <div class="j-tabs" id="j-tabs" role="tablist"></div>
 
     <div class="j-cats" id="j-cats"></div>
 
@@ -74,6 +67,15 @@
           <button type="button" data-v="public">📢 For the producers</button>
         </div>
         <button type="button" class="j-btn primary" id="j-note-send">Send Note</button>
+      </div>
+    </div>
+
+    <div class="j-note-sheet" id="j-why-sheet" hidden>
+      <div class="j-note-card">
+        <div class="j-note-head"><span>It's close — only <b id="j-why-margin">0</b> points apart</span></div>
+        <textarea id="j-why-text" maxlength="280" rows="3" placeholder="What decided it for you? (goes in the producers' report)"></textarea>
+        <button type="button" class="j-btn primary" id="j-why-send">Submit with reason</button>
+        <div class="j-why-row"><button type="button" class="j-btn" id="j-why-skip">Submit without</button><button type="button" class="j-btn" id="j-why-back">Back</button></div>
       </div>
     </div>
 

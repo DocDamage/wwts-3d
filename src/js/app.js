@@ -47,6 +47,11 @@ import { buildActions, startCommandRelay } from './controlActions.js';
 import { MidiMapper, MidiPanel } from './midiMap.js';
 import { ChatHype, ChatPanel } from './chatHype.js';
 import { sfx } from './sfx.js';
+import { EventSettings, EventSettingsPanel } from './eventSettings.js';
+import { PlayOrder, showCoinFlip } from './playOrder.js';
+import { CorrectionsLog, askReason } from './corrections.js';
+import { Calibration, CalibrationPanel } from './calibration.js';
+import { guidesFor } from './rubrics.js';
 
 // ============================================================
 // Initialize all modules
@@ -87,6 +92,22 @@ const battleEngine = new BattleSessionEngine({
   tournament,
   leagues
 });
+
+// Fairness & format: event settings, coin-flip order, corrections log, judge calibration
+const settings = new EventSettings();
+const playOrder = new PlayOrder();
+const corrections = new CorrectionsLog();
+const calibration = new Calibration();
+const flipPlayed = new Set();      // flip rounds whose original sample has been played
+const battleExtras = [];           // (result) => fields kept with the official record
+battleEngine.extrasProvider = (result) => Object.assign({}, ...battleExtras.map(fn => fn(result) || {}));
+battleExtras.push(() => ({
+  corrections: corrections.log.length ? corrections.export() : undefined,
+  playOrder: playOrder.flipped ? playOrder.exportState() : undefined
+}));
+window.eventSettings = settings;
+window.playOrder = playOrder;
+window.corrections = corrections;
 
 // Achievements: badges derived from history, league records, tournament titles
 const achievements = new AchievementEngine(history, roster);
@@ -204,7 +225,7 @@ function shownName(num) {
 function setBlind(on, { silent = false } = {}) {
   blind.on = !!on;
   if (blind.on) {
-    blind.swap = Math.random() < 0.5;
+    blind.swap = playOrder.flipped ? playOrder.first === 2 : Math.random() < 0.5;
     const first = blind.swap ? 2 : 1;
     if (!silent) showToast(`🙈 Blind judging on — Beat A (plays first) is ${realName(first)}. Only you can see this.`);
   } else if (!silent) showToast('Identities revealed');
@@ -216,6 +237,41 @@ function setBlind(on, { silent = false } = {}) {
   broadcastContestants();
   judgeLink.pushState(true);
   scheduleBroadcastState();
+  audio.refreshTitles();
+}
+
+/** What a deck shows instead of the file name: "Beat A" (plays first) / "Beat B", names after the reveal */
+function deckLabel(num) {
+  if (battleEngine.isFinalized) return realName(num);
+  if (blind.on) return shownName(num);
+  const firstSlot = playOrder.flipped ? playOrder.first : 1;
+  return num === firstSlot ? 'Beat A' : 'Beat B';
+}
+
+/** [first, second] slots for the current round (coin flip, alternating) */
+function roundOrder(r = rounds.currentRound) {
+  return playOrder.orderFor(r || 1);
+}
+
+/** Coin flip on stage for who plays first */
+async function runCoinFlip() {
+  const first = playOrder.flip();
+  const second = first === 1 ? 2 : 1;
+  corrections.add({ action: 'order', round: 1, first });
+  if (blind.on) {
+    blind.swap = first === 2;
+    updateContestantDisplay(1);
+    updateContestantDisplay(2);
+    broadcastContestants();
+  }
+  postBroadcast('COIN_FLIP', { first, firstName: shownName(first), secondName: shownName(second) });
+  window.lastOverlayCoin = { first: shownName(first), at: Date.now() };
+  soundboard.play('needle_drop');
+  await showCoinFlip(shownName(first), shownName(second), first, { reduced: document.body.classList.contains('reduced-motion') });
+  audio.refreshTitles();
+  judgeLink.pushState(true);
+  autosaveActiveSession();
+  return first;
 }
 
 // ============================================================
@@ -775,30 +831,41 @@ function updateBattleFlowUI() {
   if (chipPreset) chipPreset.classList.add('ready');
   if (presetNameEl) presetNameEl.textContent = scoring.getPresetName();
 
+  const reopenBtn = document.getElementById('btn-reopen-round');
+  if (reopenBtn) reopenBtn.hidden = !(rounds.isLocked(rounds.currentRound) && !battleEngine.isFinalized);
+  renderPenalties();
+
   if (!flowBtn || !flowLabel) return;
 
   const phase = battleEngine.phase;
   const isClinched = rounds.isSeriesClinched ? rounds.isSeriesClinched() : false;
+  const [firstSlot, secondSlot] = roundOrder();
+  const flip = rounds.flipFor();
 
   switch (phase) {
     case 'setup':
-      flowLabel.textContent = hasContestants ? '▶ Start Soundcheck' : 'Select Both Contestants';
+      flowLabel.textContent = !hasContestants ? 'Select Both Contestants'
+        : settings.get('coinFlip') && !playOrder.flipped ? '🪙 Flip for Order & Soundcheck' : '▶ Start Soundcheck';
       flowBtn.disabled = !hasContestants;
       break;
     case 'soundcheck':
-      flowLabel.textContent = '▶ Play Contestant A';
+      flowLabel.textContent = flip && !flipPlayed.has(rounds.currentRound) ? '🎼 Play the Original Sample' : `▶ Play ${shownName(firstSlot)}`;
+      flowBtn.disabled = false;
+      break;
+    case 'sample':
+      flowLabel.textContent = '⏭ Sample playing — on to the beats';
       flowBtn.disabled = false;
       break;
     case 'play_a':
-      flowLabel.textContent = audio.players[1]?.playing ? '⏸ Pause Contestant A' : '▶ Play Contestant A';
+      flowLabel.textContent = audio.players[firstSlot]?.playing ? `⏸ Pause ${shownName(firstSlot)}` : `▶ Play ${shownName(firstSlot)}`;
       flowBtn.disabled = false;
       break;
     case 'review_a':
-      flowLabel.textContent = '▶ Play Contestant B';
+      flowLabel.textContent = `▶ Play ${shownName(secondSlot)}`;
       flowBtn.disabled = false;
       break;
     case 'play_b':
-      flowLabel.textContent = audio.players[2]?.playing ? '⏸ Pause Contestant B' : '▶ Play Contestant B';
+      flowLabel.textContent = audio.players[secondSlot]?.playing ? `⏸ Pause ${shownName(secondSlot)}` : `▶ Play ${shownName(secondSlot)}`;
       flowBtn.disabled = false;
       break;
     case 'review_b':
@@ -823,24 +890,45 @@ function updateBattleFlowUI() {
   }
 }
 
-function handlePrimaryFlowAction() {
+let flowBusy = false;
+async function handlePrimaryFlowAction() {
+  if (flowBusy) return;
   const phase = battleEngine.phase;
   const isClinched = rounds.isSeriesClinched ? rounds.isSeriesClinched() : false;
+  const [firstSlot, secondSlot] = roundOrder();
+  const flip = rounds.flipFor();
 
   if (phase === 'setup') {
     if (!selectedContestant1Id || !selectedContestant2Id) {
       alert('Please select both contestants to begin battle flow.');
       return;
     }
-    soundboard.play('needle_drop');
-    djController.sendCharacterToDeck(1);
+    if (settings.get('coinFlip') && !playOrder.flipped) {
+      flowBusy = true;
+      try { await runCoinFlip(); } finally { flowBusy = false; }
+    } else {
+      soundboard.play('needle_drop');
+    }
+    djController.sendCharacterToDeck(roundOrder()[0]);
+    battleEngine.setPhase('soundcheck');
+  } else if (phase === 'soundcheck' && flip && !flipPlayed.has(rounds.currentRound)) {
+    // Flip round: everyone hears the original sample first
+    if (await audio.playSample(flip.url)) {
+      battleEngine.setPhase('sample');
+      showToast(`🎼 Original sample: ${flip.name}`);
+    } else {
+      showToast('Couldn\'t play the sample — check the file in 🎼 Flip');
+    }
+  } else if (phase === 'sample') {
+    audio.stopSample();
+    flipPlayed.add(rounds.currentRound);
     battleEngine.setPhase('soundcheck');
   } else if (phase === 'soundcheck' || phase === 'play_a') {
     // The round timer follows the deck (see syncTimerToDeck)
-    audio.togglePlay(1);
+    audio.togglePlay(firstSlot);
     if (phase === 'soundcheck') djController.setCameraView('dj_pov');
   } else if (phase === 'review_a' || phase === 'play_b') {
-    audio.togglePlay(2);
+    audio.togglePlay(secondSlot);
     if (phase === 'review_a') djController.setCameraView('dj_pov');
   } else if (phase === 'review_b') {
     lockCurrentRound();
@@ -881,13 +969,105 @@ document.getElementById('btn-flow-lock-round')?.addEventListener('click', lockCu
 /** Freeze the round: stop the beat and timer, store the round, lock phones */
 function lockCurrentRound() {
   audio.pauseAll();
+  finishOverrun();
   timer.pause();
   if (judges.mode === 'panel') judges.saveCurrentJudgeScores();
   rounds.saveCurrentRoundState();
   rounds.updateSeriesTotals();
+  const r = rounds.currentRound;
+  const reopened = corrections.openReopen(r);
+  rounds.lock(r);
+  scoring.setRoundLocked(true);
+  if (reopened) {
+    const now = rounds.rounds[r];
+    corrections.add({ action: 'relock', round: r, before: reopened.before, after: { total1: now.total1, total2: now.total2 } });
+  }
   battleEngine.setPhase('round_locked');
   soundboard.play('bell');
   updateBattleFlowUI();
+  autosaveActiveSession();
+}
+
+/** Reopen a locked round — only with a reason, which goes in the record */
+async function reopenCurrentRound() {
+  const r = rounds.currentRound;
+  if (!rounds.isLocked(r) || battleEngine.isFinalized) return;
+  const label = r === 4 ? 'overtime' : r === 3 ? 'the final round' : `round ${r}`;
+  const reason = await askReason({
+    title: `Reopen ${label}?`,
+    message: 'Judges and the host can change their scores again. The reason is kept with the battle record and shows in the producer report.',
+    placeholder: 'e.g. Judge 2 scored the wrong producer',
+    confirmLabel: 'Reopen round'
+  });
+  if (!reason) return;
+  const data = rounds.rounds[r];
+  corrections.add({ action: 'reopen', round: r, reason, before: { total1: data.total1, total2: data.total2 } });
+  rounds.unlock(r);
+  scoring.setRoundLocked(false);
+  if (battleEngine.phase === 'round_locked') battleEngine.setPhase('review_b');
+  judgeLink.pushState(true);
+  showToast(`🔓 ${label[0].toUpperCase() + label.slice(1)} reopened — “${reason}”`);
+  updateBattleFlowUI();
+  autosaveActiveSession();
+}
+
+// ============================================================
+// Flip rounds: one sample, both producers flip it; the original plays first
+// ============================================================
+function initFlipRounds() {
+  const modal = document.getElementById('flip-modal');
+  const btn = document.getElementById('btn-flip-round');
+  if (!modal || !btn) return;
+  let pending = null;   // { name, url } picked in the dialog
+  const render = () => {
+    const r = rounds.currentRound;
+    const f = rounds.flipFor(r);
+    document.getElementById('flip-round-label').textContent = r === 4 ? 'overtime' : r === 3 ? 'the final round' : `round ${r}`;
+    document.getElementById('flip-current').textContent = f ? `🎼 ${f.name}` : 'Not a flip round';
+    document.getElementById('flip-clear').hidden = !f;
+    document.getElementById('flip-save').disabled = !pending && !f;
+    btn.classList.toggle('active', !!f);
+  };
+  btn.addEventListener('click', () => { pending = null; render(); modal.style.display = ''; });
+  modal.addEventListener('click', (e) => { if (e.target === modal || e.target.closest('[data-close="flip-modal"]')) modal.style.display = 'none'; });
+  document.getElementById('flip-file')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    pending = { name: file.name.replace(/\.[^/.]+$/, ''), url: URL.createObjectURL(file) };
+    document.getElementById('flip-current').textContent = `🎼 ${pending.name} (not saved yet)`;
+    document.getElementById('flip-save').disabled = false;
+  });
+  document.getElementById('flip-url-go')?.addEventListener('click', () => {
+    const url = document.getElementById('flip-url').value.trim();
+    if (!url) return;
+    pending = { name: decodeURIComponent(url.split('/').pop() || 'Sample').replace(/\.[^/.]+$/, '').slice(0, 40), url };
+    document.getElementById('flip-current').textContent = `🎼 ${pending.name} (not saved yet)`;
+    document.getElementById('flip-save').disabled = false;
+  });
+  document.getElementById('flip-preview')?.addEventListener('click', () => {
+    const f = pending || rounds.flipFor();
+    if (!f) return;
+    if (audio.isSamplePlaying()) audio.stopSample(); else audio.playSample(f.url);
+  });
+  document.getElementById('flip-save')?.addEventListener('click', () => {
+    if (pending) rounds.setFlip(rounds.currentRound, pending);
+    flipPlayed.delete(rounds.currentRound);
+    modal.style.display = 'none';
+    judgeLink.pushState(true);
+    updateBattleFlowUI();
+    showToast(`🎼 Flip round: ${rounds.flipFor().name}`);
+    autosaveActiveSession();
+  });
+  document.getElementById('flip-clear')?.addEventListener('click', () => {
+    rounds.setFlip(rounds.currentRound, null);
+    audio.stopSample();
+    render();
+    judgeLink.pushState(true);
+    updateBattleFlowUI();
+  });
+  const prev = rounds.onRoundChange;
+  rounds.onRoundChange = (...a) => { prev?.(...a); render(); };
+  render();
 }
 
 // ============================================================
@@ -899,19 +1079,73 @@ let timerOwner = null; // contestant whose beat the timer is currently tracking
 function syncTimerToDeck(playerNum, isPlaying) {
   const phase = battleEngine.phase;
   const roundOpen = !['round_locked', 'finalized'].includes(phase);
+  const [firstSlot, secondSlot] = roundOrder();
   if (isPlaying) {
+    if (audio.isSamplePlaying()) { audio.stopSample(); flipPlayed.add(rounds.currentRound); }
     if (timerOwner !== playerNum) {
+      finishOverrun();
       timer.stop(); // back to the full round time for the new contestant
       timerOwner = playerNum;
+      fading = false;
     }
     battleEngine.setActiveContestant(playerNum);
     if (roundOpen && timer.remaining > 0) timer.play();
-    if (roundOpen) battleEngine.setPhase(playerNum === 1 ? 'play_a' : 'play_b');
+    if (roundOpen) battleEngine.setPhase(playerNum === firstSlot ? 'play_a' : 'play_b');
   } else if (playerNum === timerOwner) {
     timer.pause();
-    if (phase === 'play_a' && playerNum === 1) battleEngine.setPhase('review_a');
-    if (phase === 'play_b' && playerNum === 2) battleEngine.setPhase('review_b');
+    finishOverrun();
+    if (phase === 'play_a' && playerNum === firstSlot) battleEngine.setPhase('review_a');
+    if (phase === 'play_b' && playerNum === secondSlot) battleEngine.setPhase('review_b');
   }
+}
+
+// ---- Round time limits: hard stop, 3 s fade, or overrun with penalty points ----
+let fading = false;
+let overrun = null;   // { slot, round, start, iv }
+
+function startOverrun(slot) {
+  overrun = { slot, round: rounds.currentRound, start: performance.now(), iv: null };
+  const el = document.getElementById('timer-value');
+  el?.classList.add('overrun');
+  const tick = () => {
+    const secs = Math.floor((performance.now() - overrun.start) / 1000);
+    const txt = `+${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    if (el) el.textContent = txt;
+    postBroadcast('TIMER_UPDATE', { seconds: 0, formatted: txt, isRunning: true, isOvertime: rounds.currentRound === 4 });
+  };
+  tick();
+  overrun.iv = setInterval(tick, 500);
+  showToast(`⏱ ${shownName(slot)} is over time — penalty: ${settings.get('penaltyPer10s')} pt per 10 s`);
+}
+
+function finishOverrun() {
+  if (!overrun) return;
+  clearInterval(overrun.iv);
+  document.getElementById('timer-value')?.classList.remove('overrun');
+  const seconds = Math.round((performance.now() - overrun.start) / 1000);
+  const { slot, round } = overrun;
+  overrun = null;
+  timer.updateDisplay?.();
+  if (seconds < 1) return;
+  const points = Math.ceil(seconds / 10) * (Number(settings.get('penaltyPer10s')) || 0);
+  if (points <= 0) return;
+  rounds.addPenalty(round, slot, points, seconds);
+  corrections.add({ action: 'penalty', round, slot, points, seconds });
+  showToast(`⏱ ${shownName(slot)} ran ${seconds}s over: −${points.toFixed(1)} on the round`);
+  renderPenalties();
+  updateBattleFlowUI();
+}
+
+function renderPenalties() {
+  const r = rounds.currentRound;
+  [1, 2].forEach(n => {
+    const el = document.getElementById(`penalty-chip-${n}`);
+    if (!el) return;
+    const p = rounds.penaltyFor(r, n);
+    el.hidden = !p;
+    el.textContent = p ? `⏱ −${p.toFixed(1)}` : '';
+    el.title = p ? `Time-limit penalty this round (${rounds.penalties[r][n].seconds}s over)` : '';
+  });
 }
 
 /** Space / gamepad: play-pause whichever contestant's beat is up */
@@ -987,6 +1221,7 @@ async function handleFinalizeBattle() {
     return;
   }
   const finalResult = res.result;
+  audio.refreshTitles();   // decks show the producers' names now
   storage.clearActiveSession();
   postBroadcast('BATTLE_FINALIZED', finalResult);
   updateBattleFlowUI();
@@ -1175,6 +1410,7 @@ function closeReveal() {
 }
 
 function handleResetBattle() {
+  finishOverrun();
   battleEngine.resetBattleSession();
   window.crowdVote?.reset();
   window.recorder?.reset();
@@ -1310,6 +1546,10 @@ tournament.onMatchSelect = (player1Id, player2Id, match) => {
 let roundAnnounced = false;
 
 timer.onTick = (remaining) => {
+  if (settings.get('timeLimit') === 'fade' && remaining <= 3 && remaining > 0 && !fading && timerOwner && audio.isPlaying(timerOwner)) {
+    fading = true;
+    audio.fadeOutAndPause(timerOwner, remaining);
+  }
   postBroadcast('TIMER_UPDATE', {
     seconds: remaining,
     formatted: timer.getFormattedTime(),
@@ -1340,6 +1580,13 @@ timer.onWarning10 = () => {
 };
 
 timer.onComplete = () => {
+  fading = false;
+  if (settings.get('timeLimit') === 'overrun' && timerOwner && audio.isPlaying(timerOwner)) {
+    // the beat keeps going; every started 10 s over costs points
+    soundboard.play('timer_alarm');
+    startOverrun(timerOwner);
+    return;
+  }
   audio.pauseAll();
   const speaker = document.getElementById('speaker-icon');
   speaker?.classList.remove('active');
@@ -1505,6 +1752,10 @@ function checkCrashRecovery() {
           scoring.setScores(1, saved.scores1);
           scoring.setScores(2, saved.scores2);
         }
+        if (saved.playOrder) playOrder.importState(saved.playOrder);
+        if (saved.corrections) corrections.importState(saved.corrections);
+        scoring.setRoundLocked(rounds.isLocked(rounds.currentRound));
+        renderPenalties();
         if (saved.phase && saved.phase !== 'finalized') battleEngine.setPhase(saved.phase);
         if (saved.timestampedNotes) {
           battleEngine.timestampedNotes = saved.timestampedNotes;
@@ -1538,6 +1789,8 @@ function autosaveActiveSession() {
     sessionId: battleEngine.sessionId,
     phase: battleEngine.phase,
     timestampedNotes: battleEngine.getTimestampedNotes(),
+    playOrder: playOrder.exportState(),
+    corrections: corrections.export(),
     isFinalized: false
   });
 }
@@ -1578,7 +1831,11 @@ function init() {
 
   // Keep the 2D strip and the 3D controller in sync with the mixer
   audio.onMixChange = (num, param, value) => {
-    if (param === 'loaded' && num) deckControls.onTrackLoaded(num);
+    if ((param === 'loaded' || param === 'title') && num) deckControls.onTrackLoaded(num);
+    if (param === 'loaded' && num) {
+      const lbl = document.getElementById(`deck-file-${num}`);
+      if (lbl) { lbl.textContent = audio.players[num].realTitle || ''; lbl.title = 'Only you see the file name — the stage and stream show the anonymous label'; }
+    }
     if (param === 'channel' && num) {
       const vol = document.querySelector(`.audio-volume[data-player="${num}"]`);
       if (vol && document.activeElement !== vol) vol.value = value;
@@ -1673,8 +1930,14 @@ function init() {
       contestants: [shownName(1), shownName(2)],
       round,
       roundLabel: round === 4 ? 'Sudden Death OT' : round === 3 ? 'Final Round' : `Round ${round}`,
-      locked: scoring.locked || ['round_locked', 'finalized'].includes(battleEngine.phase),
-      league: leagues.getActive()?.name
+      locked: scoring.locked || ['round_locked', 'finalized'].includes(battleEngine.phase) || rounds.isLocked(round),
+      league: leagues.getActive()?.name,
+      calibration: calibration.active ? { id: calibration.active.id, beat: calibration.active.beat } : null,
+      flip: !!rounds.flipFor(round),
+      flipSample: rounds.flipFor(round)?.name || '',
+      commentsOn: !!settings.get('judgeComments'),
+      closeMargin: Number(settings.get('closeMargin')) || 0,
+      guides: settings.get('showGuides') ? (c) => guidesFor(c, scoring.customGuides) : null
     };
   };
   judgeLink.onScoresUpdated = () => {
@@ -1710,6 +1973,9 @@ function init() {
   });
 
   rounds.onRoundChange = (roundNum, isOvertime) => {
+    finishOverrun();
+    scoring.setRoundLocked(rounds.isLocked(roundNum));
+    renderPenalties();
     judges.setCurrentRound(roundNum);
     if (judges.mode === 'panel') judges.loadActiveCard();
     audio.pauseAll();
@@ -1918,6 +2184,65 @@ function init() {
   if (leagues.getAll().length > 0) {
     leagues.setActive(leagues.getAll()[0].id);
   }
+
+  // Event settings: round length, time limits, loudness, anonymous decks, guides, comments, calibration
+  const applySetting = (key) => {
+    const v = settings.get(key);
+    if (key === 'roundSeconds') {
+      rounds.roundSeconds = v;
+      battleEngine.roundSeconds = v;
+      if (!timer.running && rounds.currentRound !== 4) timer.setDuration(v, true);
+    }
+    if (key === 'loudness' || key === 'loudnessTarget') audio.setLoudness(settings.get('loudness'), settings.get('loudnessTarget'));
+    if (key === 'anonymizeBeats') audio.refreshTitles();
+    if (key === 'normalizeJudges') {
+      judges.normalizer = v ? calibration.normalizer() : null;
+      judges.updateConsensusBadge();
+      rounds.updateSeriesTotals();
+    }
+    if (key === 'judgeComments') { scoring.commentsOn = !!v; scoring.rebuildAllSliders(); }
+    if (key === 'showGuides') { scoring.showGuides = !!v; scoring.showGuide(1, null); scoring.showGuide(2, null); }
+    if (['judgeComments', 'showGuides', 'closeMargin'].includes(key)) judgeLink.pushState();
+    if (key === 'coinFlip') updateBattleFlowUI();
+  };
+  Object.keys(settings.all()).forEach(applySetting);
+  settings.onChange(applySetting);
+  new EventSettingsPanel(settings).init();
+  audio.titleProvider = (num) => (settings.get('anonymizeBeats') ? deckLabel(num) : null);
+  audio.onLoudness = (num, info) => {
+    const el = document.getElementById(`deck-loud-${num}`);
+    if (!el) return;
+    if (info.lufs === null || info.lufs === undefined) { el.textContent = ''; el.hidden = true; return; }
+    el.hidden = false;
+    el.textContent = info.applied ? `${info.lufs.toFixed(1)} LUFS → ${info.gainDb >= 0 ? '+' : ''}${info.gainDb.toFixed(1)} dB` : `${info.lufs.toFixed(1)} LUFS`;
+    el.title = info.applied ? `Loudness matched to ${settings.get('loudnessTarget')} LUFS` : 'Loudness matching is off (or this deck plays a direct link)';
+  };
+  audio.onSampleEnded = () => {
+    if (battleEngine.phase !== 'sample') return;
+    flipPlayed.add(rounds.currentRound);
+    battleEngine.setPhase('soundcheck');
+    updateBattleFlowUI();
+  };
+  judges.penaltyProvider = (r) => ({ 1: rounds.penaltyFor(r, 1), 2: rounds.penaltyFor(r, 2) });
+  document.getElementById('btn-reopen-round')?.addEventListener('click', reopenCurrentRound);
+  battleEngine.onReset = () => {
+    playOrder.reset();
+    corrections.reset();
+    flipPlayed.clear();
+    audio.stopSample();
+    scoring.setRoundLocked(false);
+    renderPenalties();
+    audio.refreshTitles();
+  };
+
+  // Judge calibration (reference beat → common scale)
+  const calPanel = new CalibrationPanel({ calibration, judges, judgeLink, scoring, audio, settings, toast: showToast });
+  calPanel.init();
+  calPanel.onChange = () => applySetting('normalizeJudges');
+  judgeLink.onCalibrationCard = (deviceId, calId, scores) => calPanel.receive(deviceId, calId, scores);
+
+  // Flip rounds: both producers flip the same sample, which plays first
+  initFlipRounds();
 
   // Battle rules (overtime + tie-break chain) and blind judging
   const rulesPanel = new RulesPanel({ leagues, scoring, rounds, toast: showToast });

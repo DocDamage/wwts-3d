@@ -32,6 +32,18 @@ class JudgeManager {
     this.onJudgeChange = null;
     this.onPanelChange = null; // seats/mode changed (judgeLink re-syncs phones)
     this.onRequestPhones = null; // "Phones" button → open the connect-judges dialog
+    this.penaltyProvider = null; // (round) => { 1: points, 2: points } — time-limit overrun
+    this.normalizer = null;      // (judgeName, scores[]) => scores[] — calibration scaling (or null)
+  }
+
+  /** A judge's card as it counts: calibration scaling applied when it's on */
+  countedCard(j, card) {
+    if (!card || typeof this.normalizer !== 'function') return card;
+    const name = this.judgeNames[j];
+    const s1 = this.normalizer(name, card.scores1);
+    const s2 = this.normalizer(name, card.scores2);
+    if (!s1 || !s2) return card;
+    return { ...card, scores1: s1, scores2: s2, total1: this.scoring.totalFor(s1), total2: this.scoring.totalFor(s2), normalized: true };
   }
 
   ensureSeat(j) {
@@ -108,11 +120,15 @@ class JudgeManager {
     const snap = this.scoring.getSnapshot();
     const r = this.currentRound || 1;
     this.ensureSeat(j);
+    const prev = this.judgeScores[j][r];
     this.judgeScores[j][r] = {
       scores1: [...snap.scores1],
       scores2: [...snap.scores2],
       total1: snap.total1,
-      total2: snap.total2
+      total2: snap.total2,
+      comments1: [...(snap.comments1 || [])],
+      comments2: [...(snap.comments2 || [])],
+      overall: prev?.overall || ''
     };
     this.updateConsensusBadge();
   }
@@ -135,6 +151,8 @@ class JudgeManager {
     this.scoring.setReadOnly(false);
     this.scoring.setScores(1, card ? card.scores1 : new Array(10).fill(0));
     this.scoring.setScores(2, card ? card.scores2 : new Array(10).fill(0));
+    this.scoring.setComments?.(1, card?.comments1 || []);
+    this.scoring.setComments?.(2, card?.comments2 || []);
     this.scoring.setReadOnly(this.mode === 'panel' && this.isRemote(this.activeJudge));
   }
 
@@ -199,7 +217,7 @@ class JudgeManager {
   }
 
   /** Scores arriving from a phone */
-  receiveRemoteScores(seat, round, scores1, scores2, submitted) {
+  receiveRemoteScores(seat, round, scores1, scores2, submitted, extra = {}) {
     if (!seat || !this.judgeScores[seat]) return;
     const r = round || this.currentRound || 1;
     const prev = this.judgeScores[seat][r];
@@ -208,7 +226,10 @@ class JudgeManager {
       scores2: [...scores2],
       total1: this.scoring.totalFor(scores1),
       total2: this.scoring.totalFor(scores2),
-      submitted: !!submitted || !!prev?.submitted
+      submitted: !!submitted || !!prev?.submitted,
+      comments1: extra.comments1 || prev?.comments1 || [],
+      comments2: extra.comments2 || prev?.comments2 || [],
+      overall: extra.overall ?? prev?.overall ?? ''
     };
     if (seat === this.activeJudge && r === this.currentRound) this.loadActiveCard();
     this.updateConsensusBadge();
@@ -266,7 +287,7 @@ class JudgeManager {
     const r = round || this.currentRound || 1;
     const cards = [];
     for (let j = 1; j <= this.totalJudges; j++) {
-      if (this.isScored(j, r)) cards.push(this.judgeScores[j][r]);
+      if (this.isScored(j, r)) cards.push(this.countedCard(j, this.judgeScores[j][r]));
     }
     if (!cards.length) return null;
     const avg = (key) => cards[0][key].map((_, i) => Number((cards.reduce((sum, c) => sum + (c[key][i] || 0), 0) / cards.length).toFixed(3)));
@@ -287,11 +308,14 @@ class JudgeManager {
     let draws = 0;
     let scoredCount = 0;
 
+    const pen = typeof this.penaltyProvider === 'function' ? (this.penaltyProvider(r) || {}) : {};
     for (let j = 1; j <= n; j++) {
-      const data = this.judgeScores[j]?.[r] || { total1: 0, total2: 0 };
+      const raw = this.judgeScores[j]?.[r] || { total1: 0, total2: 0 };
+      const data = this.countedCard(j, raw) || raw;
       const scored = this.isScored(j, r);
-      const t1 = data.total1 || 0;
-      const t2 = data.total2 || 0;
+      // time-limit penalties come off every judge's card for that producer
+      const t1 = Math.max(0, (data.total1 || 0) - (scored ? pen[1] || 0 : 0));
+      const t2 = Math.max(0, (data.total2 || 0) - (scored ? pen[2] || 0 : 0));
       let winner = 'draw';
       if (scored) {
         scoredCount++;
@@ -299,7 +323,10 @@ class JudgeManager {
         sumTotal2 += t2;
         if (t1 > t2) { winner = 1; votes1++; } else if (t2 > t1) { winner = 2; votes2++; } else { draws++; }
       }
-      judges.push({ judgeId: j, judgeName: this.judgeNames[j], total1: t1, total2: t2, winner, scored, remote: this.isRemote(j) });
+      judges.push({
+        judgeId: j, judgeName: this.judgeNames[j], total1: t1, total2: t2, winner, scored, remote: this.isRemote(j),
+        comments1: raw.comments1 || [], comments2: raw.comments2 || [], overall: raw.overall || '', normalized: !!data.normalized
+      });
     }
 
     const isComplete = scoredCount === n;

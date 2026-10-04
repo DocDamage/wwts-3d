@@ -1,12 +1,14 @@
 /**
  * Beat analysis worker: BPM + first-beat offset, musical key, waveform peaks.
  *   in:  { id, samples: Float32Array (mono), rate }
- *   out: { id, bpm, confidence, firstBeat, key, camelot, peaks: Float32Array }
+ *   out: { id, bpm, confidence, firstBeat, key, camelot, peaks: Float32Array, lufs }
  *
  * BPM: spectral-flux onset envelope → autocorrelation over 70–180 BPM with a
  * mild preference for 85–140, octave errors checked, phase from comb sums.
  * Key: chroma from FFT magnitudes, matched against Krumhansl–Kessler profiles.
  */
+
+import { integratedLoudness } from './loudness.js';
 
 function fft(re, im) {
   const n = re.length;
@@ -217,8 +219,9 @@ self.onmessage = (e) => {
     const { env, fps } = onsetEnvelope(tempoPart, rate);
     const tempo = detectTempo(env, fps);
     const key = detectKey(samples, rate);
+    const lufs = integratedLoudness(samples, rate);
     const peaks = waveformPeaks(samples);
-    self.postMessage({ id, ...tempo, ...key, peaks, duration: samples.length / rate }, [peaks.buffer]);
+    self.postMessage({ id, ...tempo, ...key, peaks, lufs, duration: samples.length / rate }, [peaks.buffer]);
   } catch (err) {
     self.postMessage({ id, error: String(err?.message || err) });
   }
