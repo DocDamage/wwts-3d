@@ -5562,3 +5562,41 @@ body.blind-on .picker-preview img { filter: blur(10px); }
 .chat-vote-line { font-weight: 700; margin: 12px 0 6px; }
 .chat-feed { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 3px; font-size: 0.82rem; }
 .chat-feed b.twitch { color: #b48cff; } .chat-feed b.youtube { color: #ff6b6b; }
+
+/* Fight Club: modes, VS card, controls, training HUD */
+.fs-mode-desc { font: 500 0.78rem 'Inter', sans-serif; color: #cfd3e0; text-align: center; max-width: 420px; background: rgba(8,8,14,0.7); padding: 4px 10px; border-radius: 8px; }
+.fs-mode-desc:empty { display: none; }
+.fs-row-btns { display: flex; gap: 8px; }
+.fs-side.dim .fs-grid { opacity: 0.35; pointer-events: none; }
+.fs-vs { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: radial-gradient(ellipse at center, rgba(20,10,30,0.92), rgba(0,0,0,0.96)); pointer-events: auto; z-index: 5; }
+.fs-vs[hidden] { display: none; }
+.fs-vs-step { font: 800 1rem 'Inter', sans-serif; letter-spacing: 0.3em; color: #ffd23a; }
+.fs-vs-names { display: flex; align-items: center; gap: 30px; font-family: 'Bebas Neue', sans-serif; font-size: clamp(2.6rem, 8vw, 5.5rem); letter-spacing: 0.04em; animation: vsIn 0.5s ease; }
+.fs-vs-names .p1 { color: #ff5a4a; } .fs-vs-names .p2 { color: #26d4ff; }
+.fs-vs-names b { font-size: 0.55em; color: #fff; }
+.fs-vs-sub { font: 600 0.9rem 'Inter', sans-serif; color: #cfd3e0; }
+.fs-ladder { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 0; margin: 8px 0 0; max-width: 90vw; }
+.fs-ladder li { font: 600 0.78rem 'Inter', sans-serif; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,0.08); color: #9aa3b8; }
+.fs-ladder li.done { color: #6ee7a0; text-decoration: line-through; }
+.fs-ladder li.now { background: #ff3b30; color: #fff; }
+@keyframes vsIn { from { transform: scale(1.3); opacity: 0; } }
+.fs-controls-modal { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,0.6); pointer-events: auto; z-index: 6; }
+.fs-controls-modal[hidden] { display: none; }
+.fs-controls-box { background: rgba(10,10,18,0.97); border: 1px solid rgba(255,255,255,0.18); border-radius: 16px; padding: 16px 20px; max-height: 86vh; overflow: auto; font-family: 'Inter', sans-serif; width: min(720px, 96vw); }
+.fs-controls-box h3 { margin: 0; font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 0.06em; }
+.fs-controls-hint { color: #9aa3b8; font-size: 0.8rem; margin: 4px 0 10px; }
+.fs-controls-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-bottom: 12px; }
+.fs-controls-table th { text-align: left; color: #9aa3b8; font-weight: 600; padding: 4px; }
+.fs-controls-table td { padding: 3px 4px; border-top: 1px solid rgba(255,255,255,0.06); }
+.fs-bind { min-width: 92px; padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: #161824; color: #fff; font: 600 0.78rem 'Inter', sans-serif; cursor: pointer; }
+.fs-bind.listening { border-color: #ffd23a; color: #ffd23a; }
+.fight-training { position: absolute; left: 12px; bottom: 12px; width: min(330px, 46vw); background: rgba(8,8,14,0.82); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 10px 12px; font: 500 0.78rem 'Inter', sans-serif; color: #e7e9f2; pointer-events: auto; display: flex; flex-direction: column; gap: 8px; }
+.ft-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ft-row select { background: #161824; color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 3px 6px; }
+.ft-check { display: inline-flex; gap: 4px; align-items: center; }
+.ft-stats { line-height: 1.5; }
+.ft-ch { color: #ff5a4a; font-weight: 700; }
+.ft-inputs { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; }
+.ft-inputs span { padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,0.08); font-weight: 700; }
+.ft-inputs span:first-child { background: #ffd23a; color: #111; }
+@media (prefers-reduced-motion: reduce) { .fs-vs-names { animation: none; } }

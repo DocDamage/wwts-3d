@@ -1199,10 +1199,11 @@
         <div class="fs-top">
           <h2 class="fs-title">FIGHT <span>CLUB</span></h2>
           <div class="fs-options">
-            <div class="fs-seg" id="fs-mode">
-              <button type="button" data-mode="cpu" class="active">VS CPU</button>
-              <button type="button" data-mode="2p">2 PLAYERS</button>
-            </div>
+            <label>Mode <select id="fs-mode">
+              <option value="cpu">VS CPU</option><option value="2p">2 Players</option><option value="training">Training</option>
+              <option value="arcade">Arcade</option><option value="survival">Survival</option><option value="timeattack">Time Attack</option><option value="tournament">Tournament</option>
+            </select></label>
+            <label>Stage <select id="fs-arena"><option value="walls">Walls</option><option value="ringout">Ring-out</option><option value="open">Open</option></select></label>
             <label>CPU <select id="fs-difficulty"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
             <label>Rounds <select id="fs-rounds"><option value="1">1</option><option value="3" selected>Best of 3</option><option value="5">Best of 5</option></select></label>
             <label>Time <select id="fs-time"><option value="60">60</option><option value="99" selected>99</option><option value="999">∞</option></select></label>
@@ -1215,7 +1216,8 @@
           </div>
           <div class="fs-center">
             <button type="button" id="fs-start" class="fs-start">FIGHT!</button>
-            <button type="button" id="fs-random" class="fs-small">🎲 Random fighters</button>
+            <div class="fs-mode-desc" id="fs-mode-desc"></div>
+            <div class="fs-row-btns"><button type="button" id="fs-random" class="fs-small">🎲 Random fighters</button><button type="button" id="fs-controls" class="fs-small">⌨ Controls</button></div>
             <details class="fs-help" open>
               <summary>Controls & moves</summary>
               <div class="fs-help-grid">
@@ -1244,6 +1246,20 @@
         </div>
       </div>
       <div class="fs-loading" id="fs-loading" hidden>Loading fighters…</div>
+      <div class="fs-vs" id="fs-vs" hidden>
+        <div class="fs-vs-step" id="fs-vs-step"></div>
+        <div class="fs-vs-names"><span class="p1" id="fs-vs-1"></span><b>VS</b><span class="p2" id="fs-vs-2"></span></div>
+        <div class="fs-vs-sub" id="fs-vs-sub"></div>
+        <ol class="fs-ladder" id="fs-ladder"></ol>
+      </div>
+      <div class="fs-controls-modal" id="fs-controls-modal" hidden role="dialog" aria-modal="true" aria-labelledby="fs-controls-title">
+        <div class="fs-controls-box">
+          <h3 id="fs-controls-title">Controls</h3>
+          <p class="fs-controls-hint">Click a binding, then press the key (or gamepad button) you want. Esc cancels.</p>
+          <table class="fs-controls-table"><thead><tr><th>Action</th><th>P1 key</th><th>P2 key</th><th>P1 pad</th><th>P2 pad</th></tr></thead><tbody id="fs-controls-body"></tbody></table>
+          <div class="fs-result-actions"><button type="button" id="fs-controls-reset" class="fs-small">Reset to defaults</button><button type="button" id="fs-controls-close" class="fs-start">Done</button></div>
+        </div>
+      </div>
     </section>
 
     <!-- ===== CONNECT PHONE JUDGES MODAL ===== -->

@@ -26,6 +26,7 @@ import { FightDirector } from './fightDirector.js';
 import { CAST_BY_KEY } from './fightCast.js';
 import { sample } from './mocap.js';
 import { STYLE_MOVES, styleFor } from './fightStyles.js';
+import { getKeys, getPad } from './fightControls.js';
 
 const ARENA = { cx: 0, cz: 2.45, rx: 3.3, rz: 1.45 };
 const MAX_HP = 100;
@@ -159,20 +160,8 @@ const DIFFICULTY = {
   hard: { react: 0.17, block: 0.72, read: 0.75, step: 0.22, parry: 0.14, punish: 0.9, combo: 0.8, aggression: 0.62, tech: 0.8, breakThrow: 0.7, juggle: 0.9, special: 0.14 }
 };
 
-// Keyboard layouts (KeyboardEvent.code)
-const KEYS = {
-  1: {
-    left: ['KeyA'], right: ['KeyD'], up: ['KeyW'], down: ['KeyS'],
-    lp: ['KeyF'], hp: ['KeyG'], lk: ['KeyV'], hk: ['KeyB'], throw: ['KeyH'], super: ['KeyT'], guard: ['KeyC'], parry: ['KeyX']
-  },
-  2: {
-    left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'],
-    lp: ['KeyK', 'Numpad4'], hp: ['KeyL', 'Numpad5'], lk: ['Comma', 'Numpad1'], hk: ['Period', 'Numpad2'],
-    throw: ['Semicolon', 'Numpad6'], super: ['KeyO', 'Numpad3'], guard: ['KeyM', 'Numpad0'], parry: ['KeyN', 'NumpadDecimal']
-  }
-};
-// Standard gamepad buttons
-const PAD = { lp: 2, hp: 3, lk: 0, hk: 1, throw: 4, super: 5, guard: 6, parry: 7, start: 9, up: 12, down: 13, left: 14, right: 15 };
+// Keyboard / gamepad bindings live in fightControls.js (rebindable)
+const KEYS = getKeys();
 const BUTTONS = ['lp', 'hp', 'lk', 'hk', 'throw', 'super', 'parry'];
 
 /** Move list for the help panel */
@@ -226,7 +215,8 @@ class FightGame extends FightDirector {
   async startMatch(opts) {
     if (!this.dj.mocapReady) return false;
     this.stop(true);
-    this.opts = { mode: 'cpu', difficulty: 'normal', rounds: 3, roundTime: 99, ...opts };
+    this.opts = { mode: 'cpu', difficulty: 'normal', rounds: 3, roundTime: 99, arena: 'walls', dummy: 'stand', ...opts };
+    if (this.opts.mode === 'training') { this.opts.rounds = 1; this.opts.roundTime = 999; }
     this.need = Math.ceil(this.opts.rounds / 2);
     this.runId++;
     const runId = this.runId;
@@ -250,12 +240,14 @@ class FightGame extends FightDirector {
     this.names = names;
     this.wins = { 1: 0, 2: 0 };
     this.f = { 1: this.makeFighter(1), 2: this.makeFighter(2) };
-    this.f[2].cpu = this.opts.mode === 'cpu';
+    this.f[2].cpu = this.opts.mode !== '2p';
+    this.training = this.opts.mode === 'training';
     [1, 2].forEach(p => {
       const f = this.f[p];
       f.style = styleFor(CAST_BY_KEY[this.opts[`p${p}`]]);
       const idleClip = this.dj.mocap.get('mx_' + f.style.idle) || this.dj.mocap.get('mx_fight_idle');
-      f.idleYaw = idleClip?.rm.chest0 !== undefined ? -idleClip.rm.chest0 * 0.75 : 0;
+      const ch = idleClip?.rm.chestAvg ?? idleClip?.rm.chest0;
+      f.idleYaw = ch !== undefined ? -ch * 0.9 : 0;
     });
     // Fight stances are bladed: turn the idle so the chest faces the opponent
     const idle = this.dj.mocap.get('mx_fight_idle');
@@ -263,6 +255,8 @@ class FightGame extends FightDirector {
     this.takeControlGame();
     this.buildHud();
     this.setFightCamera();
+    this.buildArenaRing();
+    if (this.training) this.buildTrainingHud();
 
     try {
       for (let round = 1; runId === this.runId; round++) {
@@ -273,16 +267,18 @@ class FightGame extends FightDirector {
       if (runId !== this.runId) return false;
       const champ = this.wins[1] >= this.need ? 1 : 2;
       this.banner(`${names[champ].toUpperCase()} WINS!`, 4, 'win');
-      this.say(this.f[champ].cpu ? 'youlose.wav' : this.opts.mode === 'cpu' ? 'youwin.wav' : 'winner.wav', true);
+      this.say(this.f[champ].cpu ? 'youlose.wav' : this.opts.mode !== '2p' ? 'youwin.wav' : 'winner.wav', true);
       this.dj.arena?.cheer(6);
       this.dj.burstConfetti?.(champ === 1 ? [0xff2d2d, 0xffd21a, 0xffffff] : [0x00e5ff, 0xffd21a, 0xffffff]);
       await this.wait(3.5);
       if (runId !== this.runId) return false;
-      this.onMatchEnd?.({ winner: champ, names, wins: { ...this.wins } });
+      const result = { winner: champ, names, wins: { ...this.wins }, hp: { 1: this.f[1].hp, 2: this.f[2].hp } };
+      if (!this.opts.ladder) this.onMatchEnd?.(result);
+      return result;
     } catch (e) {
       if (e !== 'stopped') console.warn('Fight game error', e);
     }
-    return true;
+    return null;
   }
 
   moveName(key) {
@@ -326,6 +322,7 @@ class FightGame extends FightDirector {
       if (st) st.fightLift = 0;
       if (this.dj.rigs[p]) this.dj.rigs[p].fightIdle = null;
     });
+    this.removeArenaRing();
     super.stop(silent);
   }
 
@@ -434,6 +431,7 @@ class FightGame extends FightDirector {
 
   async playRound(round, runId) {
     this.resetRound();
+    if (round === 1 && this.opts.hp1) { this.f[1].hp = Math.max(1, Math.min(MAX_HP, this.opts.hp1)); this.syncHp(); }
     this.clockLeft = this.opts.roundTime;
     this.roundLive = false;
     this.banner(`ROUND ${round}`, 1.2);
@@ -495,7 +493,10 @@ class FightGame extends FightDirector {
    *   guard (held), pressed: Set<'lp'|'hp'|'lk'|'hk'|'throw'|'super'|'parry'> }
    */
   readInput(p) {
-    const layouts = this.opts.mode === 'cpu' ? [KEYS[1], KEYS[2]] : [KEYS[p]];
+    const K = getKeys();
+    const solo = this.opts.mode !== '2p';
+    const layouts = solo ? [K[1], K[2]] : [K[p]];
+    const PAD = getPad(solo ? 1 : p);
     const codes = (act) => layouts.flatMap(L => L[act]);
     const held = (act) => codes(act).some(c => this.keys.has(c));
     const hit = (act) => codes(act).some(c => this.pressed.has(c));
@@ -514,7 +515,7 @@ class FightGame extends FightDirector {
 
     // Gamepads: first pad -> P1, second -> P2 (in vs CPU any pad drives P1)
     const pads = (navigator.getGamepads ? [...navigator.getGamepads()] : []).filter(Boolean);
-    const pad = this.opts.mode === 'cpu' ? (p === 1 ? pads[0] : null) : pads[p - 1];
+    const pad = solo ? (p === 1 ? pads[0] : null) : pads[p - 1];
     if (pad) {
       const b = (i) => !!pad.buttons[i]?.pressed;
       const prev = this.padPrev[pad.index] || {};
@@ -566,10 +567,13 @@ class FightGame extends FightDirector {
       if (this.clockLeft <= 0) this.timeOver();
     }
     this.updateCamBasis();
+    const dummy = this.training && !String(this.opts.dummy || '').startsWith('cpu');
+    if (this.training && !dummy) this.opts.difficulty = String(this.opts.dummy).split('-')[1] || 'normal';
     const inputs = {
       1: this.f[1].cpu ? this.aiInput(1, gdt) : this.readInput(1),
-      2: this.f[2].cpu ? this.aiInput(2, gdt) : this.readInput(2)
+      2: dummy ? this.dummyInput(2) : this.f[2].cpu ? this.aiInput(2, gdt) : this.readInput(2)
     };
+    if (this.training) this.tickTraining(inputs[1]);
     this.pressed.clear();
     this.released.clear();
     [1, 2].forEach(p => this.tickFighter(this.f[p], this.f[p === 1 ? 2 : 1], inputs[p], gdt));
@@ -782,7 +786,7 @@ class FightGame extends FightDirector {
         break;
     }
     rig.setLocomotion(speed, 0, { back, strafe });
-    this.clampArena(P);
+    this.edgeCheck(f, o, P);
   }
 
   clampArena(P) {
@@ -792,6 +796,179 @@ class FightGame extends FightDirector {
     if (r > 1) {
       P.x = ARENA.cx + (dx / r) * ARENA.rx;
       P.z = ARENA.cz + (dz / r) * ARENA.rz;
+    }
+  }
+
+  /* ================= arena edges ================= */
+
+  /** Glowing line where the stage ends (cyan walls / red ring-out) */
+  buildArenaRing() {
+    this.removeArenaRing();
+    if (this.opts.arena === 'open') return;
+    const ringout = this.opts.arena === 'ringout';
+    const geo = new THREE.RingGeometry(0.985, 1.0, 96);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ color: ringout ? 0xff3b30 : 0x22e6ff, transparent: true, opacity: 0.85, toneMapped: false, depthWrite: false });
+    const ring = new THREE.Mesh(geo, mat);
+    ring.scale.set(ARENA.rx + 0.25, 1, ARENA.rz + 0.25);
+    ring.position.set(ARENA.cx, 0.02, ARENA.cz);
+    this.dj.scene.add(ring);
+    this.arenaRing = ring;
+    if (!ringout) {
+      // a faint wall of light above the line
+      const wallGeo = new THREE.CylinderGeometry(1, 1, 0.6, 96, 1, true);
+      const wallMat = new THREE.MeshBasicMaterial({ color: 0x22e6ff, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+      const wall = new THREE.Mesh(wallGeo, wallMat);
+      wall.scale.set(ARENA.rx + 0.25, 1, ARENA.rz + 0.25);
+      wall.position.set(ARENA.cx, 0.3, ARENA.cz);
+      this.dj.scene.add(wall);
+      this.arenaWall = wall;
+    }
+  }
+
+  removeArenaRing() {
+    [this.arenaRing, this.arenaWall].forEach(m => { if (m) { this.dj.scene.remove(m); m.geometry.dispose(); m.material.dispose(); } });
+    this.arenaRing = this.arenaWall = null;
+  }
+
+  /** Keep fighters on stage: walls stop (and splat) them, ring-out lets them fall */
+  edgeCheck(f, o, P) {
+    const dx = (P.x - ARENA.cx) / ARENA.rx;
+    const dz = (P.z - ARENA.cz) / ARENA.rz;
+    const r = Math.hypot(dx, dz);
+    if (r <= 1) return;
+    const knocked = ['hitstun', 'falling', 'air', 'stun', 'crumple', 'down'].includes(f.state);
+    const outward = f.vel.x * dx + f.vel.y * dz;
+    if (this.roundLive && knocked && this.opts.arena === 'ringout' && f.hp > 0) return this.ringOut(f, o);
+    this.clampArena(P);
+    if (this.roundLive && this.opts.arena === 'walls' && knocked && outward > 0.6 && !f.wallSplat && f.state !== 'down') this.wallSplat(f, o);
+  }
+
+  wallSplat(f, o) {
+    f.wallSplat = true;
+    f.vel.set(0, 0);
+    f.air = null;
+    this.dj.characterStates[f.p].fightLift = 0;
+    const data = this.dj.mocap.get('mx_fhit_large_left');
+    this.play(f, 'fhit_large_left', { from: data?.rm.onset || 0, rootMotion: false, fadeIn: 0.03, fadeOut: 0.3, timeScale: 0.9 });
+    this.setState(f, 'stun', this.time + 0.85);
+    f.mv = null;
+    this.shake = 0.18;
+    this.hitstopUntil = (this.realTime || 0) + 0.12;
+    this.sound('thud', 1);
+    this.spark(this.bonePos(f.p, 'Spine2'), 0x22e6ff, 1.4);
+    this.popText(o.p, 'WALL SPLAT!', '#22e6ff', true);
+    f.hp = Math.max(this.training ? 1 : 0, f.hp - 4);
+    this.syncHp();
+    if (f.hp <= 0) this.knockOut(f, o, { id: 'wall', power: 3 }, this.toOpp(o));
+  }
+
+  ringOut(f, o) {
+    this.roundLive = false;
+    f.state = 'ko';
+    f.mv = null;
+    const st = this.dj.characterStates[f.p];
+    const dir = this.toOpp(o);
+    this.play(f, 'fall_stumble_back', { from: this.dj.mocap.get('mx_fall_stumble_back')?.rm.onset || 0, rootMotion: false, hold: true, fadeIn: 0.05, timeScale: 1.1 });
+    // tumble off the edge
+    let t = 0;
+    const fall = setInterval(() => {
+      t += 0.03;
+      const P = this.pos(f.p);
+      P.x += dir.x * 0.05;
+      P.z += dir.y * 0.05;
+      st.fightLift = -Math.min(1.6, t * t * 4);
+      if (t > 0.8) clearInterval(fall);
+    }, 30);
+    this.banner('RING OUT!', 2.2, 'ko');
+    this.say('ko.wav', true);
+    this.sound('thud', 1);
+    this.dj.arena?.cheer(4);
+    if (this.training) {
+      setTimeout(() => { st.fightLift = 0; this.resetRound(); this.roundLive = true; this.setState(this.f[1], 'idle'); this.setState(this.f[2], 'idle'); }, 1600);
+      return;
+    }
+    this.wins[o.p]++;
+    this.updatePips();
+    this._roundResolve?.('ringout');
+  }
+
+  /* ================= training ================= */
+
+  buildTrainingHud() {
+    const box = document.createElement('div');
+    box.className = 'fight-training';
+    box.innerHTML = `
+      <div class="ft-row"><label>Dummy <select id="ft-dummy">
+        <option value="stand">Stand</option><option value="crouch">Crouch</option><option value="guard">Guard all</option>
+        <option value="guardlow">Crouch guard</option><option value="random">Guard randomly</option><option value="sidestep">Sidestep</option>
+        <option value="jump">Jump</option><option value="parry">Parry</option><option value="cpu-easy">CPU (easy)</option><option value="cpu-normal">CPU (normal)</option><option value="cpu-hard">CPU (hard)</option>
+      </select></label><label class="ft-check"><input type="checkbox" id="ft-meter" checked /> Full meter</label></div>
+      <div class="ft-stats" id="ft-stats">Land a hit to see damage and frame data</div>
+      <div class="ft-inputs" id="ft-inputs" aria-label="Your recent inputs"></div>`;
+    this.hud.appendChild(box);
+    const sel = box.querySelector('#ft-dummy');
+    sel.value = this.opts.dummy || 'stand';
+    sel.addEventListener('change', () => { this.opts.dummy = sel.value; });
+    box.querySelector('#ft-meter').addEventListener('change', (e) => { this.trainMeter = e.target.checked; });
+    this.trainMeter = true;
+    this.inputLog = [];
+  }
+
+  /** Training dummy behaviour (unless set to a CPU level) */
+  dummyInput(p) {
+    const d = this.opts.dummy || 'stand';
+    const f = this.f[p];
+    const o = this.other(f);
+    const inp = { x: 0, up: false, down: false, guard: false, pressed: new Set(), upTap: false, downTap: false, upHold: false, downHold: false };
+    if (!this.roundLive) return inp;
+    const threat = this.threatened(f, o);
+    if (d === 'crouch') { inp.down = inp.downHold = true; }
+    else if (d === 'guard') { inp.guard = true; if (threat && o.mv?.level === 'low') inp.down = inp.downHold = true; }
+    else if (d === 'guardlow') { inp.guard = true; inp.down = inp.downHold = true; }
+    else if (d === 'random') {
+      if (threat) { if (f._rg === undefined) f._rg = Math.random() < 0.5; inp.guard = f._rg; if (inp.guard && o.mv?.level === 'low') inp.down = inp.downHold = true; }
+      else f._rg = undefined;
+    }
+    else if (d === 'sidestep') { if (threat && this.isFree(f) && this.time > (f._ssT || 0)) { f._ssT = this.time + 0.8; inp.upPress = true; } }
+    else if (d === 'jump') { if (this.isFree(f) && this.time > (f._jT || 0)) { f._jT = this.time + 1.4; inp.up = inp.upHold = true; } }
+    else if (d === 'parry') { if (threat && this.isFree(f) && this.time > (f._pT || 0)) { f._pT = this.time + 0.7; inp.pressed.add('parry'); } }
+    return inp;
+  }
+
+  /** Damage + frame data readout after each hit */
+  noteTraining(f, o, mv, dmg, counter) {
+    if (f.p !== 1) return;
+    const el = document.getElementById('ft-stats');
+    if (!el) return;
+    const first = mv.hits?.[0];
+    const startup = first ? Math.round(((first.t - mv.from) / mv.ts) * 60) : 0;
+    const adv = Math.round(((o.until || this.time) - (f.until || this.time)) * 60);
+    el.innerHTML = `<b>${MOVES[mv.key]?.name || mv.key}</b> · ${mv.level} · ${dmg} dmg${counter ? ' · <span class="ft-ch">COUNTER</span>' : ''}<br>
+      Combo <b>${f.combo}</b> hits · <b>${f.comboDmg}</b> dmg · startup ${startup}f · ${adv >= 0 ? '+' : ''}${adv}f on hit`;
+  }
+
+  /** Training: refill health / meter once things calm down; log P1's inputs */
+  tickTraining(inp1) {
+    const f1 = this.f[1];
+    const f2 = this.f[2];
+    if (this.isFree(f1) && this.isFree(f2)) {
+      this._calm = (this._calm || 0) + 1;
+      if (this._calm > 50 && (f1.hp < MAX_HP || f2.hp < MAX_HP)) { f1.hp = f2.hp = MAX_HP; this.syncHp(); }
+    } else this._calm = 0;
+    if (this.trainMeter) f1.meter = 100;
+    const dirs = { n: '•', f: '→', b: '←', d: '↓', u: '↑', df: '↘', db: '↙', uf: '↗', ub: '↖' };
+    const btn = [...(inp1?.pressed || [])].map(b => b.toUpperCase()).join('+');
+    const dir = f1.lastDir;
+    const key = `${dir}|${btn}`;
+    if (btn || key !== this._lastInputKey) {
+      this._lastInputKey = key;
+      if (btn || dir !== 'n') {
+        this.inputLog.unshift(`${dirs[dir] || dir}${btn ? ' ' + btn : ''}`);
+        this.inputLog = this.inputLog.slice(0, 14);
+        const el = document.getElementById('ft-inputs');
+        if (el) el.innerHTML = this.inputLog.map(t => `<span>${t}</span>`).join('');
+      }
     }
   }
 
@@ -835,6 +1012,7 @@ class FightGame extends FightDirector {
     f.guardPose = false;
     f.yawTarget = f.idleYaw ?? this.idleYaw;
     f.airAttacked = false;
+    f.wallSplat = false;
     // the opponent's combo ends once we're free again
     const o = this.other(f);
     if (o.combo) { o.combo = 0; o.comboDmg = 0; }
@@ -874,7 +1052,8 @@ class FightGame extends FightDirector {
     const mz = (A.z + B.z) / 2;
     const ex = ARENA.cx - mx;
     const ez = ARENA.cz - mz;
-    if (Math.hypot(ex, ez) > 0.9) {
+    // re-centre only on an open stage (walls and ring-outs are where the edge matters)
+    if (this.opts.arena === 'open' && Math.hypot(ex, ez) > 0.9) {
       const k = Math.min(1, gdt * 0.5);
       A.x += ex * k; B.x += ex * k; A.z += ez * k; B.z += ez * k;
     }
@@ -1114,15 +1293,40 @@ class FightGame extends FightDirector {
     const px = (s0.hx + (s0.x - s0.hx - tfx) * rmScale) * S;
     const pz = (s0.hz + (s0.z - s0.hz - tfz) * rmScale) * S;
     const reach = Math.hypot(px, pz);
-    // turn the body so that limb lands on the opponent (even if the clip throws it sideways)
-    const aimOff = reach > 0.25 ? -Math.atan2(px, pz) : 0;
+    // turn the body a little toward where the limb lands — but keep facing the opponent:
+    // hooks and spins land off to the side by design, and big turns read as looking away
+    const aimOff = reach > 0.25 ? THREE.MathUtils.clamp(-Math.atan2(px, pz) * 0.55, -0.6, 0.6) : 0;
 
-    // Step in / out so the strike meets the body
+    // Step in / out (and slightly across) so the strike meets the body while the
+    // fighter keeps facing the opponent: where the limb lands after the small
+    // aim turn, in the fight axis frame (+z toward them, +x across)
     const opp = this.toOpp(f);
-    const d = this.dist();
-    const want = reach + BODY_R * 0.4;
+    const fa = Math.atan2(opp.x, opp.y);
+    const lx = Math.cos(fa);     // local +x for a fighter facing along `opp`
+    const lz = -Math.sin(fa);
+    // aim at the body part this strike is meant for, not the opponent's root:
+    // stances lean (Ninja's head is ~0.35 m ahead of its hips), so root distance overshoots
+    // the point on their body at the strike's height (knees → hips → chest → head)
+    const B = this.body(o.p);
+    const P = this.pos(f.p);
+    const strikeY = P.y + s0.y * S;
+    const line = [B.lk.clone().lerp(B.rk, 0.5), B.hips, B.chest, B.head];
+    let T = strikeY <= line[0].y ? line[0] : line[3];
+    for (let i = 0; i < 3; i++) {
+      const a = line[i];
+      const b = line[i + 1];
+      if (strikeY >= a.y && strikeY <= b.y) { T = a.clone().lerp(b, (strikeY - a.y) / Math.max(1e-3, b.y - a.y)); break; }
+    }
+    const tAhead = (T.x - P.x) * opp.x + (T.z - P.z) * opp.y;
+    const tAcross = (T.x - P.x) * lx + (T.z - P.z) * lz;
+    const cA = Math.cos(aimOff);
+    const sA = Math.sin(aimOff);
+    const across = px * cA + pz * sA;
+    const ahead = -px * sA + pz * cA;
+    const want = Math.max(0.3, ahead) - 0.04;   // limb lands just inside the surface
     const lunge = def.lunge ?? 0.45;
-    const adjust = def.projectile ? 0 : THREE.MathUtils.clamp(d - want, -0.35, lunge);
+    const adjust = def.projectile ? 0 : THREE.MathUtils.clamp(tAhead - want, -0.35, lunge);
+    const sideStep = def.projectile ? 0 : THREE.MathUtils.clamp(tAcross - across, -0.7, 0.7);
     const tHit = (t0 - from) / ts;
 
     rig.play(id, { rootMotion: !def.air, rmScale, from, to: Math.min(dur, last + recover + 0.35), fadeIn: 0.05, fadeOut: 0.2, timeScale: ts });
@@ -1142,8 +1346,8 @@ class FightGame extends FightDirector {
     // linear moves only track briefly; homing ones until impact
     f.lockAim = false;
     f.trackUntil = this.time + tHit * (def.homing ? 1 : 0.3);
-    if (!def.air && Math.abs(adjust) > 0.02 && tHit > 0.01) {
-      f.vel.set(opp.x * adjust / tHit, opp.y * adjust / tHit);
+    if (!def.air && (Math.abs(adjust) > 0.02 || Math.abs(sideStep) > 0.02) && tHit > 0.01) {
+      f.vel.set((opp.x * adjust + lx * sideStep) / tHit, (opp.y * adjust + lz * sideStep) / tHit);
       f.velUntil = this.time + tHit;
     }
     if (def.invuln) f.invulnUntil = this.time + def.invuln;
@@ -1183,7 +1387,7 @@ class FightGame extends FightDirector {
       start: this.time, ch: this.time + 0.2, lastHitAt: this.time + (strikes[strikes.length - 1].t - from) / ts,
       level: 'mid', queued: null, connected: false
     };
-    f.yawTarget = THREE.MathUtils.clamp(-Math.atan2(strikes[0].hx, strikes[0].hz), -1.3, 1.3);
+    f.yawTarget = THREE.MathUtils.clamp(-Math.atan2(strikes[0].hx, strikes[0].hz) * 0.55, -0.6, 0.6);
     f.trackUntil = this.time + 0.1;
     this.sound('whoosh', 0.8);
     return true;
@@ -1253,12 +1457,25 @@ class FightGame extends FightDirector {
     // touching means the fist / foot meets the body surface (a little leeway for big
     // swings and for airborne bodies, which tumble fast)
     const reachPad = LIMB_R + 0.03 + (mv.power >= 3 ? 0.03 : 0) + (o.state === 'air' ? 0.1 : 0) + (mv.level === 'low' ? 0.06 : 0) + (mv.def.reach ? mv.def.reach - 1 : 0);
+    // the Head bone sits at the base of the skull: extend past it to the crown
+    const crown = B.head.clone().addScaledVector(B.head.clone().sub(B.chest).normalize(), 0.2);
     const segs = [
-      [B.head, B.chest, 0.11], [B.chest, B.hips, BODY_R], [B.hips, B.lk, 0.1], [B.lk, B.lf, 0.08], [B.hips, B.rk, 0.1], [B.rk, B.rf, 0.08],
+      [B.head, B.chest, 0.11], [crown, B.head, 0.12], [B.chest, B.hips, BODY_R], [B.hips, B.lk, 0.1], [B.lk, B.lf, 0.08], [B.hips, B.rk, 0.1], [B.rk, B.rf, 0.08],
       [B.lf, B.lt, 0.06], [B.rf, B.rt, 0.06]
     ];
-    for (const [a, b, r] of segs) {
-      if (segDist(eff, a, b) < r + reachPad) return eff.clone();
+    // Fast arcs travel ~15 cm a frame: test the path since last frame, not just the end
+    mv.prevEff = mv.prevEff || {};
+    const prev = mv.prevEff[s.bone] || eff.clone();
+    mv.prevEff[s.bone] = eff.clone();
+    const p = new THREE.Vector3();
+    for (let k = 0; k <= 3; k++) {
+      p.copy(prev).lerp(eff, k / 3);
+      // a head-height strike from a tall fighter still meets a shorter one's head
+      // (fighting-game hitboxes are scaled to the target, not the attacker)
+      if (mv.level !== 'low' && p.y > crown.y) p.y = Math.max(crown.y, p.y - 0.35);
+      for (const [a, b, r] of segs) {
+        if (segDist(p, a, b) < r + reachPad) return eff.clone();
+      }
     }
     return null;
   }
@@ -1353,6 +1570,7 @@ class FightGame extends FightDirector {
     else if (whiffPunish && power >= 2) this.popText(f.p, 'PUNISH', '#ffb03a');
 
     if (def.drain) { f.hp = Math.min(MAX_HP, f.hp + dmg * def.drain); this.syncHp(); this.popText(f.p, `+${Math.round(dmg * def.drain)} HP`, '#ff3b5c'); }
+    if (this.training) { o.hp = Math.max(1, o.hp); queueMicrotask(() => this.noteTraining(f, o, mv, dmg, counter)); }
     if (o.hp <= 0) return this.knockOut(o, f, mv, away);
     // armour: heavy styles shrug off light hits while winding up a big swing
     if (o.style?.armor && o.state === 'attack' && o.mv?.power >= 3 && power <= 2 && !def.launch) {

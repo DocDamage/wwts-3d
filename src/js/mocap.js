@@ -121,9 +121,23 @@ function analyzeClip(clip, rm, bones, entry) {
   const hip0 = p0.Hips.y;
   rm.hip0 = hip0;
   rm.chest0 = pairHeading(p0.LeftArm, p0.RightArm);
-  // (pose() reuses one buffer: take what we need from the first frame now)
-  const rest0 = {};
-  STRIKERS.forEach(n => { rest0[n] = Math.hypot(p0[n].x - p0.Hips.x, p0[n].z - p0.Hips.z); });
+  // (pose() reuses one buffer, so read the first frame before sampling more)
+  const rest0Pre = {};
+  STRIKERS.forEach(n => { rest0Pre[n] = Math.hypot(p0[n].x - p0.Hips.x, p0[n].z - p0.Hips.z); });
+  const rest0 = rest0Pre;
+  // average chest heading over the whole clip (idles sway; one frame isn't enough)
+  {
+    let sx = 0;
+    let sz = 0;
+    const N = 24;
+    for (let i = 0; i < N; i++) {
+      const p = pose((i / N) * clip.duration);
+      const h = pairHeading(p.LeftArm, p.RightArm);
+      sx += Math.sin(h);
+      sz += Math.cos(h);
+    }
+    rm.chestAvg = Math.atan2(sx, sz);
+  }
 
   // Reaction onset: when the head starts to move (hit clips have a beat of idle first)
   const head0 = p0.Head.clone();
@@ -211,6 +225,9 @@ function analyzeClip(clip, rm, bones, entry) {
     const q = p[n];
     const d = Math.hypot(q.x - p.Hips.x, q.z - p.Hips.z);
     let out = d - rest0[n] + bias(n);
+    // a fist cocked back behind the body is a wind-up, not a strike
+    const fwd = q.z - p.Hips.z;
+    if (fwd < 0 && !/Toe/.test(n)) out += fwd * 0.7;
     // a foot on the floor only counts when it sweeps far out (sweeps), not when stepping
     if (/Toe/.test(n) && q.y < hip0 * 0.15 && out < hip0 * 0.3) out -= hip0;
     return { d, out };
@@ -245,6 +262,27 @@ function analyzeClip(clip, rm, bones, entry) {
     hits = hits.map(t => Math.round(t * 100) / 100);
     rm.autoHits = hits;
   }
+  // Arcing kicks (roundhouse, spin and 360 sweeps) reach furthest out to the side, after
+  // the limb has already swept across the front: move the hit to where the extended limb
+  // is most in front of the body, which is where the opponent stands
+  const front = (t, n) => {
+    const p = pose(t);
+    return { f: (p[n].z - p.Hips.z) - 0.5 * Math.abs(p[n].x - p.Hips.x), out: reachOf(p, n).out };
+  };
+  hits = hits.map(t => {
+    const e = ext(t);
+    const p = pose(t);
+    const lateral = Math.abs(p[e.n].x - p.Hips.x) > Math.abs(p[e.n].z - p.Hips.z);
+    if (!lateral) return t;
+    let best = t;
+    let bestF = front(t, e.n).f;
+    // (roundhouses cross the front before the peak, back-spinning sweeps after it)
+    for (let tt = Math.max(0, t - 0.3); tt <= Math.min(dur, t + 0.3); tt += 1 / 60) {
+      const c = front(tt, e.n);
+      if (c.out > e.out * 0.6 && c.f > bestF) { bestF = c.f; best = tt; }
+    }
+    return Math.round(best * 100) / 100;
+  });
   rm.strikes = hits.map(t => {
     const e = ext(t);
     const p = pose(t);
